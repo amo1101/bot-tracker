@@ -3,46 +3,38 @@ import libvirt
 import libvirtaio
 import libxml2
 
-class SandboxContext:
-    def __init__(self, loop):
-        self.loop = loop
-        self.event_imp = libvirtaio.virEventRegisterAsyncIOImpl()
-        self.conn = libvirt.open("qemu:///system")
-
-    def gen_config(self, arch, name):
-        pass
-
-    def create_fs(self, arch, name):
-        pass
-
-    def destroy_fs(self, arch, name):
-        pass
-
-
 class Sandbox:
-    def __init__(self, context, arch, name):
+    def __init__(self, context, arch, parameter):
         self.context = context
         self.arch = arch
-        self.name = name
+        self.parameter = parameter
         self.dom = None
         self.dom_changed_event = asyncio.Event()
-
-    def _conn(self):
-        return self.context.conn
 
     def _life_cycle_cb(conn, dom, event, detail, dom_changed_event):
         if (event == libvirt.VIR_DOMAIN_EVENT_STARTED or event ==
             libvirt.VIR_DOMAIN_EVENT_STOPPED):
             dom_changed_event.set()
 
-    def create(self):
-        self.context.create_fs(self.arch, self.name)
-        config = self.context.gen_config()
-        self.dom = self._conn().createXML(config)
-
-    def fetch_log(self):
+    def _parepare_fs(self):
         pass
 
+    def _gen_config(self):
+        pass
+
+    def _destroy_fs(self):
+        pass
+
+    def _fetch_log(self):
+        pass
+
+    def create(self):
+        self._prepare_fs()
+        dom_xml = self._gen_config()
+        self.dom = self.context.conn.createXML(dom_xml)
+
     def destroy(self):
+        self._fetch_log()
+        self._destroy_fs()
         self.dom.destroy()
 

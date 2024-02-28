@@ -3,30 +3,31 @@ import libvirt
 import libvirtaio
 import libxml2
 
+# TODO
+class BotInfo:
+    pass
+
 class BotRunner:
-    def __init__(self, context, arch, name):
-        self.context = context
-        self.arch = arch
-        self.name = name
-        self.dom = None
-        self.dom_changed_event = asyncio.Event()
+    def __init__(self, bot_info):
+        self.bot_info = bot_info
+        self.sandbox = None
+        self.cnc_analzyer = None
+        self.attack_analzyer = None
+        self.live_capture = None
 
-    def _conn(self):
-        return self.context.conn
+    async def run(self):
+        self.sandbox = Sandbox()
+        self.sandbox.create()
 
-    def _life_cycle_cb(conn, dom, event, detail, dom_changed_event):
-        if (event == libvirt.VIR_DOMAIN_EVENT_STARTED or event ==
-            libvirt.VIR_DOMAIN_EVENT_STOPPED):
-            dom_changed_event.set()
+        # find cnc server, waiting for 300s
+        await self.live_capture.capture(self.cnc_analzyer, 300)
+        if self.cnc_analzyer.get_state():
+            return
 
-    def create(self):
-        self.context.create_fs(self.arch, self.name)
-        config = self.context.gen_config()
-        self.dom = self._conn().createXML(config)
-
-    def fetch_log(self):
-        pass
+        # enforce network policy
+        # observer attack
+        await self.live_capture.capture(self.attack_analzyer)
 
     def destroy(self):
-        self.dom.destroy()
+        pass
 

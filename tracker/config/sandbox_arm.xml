@@ -1,0 +1,21 @@
+<domain type='qemu'>
+  <name>openwrt-vm-arm</name>
+  <memory unit='KiB'>1048576</memory>
+  <vcpu placement='static'>1</vcpu>
+  <os>
+    <type arch='armv7l' machine='virt'>hvm</type>
+    <kernel>/home/frankwu/code/commands/vms/img/openwrt-armsr-armv7-generic-kernel.bin</kernel>
+    <cmdline>root=/dev/vda</cmdline>
+  </os>
+  <devices>
+    <disk type='file' device='disk'>
+      <driver name='qemu' type='raw'/>
+      <source file='/home/frankwu/code/commands/vms/img/openwrt-armsr-armv7-generic-ext4-rootfs.img'/>
+      <target dev='vda' bus='virtio'/>
+    </disk>
+    <interface type='network'>
+      <source network='mynet' portgroup='sandbox'/>
+      <filterref filter='test-eth0'/>
+    </interface>
+  </devices>
+</domain>
