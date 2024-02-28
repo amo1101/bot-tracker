@@ -19,7 +19,7 @@ class Sandbox:
     def _parepare_fs(self):
         pass
 
-    def _gen_config(self):
+    def _get_config(self):
         pass
 
     def _destroy_fs(self):
@@ -32,6 +32,9 @@ class Sandbox:
         self._prepare_fs()
         dom_xml = self._gen_config()
         self.dom = self.context.conn.createXML(dom_xml)
+
+    def apply_net_filter(self, fid, **kwargs):
+        pass
 
     def destroy(self):
         self._fetch_log()

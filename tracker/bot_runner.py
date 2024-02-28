@@ -14,20 +14,41 @@ class BotRunner:
         self.cnc_analzyer = None
         self.attack_analzyer = None
         self.live_capture = None
+        self.cnc_info = None
+
+    def _report_cnc(self):
+        pass
+
+    def _report_attack(self):
+        pass
+
+    async def _find_cnc(self):
+        async for packet in self.live_capture.capture(300):
+            if self.cnc_analzyer.analyze(packet):
+                self._report_cnc()
+
+    async def _observe_attack(self):
+        async for packet in self.live_capture.capture():
+            if self.attack_analzyer.analyze(packet):
+                self._report_attack()
 
     async def run(self):
         self.sandbox = Sandbox()
         self.sandbox.create()
 
-        # find cnc server, waiting for 300s
-        await self.live_capture.capture(self.cnc_analzyer, 300)
-        if self.cnc_analzyer.get_state():
+        # find cnc server
+        await self._find_cnc()
+        if self.cnc_info is None:
+            self.destroy()
             return
 
         # enforce network policy
-        # observer attack
-        await self.live_capture.capture(self.attack_analzyer)
+        self.apply_net_filter()
+
+        # observer attacks
+        await self._observe_attack()
 
     def destroy(self):
-        pass
+        self.live_capture.stop()
+        self.sandbox.destroy()
 

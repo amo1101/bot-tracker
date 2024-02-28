@@ -8,6 +8,8 @@ class PacketCapture:
         pass
 
     def capture(self, timeout = 0):
-        # TODO: use pyshark to capture continuously
-        # Have to made some modification to pyshark capture.py
+        pass
+
+    def stop(self):
+        pass
 
