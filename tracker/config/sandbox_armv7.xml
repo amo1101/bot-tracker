@@ -15,7 +15,6 @@
     </disk>
     <interface type='network'>
       <source network='mynet' portgroup='sandbox'/>
-      <filterref filter='test-eth0'/>
     </interface>
   </devices>
 </domain>
