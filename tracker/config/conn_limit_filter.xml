@@ -1,8 +1,17 @@
 <filter name='sandbox-conn-limit-filter'>
-  <!-- allow connection limit, enforced based on default filter -->
+  <!-- enforced based on cnc filter -->
+  <filterref filter='sandbox-cnc-filter'/>
+  
+  <!-- discard scan traffic based on target port -->
+  <rule action='drop' direction='out' priority='300'>
+    <tcp dstportstart='$SCAN_PORT'/>
+  </rule>
+  
+  <!-- allow connection limit -->
   <rule action='drop' direction='out' priority='400'>
     <tcp connlimit-above='$CONN_LIMIT'/>
   </rule>
+  
   <!-- allow outbound tcp connections, possible L7 attacks -->
   <rule action='accept' direction='out' priority='500'>
     <tcp/>
