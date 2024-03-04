@@ -1,0 +1,6 @@
+<filter name='sandbox-scan-filter'>
+  <!-- discard scan traffic based on target port -->
+  <rule action='drop' direction='out' priority='300'>
+    <tcp dstportstart='$SCAN_PORT'/>
+  </rule>
+</filter>

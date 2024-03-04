@@ -1,0 +1,10 @@
+<filter name='sandbox-conn-limit-filter'>
+  <!-- allow connection limit, enforced based on default filter -->
+  <rule action='drop' direction='out' priority='400'>
+    <tcp connlimit-above='$CONN_LIMIT'/>
+  </rule>
+  <!-- allow outbound tcp connections, possible L7 attacks -->
+  <rule action='accept' direction='out' priority='500'>
+    <tcp/>
+  </rule>
+</filter>

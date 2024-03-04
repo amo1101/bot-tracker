@@ -1,3 +1,4 @@
+<!-- dns might be added later -->
 <network>
   <name>mynet</name>
   <forward mode='nat'/>

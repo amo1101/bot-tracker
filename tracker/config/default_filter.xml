@@ -1,0 +1,20 @@
+<filter name='sandbox-default-filter'>
+  <!-- Allow dhcp, arp -->
+  <filterref filter='allow-dhcp'/>
+  <filterref filter='allow-arp'/>
+
+  <!-- allow scp to malware repo vm -->
+  <rule action='accept' direction='out' priority='300'>
+    <tcp dstportstart='22' dstipaddr='$MAL_REPO_IP'/>
+  </rule>
+
+  <!-- enable outgoing DNS lookups using UDP -->
+  <rule action='accept' direction='out' priority='500'>
+    <udp dstportstart='53'/>
+  </rule>
+
+  <!-- drop all other traffic -->
+  <rule action='drop' direction='inout' priority='1000'>
+    <all/>
+  </rule>
+</filter>

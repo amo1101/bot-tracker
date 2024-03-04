@@ -1,0 +1,12 @@
+<filterbinding>
+  <owner>
+    <name>bot-tracker</name>
+    <uuid>f4a73a90-d9c9-11ee-8795-3f7e75dc3eca</uuid>
+  </owner>
+  <portdev name='vnet0'/>
+  <mac address='52:54:00:29:c5:04'/>
+  <filterref filter='sandbox-cnc-filter'>
+    <parameter name='CNC_IP' value='192.168.122.1'/>
+  </filterref>
+</filterbinding>
+

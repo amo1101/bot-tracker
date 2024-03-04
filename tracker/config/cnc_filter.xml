@@ -1,0 +1,10 @@
+<filter name='sandbox-cnc-filter'>
+  <!-- allow cnc communication, enforced based on default filter -->
+  <!-- give high priority so is not blocked by connection limitation -->
+  <rule action='accept' direction='out' priority='300'>
+    <tcp dstipaddr='$CNC_IP'/>
+  </rule>
+  <rule action='accept' direction='in' priority='300'>
+    <tcp srcipaddr='$CNC_IP'/>
+  </rule>
+</filter>
