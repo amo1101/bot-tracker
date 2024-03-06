@@ -26,7 +26,7 @@ class Sandbox:
         self.cnc_ip = "192.168.1.250"
         self.conn_limit = "10"
         self.mal_repo_ip = "192.168.1.200"
-        self.scan_port = "[23,2323]"  #TODO
+        self.scan_port = "23"  #TODO
         self.filter_binding = None
 
     @staticmethod
