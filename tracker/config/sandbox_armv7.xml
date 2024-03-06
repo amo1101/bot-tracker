@@ -15,9 +15,6 @@
     </disk>
     <interface type='network'>
       <source network='mynet' portgroup='sandbox'/>
-      <filterref filter='sandbox-default-filter'>
-        <parameter name='MAL_REPO_IP' value='192.168.122.1'/>
-      </filterref>
     </interface>
   </devices>
 </domain>

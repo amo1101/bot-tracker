@@ -19,7 +19,15 @@ class Sandbox:
         self.parameter = None
         self.dom = None
         #  self.dom_changed_event = asyncio.Event()
+        self.ifinfo = None
+        self.port_dev = None
+        self.mac_address = ""
         self.fs = None
+        self.cnc_ip = "192.168.1.250"
+        self.conn_limit = "10"
+        self.mal_repo_ip = "192.168.1.200"
+        self.scan_port = "[23,2323]"  #TODO
+        self.filter_binding = None
 
     @staticmethod
     def _life_cycle_cb(conn, dom, event, detail, dom_changed_event):
@@ -79,12 +87,60 @@ class Sandbox:
         l.debug("domain state %d, reason %d...", self.dom.state()[0],
                 self.dom.state()[1])
 
-    def apply_net_filter(self, fid, **kwargs):
-        pass
+    # TODO: replace with asyncio
+    def _get_ifinfo(self):
+        if self.port_dev is None:
+            ifaces = self.dom.interfaceAddresses(libvirt.VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_LEASE)
+            while len(ifaces) == 0:
+                print("sleep 2 secs...")
+                time.sleep(2)
+                ifaces = self.dom.interfaceAddresses(libvirt.VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_LEASE)
+            print("ifaces are ....")
+            for k,v in ifaces.items():
+                print(f"{k}:{v}")
+            self.port_dev = list(ifaces.keys())[0]
+            self.mac_address = ifaces[self.port_dev]['hwaddr']
+            l.debug("get port_dev %s, mac_address: %s", self.port_dev,
+                    self.mac_address)
+
+    def apply_nwfilter(self, filter_name):
+        self._get_ifinfo()
+        # It's ok to give a superset of parameters, SandboxContext will choose
+        args = \
+        {
+            sandbox_context.SandboxNWFilterParameter.PORT_DEV.value:
+                self.port_dev,
+            sandbox_context.SandboxNWFilterParameter.MAC_ADDR.value:
+                self.mac_address,
+            sandbox_context.SandboxNWFilterParameter.MAL_REPO_IP.value:
+               self.mal_repo_ip,
+            sandbox_context.SandboxNWFilterParameter.CNC_IP.value:
+               self.cnc_ip,
+            sandbox_context.SandboxNWFilterParameter.CONN_LIMIT.value:
+               self.conn_limit,
+            sandbox_context.SandboxNWFilterParameter.SCAN_PORT.value:
+               self.scan_port
+        }
+
+        if self.filter_binding:
+            self.filter_binding.delete()
+            self.filter_binding = None
+
+        self.filter_binding = self.context.apply_nwfilter(filter_name, **args)
+        if not self.filter_binding:
+            l.error("failed to apply nw filter")
+            return False
+
+        l.debug("filter %s is applied", filter_name.value)
+        return True
+
 
     def destroy(self):
         self._fetch_log()
         self._destroy_fs()
+        if self.filter_binding:
+            l.debug("delete filter binding...")
+            self.filter_binding.delete()
         self.dom.destroy()
         l.debug("dom destroyed %s", self.name)
 

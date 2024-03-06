@@ -7,6 +7,7 @@ import logging
 import time
 import sys
 from sandbox_context import SandboxContext
+from sandbox_context import SandboxNWFilter
 from sandbox import Sandbox
 
 #  now = datetime.now()
@@ -25,6 +26,9 @@ def test():
     ctx.start()
     sbx = Sandbox(ctx, "bot", "armv7")
     sbx.start()
+    sbx.apply_nwfilter(SandboxNWFilter.DEFAULT)
+    sbx.apply_nwfilter(SandboxNWFilter.CNC)
+    sbx.apply_nwfilter(SandboxNWFilter.CONN_LIMIT)
     sbx.destroy()
     ctx.destroy()
 
