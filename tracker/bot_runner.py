@@ -2,6 +2,7 @@ import asyncio
 import libvirt
 import libvirtaio
 import libxml2
+import analyzer
 
 # TODO
 class BotInfo:

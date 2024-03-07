@@ -17,7 +17,7 @@ class CnCAnalyzer(PacketAnalyzer):
     def __init__(self):
         pass
 
-    def analyze(self, packet):
+    def analyze(self, packet, count, timeout):
         pass
 
     def get_result(self):
@@ -27,7 +27,7 @@ class AttackAnalyzer(PacketAnalyzer):
     def __init__(self):
         pass
 
-    def analyze(self, packet):
+    def analyze(self, packet, count, timeout):
         pass
 
     def get_result(self):
