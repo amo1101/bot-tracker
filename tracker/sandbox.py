@@ -23,10 +23,6 @@ class Sandbox:
         self.port_dev = None
         self.mac_address = ""
         self.fs = None
-        self.cnc_ip = "192.168.1.250"
-        self.conn_limit = "10"
-        self.mal_repo_ip = "192.168.1.200"
-        self.scan_port = "23"  #TODO
         self.filter_binding = None
 
     @staticmethod
@@ -88,7 +84,7 @@ class Sandbox:
                 self.dom.state()[1])
 
     # TODO: replace with asyncio
-    def _get_ifinfo(self):
+    def get_ifinfo(self):
         if self.port_dev is None:
             ifaces = self.dom.interfaceAddresses(libvirt.VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_LEASE)
             while len(ifaces) == 0:
@@ -102,31 +98,35 @@ class Sandbox:
             self.mac_address = ifaces[self.port_dev]['hwaddr']
             l.debug("get port_dev %s, mac_address: %s", self.port_dev,
                     self.mac_address)
+        return (self.port_dev, self.mac_address)
 
-    def apply_nwfilter(self, filter_name):
-        self._get_ifinfo()
+    def apply_nwfilter(self, filter_name, **kwargs):
+        self.get_ifinfo()
         # It's ok to give a superset of parameters, SandboxContext will choose
-        args = \
-        {
-            sandbox_context.SandboxNWFilterParameter.PORT_DEV.value:
-                self.port_dev,
-            sandbox_context.SandboxNWFilterParameter.MAC_ADDR.value:
-                self.mac_address,
-            sandbox_context.SandboxNWFilterParameter.MAL_REPO_IP.value:
-               self.mal_repo_ip,
-            sandbox_context.SandboxNWFilterParameter.CNC_IP.value:
-               self.cnc_ip,
-            sandbox_context.SandboxNWFilterParameter.CONN_LIMIT.value:
-               self.conn_limit,
-            sandbox_context.SandboxNWFilterParameter.SCAN_PORT.value:
-               self.scan_port
-        }
+        #  args = \
+        #  {
+            #  sandbox_context.SandboxNWFilterParameter.PORT_DEV.value:
+                #  self.port_dev,
+            #  sandbox_context.SandboxNWFilterParameter.MAC_ADDR.value:
+                #  self.mac_address,
+            #  sandbox_context.SandboxNWFilterParameter.MAL_REPO_IP.value:
+               #  self.mal_repo_ip,
+            #  sandbox_context.SandboxNWFilterParameter.CNC_IP.value:
+               #  self.cnc_ip,
+            #  sandbox_context.SandboxNWFilterParameter.CONN_LIMIT.value:
+               #  self.conn_limit,
+            #  sandbox_context.SandboxNWFilterParameter.SCAN_PORT.value:
+               #  self.scan_port
+        #  }
 
         if self.filter_binding:
             self.filter_binding.delete()
             self.filter_binding = None
 
-        self.filter_binding = self.context.apply_nwfilter(filter_name, **args)
+        self.filter_binding = self.context.apply_nwfilter(filter_name,
+                                                          port_dev=self.port_dev,
+                                                          mac_addr=self.mac_address,
+                                                          **kwargs)
         if not self.filter_binding:
             l.error("failed to apply nw filter")
             return False

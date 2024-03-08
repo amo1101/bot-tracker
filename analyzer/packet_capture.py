@@ -5,7 +5,7 @@ import libxml2
 import pyshark
 
 class AsyncLiveCapture(LiveCapture):
-    async def sniff_continuously(self, packet_count):
+    async def sniff_continuously(self, packet_count=0):
         tshark_process = await self._get_tshark_process(packet_count=packet_count)
         parser = self._setup_tshark_output_parser()
         packets_captured = 0

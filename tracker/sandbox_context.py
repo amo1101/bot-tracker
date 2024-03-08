@@ -17,13 +17,13 @@ class SandboxNWFilter(Enum):
     CNC = "sandbox-cnc-filter"
     CONN_LIMIT = "sandbox-conn-limit-filter"
 
-class SandboxNWFilterParameter(Enum):
-    PORT_DEV = "portdev"
-    MAC_ADDR = "mac"
-    MAL_REPO_IP = "MAL_REPO_IP"
-    CNC_IP = "CNC_IP"
-    SCAN_PORT = "SCAN_PORT"
-    CONN_LIMIT = "CONN_LIMIT"
+#  class SandboxNWFilterParameter(Enum):
+    #  PORT_DEV = "portdev"
+    #  MAC_ADDR = "mac"
+    #  MAL_REPO_IP = "MAL_REPO_IP"
+    #  CNC_IP = "CNC_IP"
+    #  SCAN_PORT = "SCAN_PORT"
+    #  CONN_LIMIT = "CONN_LIMIT"
 
 class SandboxContext:
     def __init__(self):
@@ -123,19 +123,27 @@ class SandboxContext:
         if filter_name not in SandboxNWFilter:
             return ""
 
-        para_to_check = [SandboxNWFilterParameter.PORT_DEV.value,
-                         SandboxNWFilterParameter.MAC_ADDR.value]
+        # key: key of input parameter
+        # value: [xpath, attr_to_match, atrr_to_set]
+        para_to_check = \
+        {
+            "port_dev":["//portdev","name"],
+            "mac_addr":["//mac","address"],
+            "mal_repo_ip":["//filterref/parameter[@MAL_REPO_IP]","value"],
+            "cnc_ip":["//filterref/parameter[@CNC_IP]","value"],
+            "scan_ports":["//filterref/parameter[@SCAN_PORT]","value"],
+            "conn_limit":["//filterref/parameter[@CONN_LIMIT]","value"]
+        }
 
         if filter_name == SandboxNWFilter.DEFAULT:
-            para_to_check.append(SandboxNWFilterParameter.MAL_REPO_IP.value)
+            del para_to_check["cnc_ip"]
+            del para_to_check["scan_ports"]
+            del para_to_check["conn_limit"]
         elif filter_name == SandboxNWFilter.CNC:
-            para_to_check.append(SandboxNWFilterParameter.MAL_REPO_IP.value)
-            para_to_check.append(SandboxNWFilterParameter.CNC_IP.value)
+            del para_to_check["scan_ports"]
+            del para_to_check["conn_limit"]
         else:
-            para_to_check.append(SandboxNWFilterParameter.MAL_REPO_IP.value)
-            para_to_check.append(SandboxNWFilterParameter.CNC_IP.value)
-            para_to_check.append(SandboxNWFilterParameter.SCAN_PORT.value)
-            para_to_check.append(SandboxNWFilterParameter.CONN_LIMIT.value)
+            pass
 
         if not all(p in kwargs for p in para_to_check):
             l.error("some parameter is not provided for the nwfilter binding \
@@ -146,23 +154,13 @@ class SandboxContext:
                   self.sandbox_nwfilter_registry[filter_name.value][1], 'r') as file:
             bind_xml = file.read()
 
-        # set portdev name
+        # set parameters
         tree = etree.fromstring(bind_xml)
-        portdev_element = tree.xpath(f"//portdev")[0]
-        portdev_element.set("name",
-                            kwargs[SandboxNWFilterParameter.PORT_DEV.value])
-
-        # set mac address
-        mac_element = tree.xpath("//mac")[0]
-        mac_element.set("address",
-                        kwargs[SandboxNWFilterParameter.MAC_ADDR.value])
-
-        # set filter parameters
-        for p in para_to_check[2:]:
-            if p in kwargs:
-                para_element = tree.xpath(f"//filterref/parameter[@name='{p}']")[0]
+        for k,v in para_to_check:
+            if k in kwargs:
+                para_element = tree.xpath(v[0])[0]
                 if para_element is not None:
-                    para_element.set("value", kwargs[p])
+                    para_element.set(v[1], kwargs[k])
 
         return etree.tostring(tree, encoding='unicode')
 
