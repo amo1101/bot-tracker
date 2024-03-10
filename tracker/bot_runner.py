@@ -1,9 +1,11 @@
-import asynciimport libvirt
+import asyncio
+import libvirt
 import libvirtaio
 import os
 import sys
 from functools import partial
-from aiomultiprocess import Pool
+#  from aiomultiprocess import Pool
+from concurrent.futures import ProcessPoolExecutor
 import analyzer
 from sandbox_context import SandboxNWFilter, SandboxContext
 
@@ -18,7 +20,7 @@ class BotInfo:
 class BotRunner:
 
     # use process pool for packet analyzing
-    analyzer_pool = Pool(process=1)
+    analyzer_executor = ProcessPoolExecutor(max_workers=1)
 
     def __init__(self, bot_info, sandbox_ctx, run_base):
         self.bot_info = bot_info
@@ -29,6 +31,7 @@ class BotRunner:
         self.live_capture = None
         self.cnc_info = None
         self.run_dir = run_base + os.sep + bot_info.sha256
+        self.cnc_probing_time = 300
         self.cnc_info = "192.168.1.250"
         self.conn_limit = conn_limit
         self.mal_repo_ip = "192.168.1.200"
@@ -47,62 +50,83 @@ class BotRunner:
     def _init_capture(self, mac_addr):
         if self.live_capture is None:
             iface = "virbr1" #TODO: should be fetched from context
-            filter_str = f"ether src {mac_addr} or ether dst {mac_addr}"
-            out_file = self.run_dir + os.sep + "capture.pcap"
+            bpf_filter = f"ether src {mac_addr} or ether dst {mac_addr}"
+            output_file = self.run_dir + os.sep + "capture.pcap"
             self.live_capture = AsyncLiveCapture(interface=iface,
-                                                 bpf_filter=filter_str,
-                                                 output_file=out_file)
+                                                 bpf_filter=bpf_filter,
+                                                 output_file=output_file)
 
     def _destroy_capture(self):
-        pass
+        self.live_capture.close()
 
     async def _find_cnc(self):
-        async for packet in self.live_capture.sniff_continuously():
-            await BotRunner.analyzer_pool.map(self.cnc_analzyer.analyze, packet)
+        loop = asyncio.get_running_loop()
+        try:
+            async for packet in self.live_capture.sniff_continuously():
+                await loop.run_in_executor(BotRunner.analyzer_executor,
+                                           self.cnc_analzyer.analyze,
+                                           packet)
+        except TimeoutError:
+            # TODO: Need cancel task in pool?
+            l.debug("cnc probing time out.")
             cnc_info = self.cnc_analzyer.get_result()
-            if cnc_info is not None:
-                self.cnc_info = "cnc"
-                self._report_cnc(cnc_info)
-                break;
+            self._report_cnc(cnc_info)
+        except asyncio.CancelledError:
+            l.debug("cnc probing cancelled.")
+        finally:
+            pass
 
     async def _observe_attack(self):
-        async for packet in self.live_capture.sniff_continuously():
-            await BotRunner.analyzer_pool.map(self.attack_analzyer.analyze, packet)
-            attack_info = self.attack_analzyer.get_result()
-            if attack_info is not None:
-                self._report_attack(attack_info)
+        loop = asyncio.get_running_loop()
+        try:
+            async for packet in self.live_capture.sniff_continuously():
+                await loop.run_in_executor(BotRunner.analyzer_executor,
+                                           self.attack_analzyer.analyze,
+                                           packet)
+                attack_info = self.attack_analzyer.get_result()
+                if attack_info is not None:
+                    self._report_attack(attack_info)
+        except asyncio.CancelledError:
+            # TODO: Need cancel task in pool?
+            l.debug("observer task cancelled.")
+        finally:
+            pass
 
     async def run(self):
-        self._create_run_dir()
-        self.sandbox = Sandbox(self.sandbox_ctx, self.bot_info.sha256,
-                               self.bot_info.arch)
-        self.sandbox.start()
-        port_dev, mac_addr = self.sandbox.get_ifinfo()
+        try:
+            self._create_run_dir()
+            self.sandbox = Sandbox(self.sandbox_ctx, self.bot_info.sha256,
+                                   self.bot_info.arch)
+            self.sandbox.start()
+            _, mac_addr = self.sandbox.get_ifinfo()
 
-        # set default nwfiter
-        self.sandbox.apply_nwfilter(SandboxNWFilter.DEFAULT,
-                                    mal_repo_ip=self.mal_repo_ip)
-        self._init_capture(mac_addr)
+            # set default nwfiter
+            self.sandbox.apply_nwfilter(SandboxNWFilter.DEFAULT,
+                                        mal_repo_ip=self.mal_repo_ip)
+            self._init_capture(mac_addr)
 
-        # find cnc server
-        await self._find_cnc()
-        if self.cnc_info is None:
-            self.destroy()
-            return
+            # find cnc server
+            find_cnc_task = asyncio.create_task(self._find_cnc())
+            await self._find_cnc()
+            if self.cnc_info is None:
+                self.destroy()
+                return
 
-        # enforce nwfilter
-        nwfilter_type = SandboxNWFilter.CNC
-        args = {"mal_repo_ip": self.mal_repo_ip,
-                "cnc_ip": self.cnc_info}
-        if self.conn_limit > 0:
-            nwfilter_type = SandboxNWFilter.CONN_LIMIT
-            args["conn_limit"] = str(self.conn_limit)
-            args["scan_ports"] = self.scan_ports
+            # enforce nwfilter
+            nwfilter_type = SandboxNWFilter.CNC
+            args = {"mal_repo_ip": self.mal_repo_ip,
+                    "cnc_ip": self.cnc_info}
+            if self.conn_limit > 0:
+                nwfilter_type = SandboxNWFilter.CONN_LIMIT
+                args["conn_limit"] = str(self.conn_limit)
+                args["scan_ports"] = self.scan_ports
 
-        self.sandbox.apply_nwfilter(nwfilter_type,**args)
+            self.sandbox.apply_nwfilter(nwfilter_type,**args)
 
-        # observer attacks
-        await self._observe_attack()
+            # observer attacks
+            await self._observe_attack()
+        except asyncio.CancelledError:
+
 
     def destroy(self):
         self.live_capture.stop()
