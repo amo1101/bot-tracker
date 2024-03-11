@@ -21,53 +21,39 @@ class capture:
         finally:
            print('gen finilized')
 
-analyzerContextPool = {}
+#  analyzerContextPool = {}
 
-def reset_analyzer_context_pool():
+def init_worker():
     signal.signal(signal.SIGINT, signal.SIG_IGN)
-    global analyzerContextPool
-    analyzerContextPool.clear()
+    #  global analyzerContextPool
+    #  analyzerContextPool.clear()
 
-class analyzerContext:
+class analyzerReport:
     def __init__(self):
         self.result = 0
 
 class analyzer:
-    def __init__(self, uid):
-        self.uid = uid
-    def _get_context(self):
-        global analyzerContextPool
-        if self.uid not in analyzerContextPool:
-            analyzerContextPool[self.uid] = analyzerContext()
-            print(f'analzyer ctx for {self.uid} created')
-        return analyzerContextPool[self.uid]
-
-    def _set_context(self, ctx):
-        global analyzerContextPool
-        analyzerContextPool[self.uid] = ctx
-
+    def __init__(self):
+        self.report = analyzerReport()
 
     def analyze(self, n):
-        ctx = self._get_context()
-        print(f"analyze {n} when result: {ctx.result}")
+        print(f"analyze {n} when result: {self.report.result}")
         time.sleep(0.5)
-        ctx.result += n
-        self._set_context(ctx)
-        print(f"analyze result: {ctx.result}")
-        return ctx.result
+        self.report.result += n
+        print(f"analyze result: {self.report.result}")
+        return self.report
 
 class test:
-    executor = ProcessPoolExecutor(max_workers=1,
-                                   initializer=reset_analyzer_context_pool)
+    executor = ProcessPoolExecutor(max_workers=2,
+                                   initializer=init_worker)
     def __init__(self, name):
         self.name = name
         self.tasks = set()
         self.gen = capture()
-        self.analyzer = analyzer(name)
+        self.analyzer = analyzer()
 
     async def find_cnc(self):
         res = None
-        print(f'analzyer oid is {self.analyzer.uid}')
         try:
             loop = asyncio.get_event_loop()
             #  loop.set_debug(True)
@@ -80,13 +66,14 @@ class test:
                 res = await loop.run_in_executor(test.executor,
                                            self.analyzer.analyze,
                                            n)
-                print(f'{self.name}-cnc, result {res}')
+                self.analyzer.report = res
+                print(f'{self.name}-cnc, result {res.result}')
         #  except asyncio.TimeoutError:
             #  print(f'{self.name}-cnc-timeout, result {self.analyzer.get_result()}')
         #  except asyncio.CancelledError:
             #  print(f'{self.name}-cnc-cancelled, result {self.analyzer.get_result()}')
         finally:
-            print(f'{self.name}-cnc-finally, result {res}')
+            print(f'{self.name}-cnc-finally, result {res.result}')
 
     async def find_attack(self):
         res = None
@@ -100,7 +87,8 @@ class test:
                 res = await loop.run_in_executor(test.executor,
                                            self.analyzer.analyze,
                                            n)
-                print(f'{self.name}-attack result {res}')
+                self.analyzer.report = res
+                print(f'{self.name}-attack result {res.result}')
         finally:
             pass
 
@@ -132,7 +120,7 @@ class test_sche:
                     t = asyncio.create_task(obj.run(), name=tn)
                     self.tasks[tn] = [t, obj]
 
-                await asyncio.sleep(1)
+                await asyncio.sleep(100)
                 self.count += 1
         except asyncio.CancelledError:
             print('sched cancelled')
