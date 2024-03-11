@@ -9,6 +9,7 @@ import sys
 from sandbox_context import SandboxContext
 from sandbox_context import SandboxNWFilter
 from sandbox import Sandbox
+from scheduler import Scheduler
 
 #  now = datetime.now()
 #  current_time = now.strftime("%m-%d-%Y-%H_%M_%S")
@@ -16,10 +17,11 @@ logging.basicConfig(format='%(asctime)s-%(name)s-%(levelname)s-%(message)s',
                     datefmt='%d-%b-%y %H:%M:%S', level = logging.DEBUG)
 l = logging.getLogger(__name__)
 
-async def main(arguments = None):
-    sandbox_context = SandboxContext()
-    bot_scheduler = Scheduler()
-    await bot_scheduler.checkpoint()
+async def async_main(arguments = None):
+    sandbox_ctx = SandboxContext()
+    sandbox_ctx.start()
+    scheduler = Scheduler(sandbox_ctx)
+    await scheduler.checkpoint()
 
 def test():
     ctx = SandboxContext()
@@ -33,6 +35,6 @@ def test():
     ctx.destroy()
 
 if __name__ == "__main__":
-    #  asyncio.run(main())
-    test()
+    asyncio.run(async_main())
+    #  test()
 
