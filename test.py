@@ -5,6 +5,7 @@ import os
 import sys
 import asyncio
 import signal
+from datetime import datetime, timedelta
 from concurrent.futures import ProcessPoolExecutor
 
 class capture:
@@ -118,15 +119,16 @@ class test_sche:
                     tn = f'task-{self.count/5}'
                     obj = test(tn)
                     t = asyncio.create_task(obj.run(), name=tn)
-                    self.tasks[tn] = [t, obj]
+                    self.tasks[t] = obj
+                    t.add_done_callback(lambda t: print(f'del {t.get_name()}'))
 
-                await asyncio.sleep(100)
+                await asyncio.sleep(1)
                 self.count += 1
         except asyncio.CancelledError:
             print('sched cancelled')
             for k,v in self.tasks.items():
-                if not v[0].done():
-                    v[0].cancel()
+                if not k.done():
+                    k.cancel()
                 else:
                     print(f"task {k} is done, no need to cancel")
 
@@ -140,7 +142,25 @@ async def async_main():
     except asyncio.CancelledError:
         print('User cancelled async main')
 
+def test_time():
+    td = timedelta(days=0, hours=0, minutes=0, seconds=30)
+    t1 = datetime.now()
+    print(f't1: {t1}')
+
+    while True:
+        time.sleep(2)
+        t2 = datetime.now()
+        print(f't2: {t2}')
+        tdiff = t2 - t1
+        print(f'tdiff: {tdiff}')
+        if tdiff > td:
+            print('time is up')
+            break
+        else:
+            print(f'time left: \n{td-tdiff}')
+
 if __name__ == '__main__':
+    #  test_time()
     try:
         asyncio.run(async_main())
     except KeyboardInterrupt:

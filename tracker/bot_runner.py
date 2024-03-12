@@ -4,6 +4,7 @@ import libvirtaio
 import os
 import sys
 import logging
+from datetime import datetime
 #  from aiomultiprocess import Pool
 from concurrent.futures import ProcessPoolExecutor
 from packet_analyzer import *
@@ -45,6 +46,9 @@ class BotRunner:
         self.conn_limit = conn_limit
         self.mal_repo_ip = "192.168.1.200"
         self.scan_ports = "23"  #TODO
+        self.start_time = None
+        self.dormant_start_time = None
+        self.observe_start_time = None
 
     def _create_log_dir(self):
         if not os.path.exists(self.log_base):
@@ -88,13 +92,19 @@ class BotRunner:
             pass
 
     def dormant_duration(self):
-        return 0
+        return datetime.now() - self.dormant_start_time
 
     def observe_duration(self):
-        return 0
+        return datetime.now() - self.observe_start_time
 
     async def run(self):
         try:
+            #TODO
+            self.start_time = datetime.now()
+            self.dormant_start_time = datetime.now()
+            self.observe_start_time = datetime.now()
+
+            l.debug(f'Bot runner [{self.bot_info.sha256}] started at {self.start_time}')
             self._create_log_dir()
             self.sandbox = Sandbox(self.sandbox_ctx, self.bot_info.sha256,
                                    self.bot_info.arch)
@@ -133,10 +143,11 @@ class BotRunner:
             await self._observe_attack()
 
         except asyncio.CancelledError:
-            l.debug("Bot runner cancelled")
+            l.debug(f"Bot[{self.bot_info.sha256}] runner cancelled")
             self.destroy()
 
     def destroy(self):
+        l.debug(f"Bot[{self.bot_info.sha256}] runner destroyed")
         self.live_capture.close()
         self.sandbox.destroy()
 
