@@ -11,6 +11,8 @@ from sandbox_context import SandboxNWFilter
 from sandbox import Sandbox
 from scheduler import Scheduler
 
+CUR_DIR = os.path.dirname(os.path.realpath(__file__))
+
 #  now = datetime.now()
 #  current_time = now.strftime("%m-%d-%Y-%H_%M_%S")
 logging.basicConfig(format='%(asctime)s-%(name)s-%(levelname)s-%(message)s',
@@ -35,6 +37,9 @@ def test():
     ctx.destroy()
 
 if __name__ == "__main__":
-    asyncio.run(async_main())
+    try:
+        asyncio.run(async_main())
+    except KeyboardInterrupt:
+        l.debug('Interrupted by user')
     #  test()
 

@@ -1,12 +1,15 @@
 import sys
 import os
+import logging
+
+l = logging.getLogger(__name__)
 
 class AnalyzerReport:
     def __init__(self):
         self.state = 0 # 1 ready, otherwise not ready
 
     def is_ready(self):
-        pass
+        return True
 
     def persist(self):
         pass
@@ -14,9 +17,18 @@ class AnalyzerReport:
 class CnCReport(AnalyzerReport):
     def __init__(self):
         self.cnc_ip = None
+        self.packet = None
+
+    def persist(self):
+        #  l.debug(f'cnc report persisted: {self.packet}')
+        pass
 
 class AttackReport(AnalyzerReport):
     def __init__(self):
+        self.packet = None
+
+    def persist(self):
+        #  l.debug(f'attack report persisted: {self.packet}')
         pass
 
 class PacketAnalyzer:
@@ -31,7 +43,9 @@ class CnCAnalyzer(PacketAnalyzer):
         self.report = CnCReport()
 
     def analyze(self, packet):
-        pass
+        #  l.debug('analyzing packet')
+        self.report.packet = packet
+        return self.report
 
 class AttackAnalyzer(PacketAnalyzer):
     def __init__(self, cnc_report):
@@ -39,4 +53,5 @@ class AttackAnalyzer(PacketAnalyzer):
         self.report = AttackReport()
 
     def analyze(self, packet):
-        pass
+        self.report.packet = packet
+        return self.report

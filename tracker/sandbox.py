@@ -123,6 +123,7 @@ class Sandbox:
             self.filter_binding.delete()
             self.filter_binding = None
 
+        l.debug(f'filter: {filter_name},kwargs: {kwargs}')
         self.filter_binding = self.context.apply_nwfilter(filter_name,
                                                           port_dev=self.port_dev,
                                                           mac_addr=self.mac_address,

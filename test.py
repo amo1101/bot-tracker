@@ -74,7 +74,7 @@ class test:
         #  except asyncio.CancelledError:
             #  print(f'{self.name}-cnc-cancelled, result {self.analyzer.get_result()}')
         finally:
-            print(f'{self.name}-cnc-finally, result {res.result}')
+            print(f'{self.name}-cnc-finally')
 
     async def find_attack(self):
         res = None
@@ -115,12 +115,18 @@ class test_sche:
         try:
             while True:
                 #  print("sched in...")
+                def done_cb(t):
+                    print(f'remove item from dict: {t.get_name()}')
+                    if t in self.tasks:
+                        print(f'{t.get_name()} is in dicts')
+                        del self.tasks[t]
+
                 if self.count % 5 == 0:
                     tn = f'task-{self.count/5}'
                     obj = test(tn)
                     t = asyncio.create_task(obj.run(), name=tn)
                     self.tasks[t] = obj
-                    t.add_done_callback(lambda t: print(f'del {t.get_name()}'))
+                    t.add_done_callback(done_cb)
 
                 await asyncio.sleep(1)
                 self.count += 1

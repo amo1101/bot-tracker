@@ -9,7 +9,6 @@ from enum import Enum
 from lxml import etree
 
 l = logging.getLogger(__name__)
-
 CUR_DIR = os.path.dirname(os.path.realpath(__file__))
 
 class SandboxNWFilter(Enum):
@@ -123,16 +122,18 @@ class SandboxContext:
         if filter_name not in SandboxNWFilter:
             return ""
 
+        l.debug(f'filter: {filter_name}, kwargs: {kwargs}')
+
         # key: key of input parameter
         # value: [xpath, attr_to_match, atrr_to_set]
         para_to_check = \
         {
             "port_dev":["//portdev","name"],
             "mac_addr":["//mac","address"],
-            "mal_repo_ip":["//filterref/parameter[@MAL_REPO_IP]","value"],
-            "cnc_ip":["//filterref/parameter[@CNC_IP]","value"],
-            "scan_ports":["//filterref/parameter[@SCAN_PORT]","value"],
-            "conn_limit":["//filterref/parameter[@CONN_LIMIT]","value"]
+            "mal_repo_ip":["//filterref/parameter[@name='MAL_REPO_IP']","value"],
+            "cnc_ip":["//filterref/parameter[@name='CNC_IP']","value"],
+            "scan_ports":["//filterref/parameter[@name='SCAN_PORT']","value"],
+            "conn_limit":["//filterref/parameter[@name='CONN_LIMIT']","value"]
         }
 
         if filter_name == SandboxNWFilter.DEFAULT:
@@ -154,9 +155,11 @@ class SandboxContext:
                   self.sandbox_nwfilter_registry[filter_name.value][1], 'r') as file:
             bind_xml = file.read()
 
+        l.debug(f'para_to_check: {para_to_check}')
         # set parameters
         tree = etree.fromstring(bind_xml)
-        for k,v in para_to_check:
+        for k,v in para_to_check.items():
+            l.debug(f'-->k:{k}, v:{v}')
             if k in kwargs:
                 para_element = tree.xpath(v[0])[0]
                 if para_element is not None:
