@@ -7,6 +7,63 @@ import asyncio
 import signal
 from datetime import datetime, timedelta
 from concurrent.futures import ProcessPoolExecutor
+import logging
+
+#  logging.basicConfig(format='%(asctime)s-%(task_name)s-%(name)s-%(levelname)s-%(message)s',
+                    #  datefmt='%d-%b-%y %H:%M:%S', level = logging.DEBUG)
+
+log_format = '%(asctime)s-%(name)s-%(levelname)s-%(message)s'
+
+class MyStreamHandler(logging.StreamHandler):
+    def __init__(self):
+        super().__init__()
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            task = asyncio.current_task(asyncio.get_running_loop())
+            if task is not None:
+                record.__setattr__("name", f"{record.name}-{task.get_name()}")
+            #  record.__setattr__("name", f"'task'-{record.name}")
+        except RuntimeError:
+            pass
+        super().emit(record)
+
+class TaskLogger():
+    #  _next_id = itertools.count().__next__
+    #  _task_ids = weakref.WeakKeyDictionary()
+
+    def __init__(self, name):
+        self._logger = logging.getLogger(name)
+        self._handler = MyStreamHandler()
+        self._handler.setFormatter(logging.Formatter(fmt=log_format))
+        self._logger.addHandler(self._handler)
+        self._logger.setLevel(logging.DEBUG)
+
+    #  def _task_name(self):
+        #  task_name = asyncio.current_task().get_name()
+        #  if task_name is None:
+            #  task_name = 'null'
+        #  return f't-{task_name[0:6]}'
+        #  if task not in self._task_ids:
+            #  self._task_ids[task] = self._next_id()
+        #  return f'task-{self._task_ids[task]}'
+
+    def debug(self, *args, **kwargs):
+        self._logger.debug(*args, **kwargs)
+
+    def info(self, *args, **kwargs):
+        self._logger.info(*args, **kwargs)
+
+    def warning(self, *args, **kwargs):
+        self._logger.warning(*args, **kwargs)
+
+    def error(self, *args, **kwargs):
+        self._logger.error(*args, **kwargs)
+
+    def critical(self, *args, **kwargs):
+        self._logger.critical(*args, **kwargs)
+
+l = TaskLogger(__name__)
 
 class capture:
     def __init__(self):
@@ -15,12 +72,12 @@ class capture:
     async def gen_item(self):
         try:
             while True:
-                #  print("gen_item...")
+                #  l.debug("gen_item...")
                 await asyncio.sleep(1)
                 yield self.count
                 self.count += 1
         finally:
-           print('gen finilized')
+           l.debug('gen finilized')
 
 #  analyzerContextPool = {}
 
@@ -38,10 +95,10 @@ class analyzer:
         self.report = analyzerReport()
 
     def analyze(self, n):
-        print(f"analyze {n} when result: {self.report.result}")
+        l.debug(f"analyze {n} when result: {self.report.result}")
         time.sleep(0.5)
         self.report.result += n
-        print(f"analyze result: {self.report.result}")
+        l.debug(f"analyze result: {self.report.result}")
         return self.report
 
 class test:
@@ -68,28 +125,28 @@ class test:
                                            self.analyzer.analyze,
                                            n)
                 self.analyzer.report = res
-                print(f'{self.name}-cnc, result {res.result}')
+                l.debug(f'{self.name}-cnc, result {res.result}')
         #  except asyncio.TimeoutError:
-            #  print(f'{self.name}-cnc-timeout, result {self.analyzer.get_result()}')
+            #  l.debug(f'{self.name}-cnc-timeout, result {self.analyzer.get_result()}')
         #  except asyncio.CancelledError:
-            #  print(f'{self.name}-cnc-cancelled, result {self.analyzer.get_result()}')
+            #  l.debug(f'{self.name}-cnc-cancelled, result {self.analyzer.get_result()}')
         finally:
-            print(f'{self.name}-cnc-finally')
+            l.debug(f'{self.name}-cnc-finally')
 
     async def find_attack(self):
         res = None
         try:
-            #  print("find_attack in...")
+            #  l.debug("find_attack in...")
             loop = asyncio.get_event_loop()
-            #  print("loop get...")
+            #  l.debug("loop get...")
             async for n in self.gen.gen_item():
-                #  print(f"get an item...{n}")
+                #  l.debug(f"get an item...{n}")
                 #  self.analyzer.analyze(n)
                 res = await loop.run_in_executor(test.executor,
                                            self.analyzer.analyze,
                                            n)
                 self.analyzer.report = res
-                print(f'{self.name}-attack result {res.result}')
+                l.debug(f'{self.name}-attack result {res.result}')
         finally:
             pass
 
@@ -99,12 +156,12 @@ class test:
             try:
                 await asyncio.wait_for(self.find_cnc(), timeout=5)
             except asyncio.TimeoutError:
-                print('timeout error')
+                l.debug('timeout error')
             await self.find_attack()
         except asyncio.CancelledError:
-            print(f'{self.name} run task is canclled')
+            l.debug(f'{self.name} run task is canclled')
         except KeyboardInterrupt:
-            print(f'{self.name} run task is interrupted')
+            l.debug(f'{self.name} run task is interrupted')
 
 class test_sche:
     def __init__(self):
@@ -114,11 +171,11 @@ class test_sche:
     async def sched(self):
         try:
             while True:
-                #  print("sched in...")
+                #  l.debug("sched in...")
                 def done_cb(t):
-                    print(f'remove item from dict: {t.get_name()}')
+                    l.debug(f'remove item from dict: {t.get_name()}')
                     if t in self.tasks:
-                        print(f'{t.get_name()} is in dicts')
+                        l.debug(f'{t.get_name()} is in dicts')
                         del self.tasks[t]
 
                 if self.count % 5 == 0:
@@ -131,12 +188,12 @@ class test_sche:
                 await asyncio.sleep(1)
                 self.count += 1
         except asyncio.CancelledError:
-            print('sched cancelled')
+            l.debug('sched cancelled')
             for k,v in self.tasks.items():
                 if not k.done():
                     k.cancel()
                 else:
-                    print(f"task {k} is done, no need to cancel")
+                    l.debug(f"task {k} is done, no need to cancel")
 
             test.executor.shutdown()
 
@@ -146,30 +203,37 @@ async def async_main():
         ts = test_sche()
         await ts.sched()
     except asyncio.CancelledError:
-        print('User cancelled async main')
+        l.debug('User cancelled async main')
 
 def test_time():
     td = timedelta(days=0, hours=0, minutes=0, seconds=30)
     t1 = datetime.now()
-    print(f't1: {t1}')
+    l.debug(f't1: {t1}')
 
     while True:
         time.sleep(2)
         t2 = datetime.now()
-        print(f't2: {t2}')
+        l.debug(f't2: {t2}')
         tdiff = t2 - t1
-        print(f'tdiff: {tdiff}')
+        l.debug(f'tdiff: {tdiff}')
         if tdiff > td:
-            print('time is up')
+            l.debug('time is up')
             break
         else:
-            print(f'time left: \n{td-tdiff}')
+            l.debug(f'time left: \n{td-tdiff}')
+
+def test_dict():
+    d = {'a':'1','b':'2','c':'3','d':'4','e':'5'}
+    to_del = []
+    for k,v in d.items():
+        del d[k]
+        print(f'after delete {k}, d:{d}')
 
 if __name__ == '__main__':
-    #  test_time()
-    try:
-        asyncio.run(async_main())
-    except KeyboardInterrupt:
-        print('Main Interrupted')
+    test_dict()
+    #  try:
+        #  asyncio.run(async_main())
+    #  except KeyboardInterrupt:
+        #  l.debug('Main Interrupted')
 
 

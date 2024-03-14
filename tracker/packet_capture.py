@@ -1,10 +1,10 @@
 import asyncio
 import libvirt
 import libvirtaio
-import logging
 from pyshark import LiveCapture
+from log import TaskLogger
 
-l = logging.getLogger(__name__)
+l = TaskLogger(__name__)
 
 class AsyncLiveCapture(LiveCapture):
     def __init__(self, interface=None, bpf_filter=None, display_filter=None,

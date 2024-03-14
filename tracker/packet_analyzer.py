@@ -1,8 +1,8 @@
 import sys
 import os
-import logging
+from log import TaskLogger
 
-l = logging.getLogger(__name__)
+l = TaskLogger(__name__)
 
 class AnalyzerReport:
     def __init__(self):

@@ -4,7 +4,7 @@ import libvirtaio
 import os
 import sys
 import signal
-import logging
+from log import TaskLogger
 from datetime import datetime
 #  from aiomultiprocess import Pool
 from concurrent.futures import ProcessPoolExecutor
@@ -13,7 +13,8 @@ from packet_capture import *
 from sandbox import Sandbox
 from sandbox_context import SandboxNWFilter, SandboxContext
 
-l = logging.getLogger(__name__)
+l = TaskLogger(__name__)
+
 CUR_DIR = os.path.dirname(os.path.realpath(__file__))
 
 # TODO
@@ -31,8 +32,8 @@ def init_worker():
 class BotRunner:
 
     # use process pool for packet analyzing
-    analyzer_executor = ProcessPoolExecutor(max_workers=1,
-                                            initializer=init_worker)
+    #  analyzer_executor = ProcessPoolExecutor(max_workers=1,
+                                            #  initializer=init_worker)
 
     def __init__(self, bot_info, sandbox_ctx):
         self.bot_info = bot_info
@@ -73,9 +74,10 @@ class BotRunner:
         loop = asyncio.get_running_loop()
         try:
             async for packet in self.live_capture.sniff_continuously():
-                self.cnc_analzyer.report = await loop.run_in_executor(BotRunner.analyzer_executor,
-                                           self.cnc_analzyer.analyze,
-                                           packet)
+                pass
+                #  self.cnc_analzyer.report = await loop.run_in_executor(BotRunner.analyzer_executor,
+                                           #  self.cnc_analzyer.analyze,
+                                           #  packet)
         # let the caller handle all the exceptions
         finally:
             l.debug('_find_cnc finalized')
@@ -88,14 +90,14 @@ class BotRunner:
         loop = asyncio.get_running_loop()
         try:
             async for packet in self.live_capture.sniff_continuously():
-                self.attack_analzyer.report = await loop.run_in_executor(BotRunner.analyzer_executor,
-                                              self.attack_analzyer.analyze,
-                                              packet)
+                #  self.attack_analzyer.report = await loop.run_in_executor(BotRunner.analyzer_executor,
+                                              #  self.attack_analzyer.analyze,
+                                              #  packet)
                 if self.attack_analzyer.report.is_ready():
                     self.attack_analzyer.report.persist()
         finally:
             l.debug('_observe_attack finalized')
-            pass
+            #  pass
 
     def dormant_duration(self):
         return datetime.now() - self.dormant_start_time
@@ -114,7 +116,7 @@ class BotRunner:
             output_file = self.log_dir + os.sep + "capture.pcap"
             self.live_capture = AsyncLiveCapture(interface=iface,
                                                  output_file=output_file,
-                                                 debug=False)
+                                                 debug=True)
             # find cnc server
             try:
                 await asyncio.wait_for(self._find_cnc(),
@@ -129,14 +131,14 @@ class BotRunner:
                     return
 
             await self._observe_attack()
-            return
+            #  return
 
             #TODO
             self.start_time = datetime.now()
             self.dormant_start_time = datetime.now()
             self.observe_start_time = datetime.now()
 
-            l.debug(f'Bot runner [{self.bot_info.sha256}] started at {self.start_time}')
+            l.debug(f'Bot runner started at {self.start_time}')
             self._create_log_dir()
             self.sandbox = Sandbox(self.sandbox_ctx, self.bot_info.sha256,
                                    self.bot_info.arch)
@@ -176,11 +178,22 @@ class BotRunner:
             await self._observe_attack()
 
         except asyncio.CancelledError:
-            l.debug(f"Bot[{self.bot_info.sha256}] runner cancelled")
-            await self.destroy()
+            l.debug("Bot runner catch cancelled")
+            raise asyncio.CancelledError
+            #  self.destroy()
+            #  await self.destroy()
 
     async def destroy(self):
-        l.debug(f"Bot[{self.bot_info.sha256}] runner destroyed")
-        await self.live_capture.close_async()
+        try:
+            l.debug("Bot runner destroyed====>")
+            await self.live_capture.close_async()
+            l.debug("Bot runner destroyed<====")
+        except RuntimeError:
+            l.debug('runtime error occured')
+        except asyncio.CancelledError:
+            l.debug('cancelled error occure')
+            raise asyncio.CancelledError
+        finally:
+            l.debug("Bot runner destroyed!!!!")
         #  self.sandbox.destroy()
 

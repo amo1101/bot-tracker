@@ -8,8 +8,9 @@ import logging
 import time
 import sys
 import sandbox_context
+from log import TaskLogger
 
-l = logging.getLogger(__name__)
+l = TaskLogger(__name__)
 
 class Sandbox:
     def __init__(self, context, name, arch):

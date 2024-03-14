@@ -7,8 +7,9 @@ import time
 import sys
 from enum import Enum
 from lxml import etree
+from log import TaskLogger
 
-l = logging.getLogger(__name__)
+l = TaskLogger(__name__)
 CUR_DIR = os.path.dirname(os.path.realpath(__file__))
 
 class SandboxNWFilter(Enum):

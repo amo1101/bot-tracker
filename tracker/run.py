@@ -3,7 +3,7 @@ import libvirt
 import libvirtaio
 import libxml2
 import os
-import logging
+from log import TaskLogger
 import time
 import sys
 from sandbox_context import SandboxContext
@@ -13,17 +13,16 @@ from scheduler import Scheduler
 
 CUR_DIR = os.path.dirname(os.path.realpath(__file__))
 
-#  now = datetime.now()
-#  current_time = now.strftime("%m-%d-%Y-%H_%M_%S")
-logging.basicConfig(format='%(asctime)s-%(name)s-%(levelname)s-%(message)s',
-                    datefmt='%d-%b-%y %H:%M:%S', level = logging.DEBUG)
-l = logging.getLogger(__name__)
+l = TaskLogger(__name__)
 
 async def async_main(arguments = None):
     sandbox_ctx = SandboxContext()
     sandbox_ctx.start()
     scheduler = Scheduler(sandbox_ctx)
-    await scheduler.checkpoint()
+    try:
+        await scheduler.checkpoint()
+    except asyncio.CancelledError:
+        l.debug('async main cancelled')
 
 def test():
     ctx = SandboxContext()
@@ -38,7 +37,7 @@ def test():
 
 if __name__ == "__main__":
     try:
-        asyncio.run(async_main())
+        asyncio.run(async_main(),debug=True)
     except KeyboardInterrupt:
         l.debug('Interrupted by user')
     #  test()
