@@ -32,8 +32,8 @@ def init_worker():
 class BotRunner:
 
     # use process pool for packet analyzing
-    #  analyzer_executor = ProcessPoolExecutor(max_workers=1,
-                                            #  initializer=init_worker)
+    analyzer_executor = ProcessPoolExecutor(max_workers=1,
+                                            initializer=init_worker)
 
     def __init__(self, bot_info, sandbox_ctx):
         self.bot_info = bot_info
@@ -75,9 +75,9 @@ class BotRunner:
         try:
             async for packet in self.live_capture.sniff_continuously():
                 pass
-                #  self.cnc_analzyer.report = await loop.run_in_executor(BotRunner.analyzer_executor,
-                                           #  self.cnc_analzyer.analyze,
-                                           #  packet)
+                self.cnc_analzyer.report = await loop.run_in_executor(BotRunner.analyzer_executor,
+                                           self.cnc_analzyer.analyze,
+                                           packet)
         # let the caller handle all the exceptions
         finally:
             l.debug('_find_cnc finalized')
@@ -90,9 +90,9 @@ class BotRunner:
         loop = asyncio.get_running_loop()
         try:
             async for packet in self.live_capture.sniff_continuously():
-                #  self.attack_analzyer.report = await loop.run_in_executor(BotRunner.analyzer_executor,
-                                              #  self.attack_analzyer.analyze,
-                                              #  packet)
+                self.attack_analzyer.report = await loop.run_in_executor(BotRunner.analyzer_executor,
+                                              self.attack_analzyer.analyze,
+                                              packet)
                 if self.attack_analzyer.report.is_ready():
                     self.attack_analzyer.report.persist()
         finally:
@@ -107,31 +107,31 @@ class BotRunner:
 
     async def run(self):
         try:
-            self.start_time = datetime.now()
-            self.dormant_start_time = datetime.now()
-            self.observe_start_time = datetime.now()
-            l.debug('testing packet monitoring started')
-            self._create_log_dir()
-            iface = 'enp0s3'
-            output_file = self.log_dir + os.sep + "capture.pcap"
-            self.live_capture = AsyncLiveCapture(interface=iface,
-                                                 output_file=output_file,
-                                                 debug=True)
-            # find cnc server
-            try:
-                await asyncio.wait_for(self._find_cnc(),
-                                       timeout=self.cnc_probing_time)
-            except asyncio.TimeoutError:
-                l.warning("Cnc probing timeout...")
-                if self.cnc_analzyer.report.is_ready():
-                    self.cnc_analzyer.report.persist()
-                else:
-                    l.warning("Cnc not find, stop bot runner...")
-                    self.destroy()
-                    return
+            #  self.start_time = datetime.now()
+            #  self.dormant_start_time = datetime.now()
+            #  self.observe_start_time = datetime.now()
+            #  l.debug('testing packet monitoring started')
+            #  self._create_log_dir()
+            #  iface = 'enp0s3'
+            #  output_file = self.log_dir + os.sep + "capture.pcap"
+            #  self.live_capture = AsyncLiveCapture(interface=iface,
+                                                 #  output_file=output_file,
+                                                 #  debug=True)
+            #  # find cnc server
+            #  try:
+                #  await asyncio.wait_for(self._find_cnc(),
+                                       #  timeout=self.cnc_probing_time)
+            #  except asyncio.TimeoutError:
+                #  l.warning("Cnc probing timeout...")
+                #  if self.cnc_analzyer.report.is_ready():
+                    #  self.cnc_analzyer.report.persist()
+                #  else:
+                    #  l.warning("Cnc not find, stop bot runner...")
+                    #  self.destroy()
+                    #  return
 
-            await self._observe_attack()
-            #  return
+            #  await self._observe_attack()
+            #  #  return
 
             #TODO
             self.start_time = datetime.now()
@@ -178,22 +178,20 @@ class BotRunner:
             await self._observe_attack()
 
         except asyncio.CancelledError:
-            l.debug("Bot runner catch cancelled")
-            raise asyncio.CancelledError
-            #  self.destroy()
+            l.debug("Bot runner cancelled")
+            #  raise asyncio.CancelledError
+            await self.destroy()
             #  await self.destroy()
 
     async def destroy(self):
         try:
-            l.debug("Bot runner destroyed====>")
+            l.debug("Bot runner destroyed")
+            self.sandbox.destroy()
             await self.live_capture.close_async()
-            l.debug("Bot runner destroyed<====")
         except RuntimeError:
             l.debug('runtime error occured')
         except asyncio.CancelledError:
             l.debug('cancelled error occure')
-            raise asyncio.CancelledError
         finally:
-            l.debug("Bot runner destroyed!!!!")
-        #  self.sandbox.destroy()
+            pass
 

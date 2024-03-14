@@ -13,7 +13,7 @@ CHECKPOINT_INTERVAL = 5
 class Scheduler:
     def __init__(self, sandbox_ctx):
         self.sandbox_cxt = sandbox_ctx
-        self.max_sandbox_num = 1
+        self.max_sandbox_num = 5
         self.max_dormant_duration = timedelta(days=0, hours=0, minutes=0,
                                               seconds=300)
         self.max_observe_duration = timedelta(days=7, hours=0, minutes=0,
@@ -21,15 +21,15 @@ class Scheduler:
         # {running_task: botrunner obj}
         self.bot_runners = {}
 
-    async def destroy(self):
+    def destroy(self):
         for t, o in self.bot_runners.items():
-            t.cancel()
-            await o.destroy()
-        self.bot_runners.clear()
+            if not t.cancelled():
+                t.cancel()
+            else:
+                l.debug(f'task {t.get_name()} has been cancelled')
         BotRunner.analyzer_executor.shutdown()
 
-    async def _unstage_bots(self):
-        to_del = []
+    def _unstage_bots(self):
         for t, o in self.bot_runners.items():
             dd = o.dormant_duration()
             od = o.observe_duration()
@@ -37,10 +37,6 @@ class Scheduler:
             if dd > self.max_dormant_duration or od > self.max_observe_duration:
                 l.debug(f"Cancelling running bot [{o.bot_info.sha256}]")
                 t.cancel()
-                await o.destroy()
-                to_del.append(t)
-        for k in to_del:
-            del self.bot_runners[k]
 
     def _schedule_bots(self):
         # TODO: get botinfo from db
@@ -55,23 +51,25 @@ class Scheduler:
         task = asyncio.create_task(bot_runner.run(), name=f'Task-{botname}')
         self.bot_runners[task] = bot_runner
 
-        #  def task_done_cb(t):
-            #  if t in self.bot_runners:
-                #  del self.bot_runners[t]
-                #  l.debug('task done removed')
+        def task_done_cb(t):
+            if t in self.bot_runners:
+                del self.bot_runners[t]
+                l.debug('task done removed')
 
-        #  task.add_done_callback(task_done_cb)
+        task.add_done_callback(task_done_cb)
         l.debug(f"bot [{bot.sha256}] scheduled")
 
     async def checkpoint(self):
         try:
             while True:
-                await self._unstage_bots()
+                self._unstage_bots()
                 self._schedule_bots()
                 await asyncio.sleep(CHECKPOINT_INTERVAL)
         except asyncio.CancelledError:
-            l.warning("Scheduler catch cancelled")
-            raise asyncio.CancelledError
+            l.warning("Scheduler cancelled")
         finally:
-            await self.destroy()
+            #TODO: we do not need to cancel tasks when interrupted, asyncio
+            # handle it
+            #  self.destroy()
+            pass
 

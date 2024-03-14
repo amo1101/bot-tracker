@@ -19,10 +19,7 @@ async def async_main(arguments = None):
     sandbox_ctx = SandboxContext()
     sandbox_ctx.start()
     scheduler = Scheduler(sandbox_ctx)
-    try:
-        await scheduler.checkpoint()
-    except asyncio.CancelledError:
-        l.debug('async main cancelled')
+    await scheduler.checkpoint()
 
 def test():
     ctx = SandboxContext()

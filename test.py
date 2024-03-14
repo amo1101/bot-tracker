@@ -229,11 +229,44 @@ def test_dict():
         del d[k]
         print(f'after delete {k}, d:{d}')
 
+async def task1():
+    try:
+        print('task1 enter')
+        await asyncio.sleep(10)
+        print('task1 quit')
+    except asyncio.CancelledError:
+        print('task1 get cancelled error')
+    finally:
+        print('task1 get finalized error')
+
+async def task2():
+    try:
+        print('task2 enter')
+        await asyncio.sleep(10)
+        print('task2 quit')
+    except asyncio.CancelledError:
+        print('task2 get cancelled error')
+        raise asyncio.CancelledError
+
+async def async_task():
+    try:
+        t1 = asyncio.create_task(task1())
+        t2 = asyncio.create_task(task2())
+        await asyncio.sleep(2)
+        t1.cancel()
+        await t1
+        await asyncio.sleep(2)
+        t2.cancel()
+        await asyncio.sleep(10)
+    except asyncio.CancelledError:
+        print('async_task get cancelled error')
+
+
 if __name__ == '__main__':
-    test_dict()
-    #  try:
-        #  asyncio.run(async_main())
-    #  except KeyboardInterrupt:
-        #  l.debug('Main Interrupted')
+    #  test_dict()
+    try:
+        asyncio.run(async_task())
+    except KeyboardInterrupt:
+        print('Main Interrupted')
 
 
