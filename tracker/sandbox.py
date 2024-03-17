@@ -7,6 +7,7 @@ import shutil
 import logging
 import time
 import sys
+import subprocess
 import sandbox_context
 from log import TaskLogger
 
@@ -40,6 +41,24 @@ class Sandbox:
         if not os.path.exists(dst):
             shutil.copyfile(src, dst)
 
+    def _run_script(self, which, *args):
+        try:
+            params = []
+            script = self.context.get_script(which)
+            params.append(script)
+            for p in args:
+                params.append(p)
+            l.debug(f'params: ${params}')
+            proc = subprocess.Popen(params, stdout=subprocess.PIPE)
+            out, err = proc.communicate()
+            if err:
+                l.error("failed to run script:{script}, error: {err}")
+                return False
+            return True
+        except Exception as err:
+            l.error(f'exception occured: {err}')
+            return False
+
     def _prepare_fs(self):
         src, dst = self.context.get_sandbox_fs(self.arch, self.name)
         l.debug("fs src %s, dst %s", src, dst)
@@ -50,6 +69,11 @@ class Sandbox:
         if not os.path.exists(dst):
             shutil.copyfile(src, dst)
 
+        # copy bot directory to sandbox fs
+        bot_dir = self.context.get_bot_dir()
+        s = SandboxContext.SandboxScript.PREPARE_FS
+        self._run_script(s, self.name, bot_dir, dst)
+
     def _get_config(self):
         return self.context.get_sandbox_config(self.arch, self.name)
 
@@ -57,8 +81,9 @@ class Sandbox:
         if os.path.exists(self.fs):
             os.remove(self.fs)
 
-    def _fetch_log(self):
-        pass
+    def fetch_log(self, dst):
+        s = SandboxContext.SandboxScript.FETCH_LOG
+        self._run_script(s, dst, self.fs)
 
     def start(self):
         self._prepare_kernel()
@@ -138,7 +163,6 @@ class Sandbox:
 
 
     def destroy(self):
-        self._fetch_log()
         self._destroy_fs()
         if self.filter_binding:
             l.debug("delete filter binding...")

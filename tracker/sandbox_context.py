@@ -17,6 +17,10 @@ class SandboxNWFilter(Enum):
     CNC = "sandbox-cnc-filter"
     CONN_LIMIT = "sandbox-conn-limit-filter"
 
+class SandboxScript(Enum):
+    PREPARE_FS = "prepare_fs.sh"
+    FETCH_LOG = "fetch_log.sh"
+
 #  class SandboxNWFilterParameter(Enum):
     #  PORT_DEV = "portdev"
     #  MAC_ADDR = "mac"
@@ -34,6 +38,8 @@ class SandboxContext:
         self.image_dir = "/var/lib/libvirt/images"
         self.config_base = CUR_DIR + os.sep + "config"
         self.image_base = CUR_DIR + os.sep + "image"
+        self.scripts_base = CUR_DIR + os.sep + "scripts"
+        self.bot_dir = CUR_DIR + os.sep + "bot"
         self.net_conf = self.config_base + os.sep + "network.xml"
         self.sandbox_registry = \
         {
@@ -101,6 +107,17 @@ class SandboxContext:
         fs_dst = f"openwrt-vm-{arch}-{name}-ext4-rootfs.img"
         return (self.image_base + os.sep + fs_src,
                 self.image_dir + os.sep + fs_dst)
+
+    def get_script(self, name):
+        if name == SandboxScript.PREPARE_FS:
+            return self.scripts_base + os.sep + SandboxScript.PREPARE_FS.value
+        elif name == SandboxScript.FETCH_LOG:
+            return self.scripts_base +os.sep + SandboxScript.FETCH_LOG.value
+        else:
+            return ""
+
+    def get_bot_dir(self):
+        return self.bot_dir
 
     def _define_nwfilters(self):
         for k, v in self.sandbox_nwfilter_registry.items():

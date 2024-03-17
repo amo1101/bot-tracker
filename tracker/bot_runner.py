@@ -186,6 +186,7 @@ class BotRunner:
     async def destroy(self):
         try:
             l.debug("Bot runner destroyed")
+            self.sanbox.fetch_log(self.log_dir)
             self.sandbox.destroy()
             await self.live_capture.close_async()
         except RuntimeError:
