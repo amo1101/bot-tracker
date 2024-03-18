@@ -25,7 +25,7 @@ class Bazaar:
         self.valid_selectors = ['100', 'time']
         self.valid_types = ["tag", "signature"]
         self.valid_keys = ['urlhaus', 'any_run', 'joe_sandbox', 'malpedia',
-            'twitter', 'links', 'dropped_by_md5', 'dropped_by_sha256', 
+            'twitter', 'links', 'dropped_by_md5', 'dropped_by_sha256',
             'dropped_by_malware', 'dropping_md5', 'dropping_sha256',
             'dropping_malware', 'add_tag', 'remove_tag', 'comment'
         ]
