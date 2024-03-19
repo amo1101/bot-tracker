@@ -181,7 +181,7 @@ class Bazaar:
 
         return json_response
 
-    def bazaar_query(self, type_: str, query: str, field: str = None):
+    def bazaar_query(self, type_: str, query: str, limit: str, field: str = None):
         """Query sample information by tag or signature on Malware Bazaar by abuse.ch
 
         Args:
@@ -203,11 +203,13 @@ class Bazaar:
             data = {
                 'query': 'get_taginfo',
                 'tag': '' + query + '',
+                'limit': '' + limit + ''
             }
         else:
             data = {
                 'query': 'get_siginfo',
                 'signature': '' + query + '',
+                'limit': '' + limit + ''
             }
 
         response = self.session.post(self.url, data=data, timeout=15)
