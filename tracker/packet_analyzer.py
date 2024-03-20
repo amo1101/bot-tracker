@@ -1,5 +1,6 @@
 import sys
 import os
+from db import *
 from log import TaskLogger
 
 l = TaskLogger(__name__)

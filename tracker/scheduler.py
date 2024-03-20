@@ -3,6 +3,7 @@ import libvirt
 import libvirtaio
 import uuid
 from datetime import datetime, timedelta
+from db import *
 from bot_runner import *
 from log import TaskLogger
 
@@ -11,8 +12,10 @@ l = TaskLogger(__name__)
 CHECKPOINT_INTERVAL = 5
 
 class Scheduler:
-    def __init__(self, sandbox_ctx):
+    def __init__(self, sandbox_ctx, db_store):
+        self.tracker_id = uuid.uuid4()
         self.sandbox_cxt = sandbox_ctx
+        self.db_store = db_store
         self.max_sandbox_num = 5
         self.max_dormant_duration = timedelta(days=0, hours=0, minutes=0,
                                               seconds=300)
@@ -37,27 +40,33 @@ class Scheduler:
             if dd > self.max_dormant_duration or od > self.max_observe_duration:
                 l.debug(f"Cancelling running bot [{o.bot_info.sha256}]")
                 t.cancel()
+                o.bot.status = BotStatus.STOPPED.value
+                db_store.update_bot_info(o.bot)
 
     def _schedule_bots(self):
-        # TODO: get botinfo from db
-        # run bot
-        l.debug("Num of running bots: %d", len(self.bot_runners))
-        if len(self.bot_runners) >= self.max_sandbox_num:
-            return
-
-        botname = f"bot-{uuid.uuid4()}"
-        bot = BotInfo(botname,"armv7")
-        bot_runner = BotRunner(bot, self.sandbox_cxt)
-        task = asyncio.create_task(bot_runner.run(), name=f'Task-{botname}')
-        self.bot_runners[task] = bot_runner
 
         def task_done_cb(t):
             if t in self.bot_runners:
                 del self.bot_runners[t]
                 l.debug('task done removed')
 
-        task.add_done_callback(task_done_cb)
-        l.debug(f"bot [{bot.sha256}] scheduled")
+        # run bot
+        l.debug("Num of running bots: %d", len(self.bot_runners))
+        slots = self.max_sandbox_num - len(self.bot_runners)
+        if slots <= 0
+            l.warning('no sandbox available for bots')
+            return
+
+        # TODO: get botinfo from db
+        bots = db_store.load_bot_info(BotStatus.UNKNOWN, slots)
+        for bot in bots:
+            bot.status = BotStatus.STARTED.value
+            bot_runner = BotRunner(bot, self.sandbox_cxt)
+            task = asyncio.create_task(bot_runner.run(), name=f'Task-{bot.sha256}')
+            self.bot_runners[task] = bot_runner
+            task.add_done_callback(task_done_cb)
+            self.db_store.update_bot_info(bot)
+            l.debug(f"bot [{bot.sha256}] scheduled")
 
     async def checkpoint(self):
         try:

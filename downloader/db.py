@@ -29,6 +29,8 @@ class BotInfo:
         self.dormant_duration = None
         self.observe_start = None
         self.observe_duration = None
+        self.cnc_domain = None
+        self.cnc_ip = None
         self.tracker = 0
 
 class DBStore:
