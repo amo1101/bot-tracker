@@ -10,12 +10,13 @@ class BotStatus(Enum):
     DORMANT = "dormant"
     ACTIVE = "active"
     PAUSED = "paused"
+    INTERRUPTED = "interrupted"
     STOPPED = "stopped"
     ERROR = "error"
 
 class CnCStatus(Enum):
     UNKNOWN = "unknown"
-    CONNECTED = "connected"
+    ALIVE = "alive"
     DISCONNECTED = "disconnected"
 
 @dataclass
@@ -25,6 +26,7 @@ class TrackerInfo:
 @dataclass
 class CnCInfo:
     ip: str
+    port: str
     as: str
     location: str
 
@@ -69,6 +71,7 @@ class BotInfo:
     observe_duration: str
     cnc_domain: str
     cnc_ip: str
+    cnc_port: str
     tracker: str
 
 class DBStore:
@@ -102,11 +105,12 @@ class DBStore:
     async def add_tracker(self, tracker):
         await self._insert('tracker_info', tracker)
 
-    async def load_bot_info(self, status):
+    async def load_bot_info(self, status, tracker):
         bots = []
         if self.conn is not None:
             async with aconn.cursor() as acur:
-                await acur.execute("SELECT * FROM bot_info")
+                await acur.execute(f"SELECT * FROM bot_info where status =
+                                   %s and tracker = %", (status, tracker))
                 async for record in acur:
                     bots.append(BotInfo(*record))
 

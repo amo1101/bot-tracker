@@ -30,9 +30,10 @@ class BotRunner:
     analyzer_executor = ProcessPoolExecutor(max_workers=1,
                                             initializer=init_worker)
 
-    def __init__(self, bot_info, sandbox_ctx):
+    def __init__(self, bot_info, sandbox_ctx, db_store):
         self.bot_info = bot_info
         self.sandbox_ctx = sandbox_ctx
+        self.db_store = db_store
         self.sandbox = None
         self.cnc_analzyer = CnCAnalyzer()
         self.attack_analzyer = None
@@ -77,6 +78,15 @@ class BotRunner:
             l.debug('_find_cnc finalized')
             pass
 
+    # TODO: now only monitor cnc status
+    async def _handle_attack_report(self, report):
+        cnc_status = report['cnc_status']
+        if cnc_status == BotStatus.ACTIVE.value:
+            self.bot_info.dormant_duration = 0
+        elif cnc_status == BotStatus.DISCONNECTED.value:
+            self.bot_info.dormant_start_time = datetime.now()
+        await db_store.update_bot_info(self.bot_info)
+
     async def _observe_attack(self):
         if self.attack_analzyer is None:
             self.attack_analzyer = AttackAnalyzer(self.cnc_analzyer.report)
@@ -88,7 +98,7 @@ class BotRunner:
                                               self.attack_analzyer.analyze,
                                               packet)
                 if self.attack_analzyer.report.is_ready():
-                    self.attack_analzyer.report.persist()
+                    await self._handle_attack_report(self.attack_analzyer.report.get())
         finally:
             l.debug('_observe_attack finalized')
             #  pass
@@ -152,8 +162,15 @@ class BotRunner:
                 l.warning("Cnc probing timeout...")
                 if self.cnc_analzyer.report.is_ready():
                     self.cnc_analzyer.report.persist()
+                    cnc_info = self.cnc_analzyer.report.get()
+                    ip_port = cnc_info[0].split(':')
+                    self.bot_info.cnc_ip = ip_port[0]
+                    self.bot_info.cnc_ip = ip_port[1]
+                    await db_store.update_bot_info(self.bot_info)
                 else:
                     l.warning("Cnc not find, stop bot runner...")
+                    self.bot_info.status = BotStatus.ERROR
+                    await db_store.update_bot_info(self.bot_info)
                     self.destroy()
                     return
 

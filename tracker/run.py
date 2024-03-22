@@ -6,6 +6,7 @@ import os
 from log import TaskLogger
 import time
 import sys
+from db import *
 from sandbox_context import SandboxContext
 from sandbox_context import SandboxNWFilter
 from sandbox import Sandbox
@@ -18,8 +19,12 @@ l = TaskLogger(__name__)
 async def async_main(arguments = None):
     sandbox_ctx = SandboxContext()
     sandbox_ctx.start()
-    scheduler = Scheduler(sandbox_ctx)
+    db_store = DBStore()
+    await db_store.open()
+    scheduler = Scheduler(sandbox_ctx, db_store)
     await scheduler.checkpoint()
+    await db_store.close()
+    sandbox_ctx.destroy()
 
 def test():
     ctx = SandboxContext()
