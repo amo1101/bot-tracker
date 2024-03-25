@@ -105,14 +105,32 @@ class DBStore:
     async def add_tracker(self, tracker):
         await self._insert('tracker_info', tracker)
 
-    async def load_bot_info(self, status, tracker):
+    #TODO
+    async def load_bot_info(self, status_list, bot_id, count, tracker):
         bots = []
+        status_tuple = ()
+        para = ()
+        for s in status:
+            status_tuple += (s,)
+        if len(status_tuple) > 0:
+            para += (status_tuple,)
+        if bot_id is not None:
+            para += (bot_id,)
+        if count is not None:
+            para += (count,)
+        para += (tracker,)
+
+        para = ()
         if self.conn is not None:
             async with aconn.cursor() as acur:
-                await acur.execute(f"SELECT * FROM bot_info where status =
-                                   %s and tracker = %", (status, tracker))
+                await acur.execute(f"SELECT * FROM bot_info where {'status IN 
+                                   %s AND' if status is not None else ''}
+                                   {'bot_id = %s AND'if bot_id is not None else
+                                   ''} tracker = % ORDER BY first_seen {'LIMIT
+                                   %s' if count is not None else ''}", para)
                 async for record in acur:
                     bots.append(BotInfo(*record))
+        return bots
 
     async def update_bot_info(self, bot):
         if self.conn is not None:

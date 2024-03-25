@@ -46,23 +46,15 @@ class Scheduler:
                 await db_store.update_bot_info(o.bot)
                 t.cancel()
 
-    async def _schedule_bots(self):
-
+    async def _schedule_bots(self, status, bot_id, count):
         def task_done_cb(t):
             if t in self.bot_runners:
                 del self.bot_runners[t]
                 l.debug('task done removed')
 
-        # run bot
-        l.debug("Num of running bots: %d", len(self.bot_runners))
-        slots = self.max_sandbox_num - len(self.bot_runners)
-        if slots <= 0
-            l.warning('no sandbox available for bots')
-            return
-
-        # TODO: get botinfo from db
-        bots = await db_store.load_bot_info(BotStatus.UNKNOWN, slots)
+        bots = await db_store.load_bot_info([status], bot_id, count)
         for bot in bots:
+            # TODO: need re-init bot info
             bot.status = BotStatus.STARTED.value
             bot_runner = BotRunner(bot, self.sandbox_cxt, self.db_store)
             task = asyncio.create_task(bot_runner.run(), name=f'Task-{bot.sha256}')
@@ -71,11 +63,21 @@ class Scheduler:
             await self.db_store.update_bot_info(bot)
             l.debug(f"bot [{bot.sha256}] scheduled")
 
+    async def _stage_bots(self, status, bot_id, count):
+        # run bot
+        l.debug("Num of running bots: %d", len(self.bot_runners))
+        slots = self.max_sandbox_num - len(self.bot_runners)
+        if slots <= 0
+            l.warning('no sandbox available for bots')
+            return
+
+        await self._schedule_bots(BotStatus.UNKNOWN, None, slots)
+
     async def checkpoint(self):
         try:
             while True:
                 await self._unstage_bots()
-                await self._schedule_bots()
+                await self._stage_bots()
                 await asyncio.sleep(CHECKPOINT_INTERVAL)
         except asyncio.CancelledError:
             l.warning("Scheduler cancelled")
@@ -85,3 +87,13 @@ class Scheduler:
             #  self.destroy()
             pass
 
+    async def start_bot(self, bot_id):
+        await self._schedule_bots(None, bot_id)
+
+    async def stop_bot(self, bot_id):
+        for t, o in self.bot_runners.items():
+            if o.bot_info.sha256 == bot_id:
+                o.bot.status = BotStatus.STOPPED.value
+                await db_store.update_bot_info(o.bot)
+                t.cancel()
+                break

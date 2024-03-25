@@ -11,17 +11,20 @@ from sandbox_context import SandboxContext
 from sandbox_context import SandboxNWFilter
 from sandbox import Sandbox
 from scheduler import Scheduler
+import cmd_handler
 
 CUR_DIR = os.path.dirname(os.path.realpath(__file__))
 
 l = TaskLogger(__name__)
 
 async def async_main(arguments = None):
+    # start the server task
     sandbox_ctx = SandboxContext()
     sandbox_ctx.start()
     db_store = DBStore()
     await db_store.open()
     scheduler = Scheduler(sandbox_ctx, db_store)
+    cmd_handler.start_cmd_handler(scheduler, db_store)
     await scheduler.checkpoint()
     await db_store.close()
     sandbox_ctx.destroy()
