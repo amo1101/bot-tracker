@@ -49,7 +49,7 @@ class AttackStat:
 
 @dataclass
 class BotInfo:
-    sha256: str
+    bot_id: str
     family: str
     first_seen: str
     last_seen: str
@@ -58,20 +58,12 @@ class BotInfo:
     arch: str
     endianness: str
     bitness: str
-    # bot status: null/activated/paused/stopped/error
-    # initial state null
-    status: str
-    # allow dormant for a max_duration
-    # dormant_duration accured when bot is dormat
-    # dormant -> active, dormant_duration is cleared
-    # when paused/stopped, dormant_duration is kept
-    dormant_start: str
-    dormant_duration: str
-    observe_start: str
-    observe_duration: str
-    cnc_domain: str
     cnc_ip: str
-    cnc_port: str
+    status: str
+    dormant_at: str
+    dormant_duration: str
+    observe_at: str
+    observe_duration: str
     tracker: str
 
 class DBStore:
