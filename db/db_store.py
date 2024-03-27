@@ -31,6 +31,25 @@ class CnCInfo:
     location: str
 
 @dataclass
+class BotInfo:
+    bot_id: str
+    family: str
+    first_seen: str
+    last_seen: str
+    file_type: str
+    file_size: int
+    arch: str
+    endianness: str
+    bitness: int
+    cnc_ip: str
+    status: str = BotStatus.UNKNOWN.value
+    dormant_at: str
+    dormant_duration: str
+    observe_at: str
+    observe_duration: str
+    tracker: str
+
+@dataclass
 class CnCStat:
     ip: str
     # could be: connected/disconnected
@@ -47,33 +66,15 @@ class AttackStat:
     time: str
     duration: str
 
-@dataclass
-class BotInfo:
-    bot_id: str
-    family: str
-    first_seen: str
-    last_seen: str
-    file_type: str
-    file_size: int
-    arch: str
-    endianness: str
-    bitness: str
-    cnc_ip: str
-    status: str
-    dormant_at: str
-    dormant_duration: str
-    observe_at: str
-    observe_duration: str
-    tracker: str
-
 class DBStore:
     def __init__(self):
         self.conn = None
 
     async def open(self):
-        self.conn = await psycopg.AsyncConnection.connect("""dbname=test
-                                                         user=postgres
-                                                         password=test""")
+        self.conn = await
+        psycopg.AsyncConnection.connect("""dbname=botnet_tracker
+                                           user=postgres
+                                           password=botnet""")
     async def close(self):
         await self.conn.close()
 
@@ -93,6 +94,9 @@ class DBStore:
                     await acur.execute(f"INSERT INTO {tbl} {str(field_names)}
                                        {str(field_formats)}", field_values)
                     acur.commit()
+
+    async def add_bot(self, bot):
+        await self._insert('bot_info', bot)
 
     async def add_tracker(self, tracker):
         await self._insert('tracker_info', tracker)

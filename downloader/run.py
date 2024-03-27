@@ -1,11 +1,13 @@
 import os
 import sys
+import asyncio
 import datetime
 import logging
 import shutil
 from bazaar import Bazaar
 from elftools.elf.elffile import ELFFile
-from db import BotInfo, TrackerInfo, DBStore
+from db.db_store import BotStatus, BotInfo, TrackerInfo, DBStore
+from datetime import datetime
 
 now = datetime.now()
 current_time = now.strftime("%m-%d-%Y-%H_%M_%S")
@@ -13,8 +15,7 @@ logging.basicConfig(filename='bot-downloader' + current_time + '.log', filemode=
 
 valid_tags = ['mirai']
 valid_file_type = ['elf']
-valid_arch = {'mips': ['32'], 'mipsel': ['32'], 'armv7l':['32']}
-local_repo = './'
+valid_arch = {'MIPS': {32: ['B','L']}, 'ARM': {32: ['L']}}
 download_period = 3600 # download hourly
 
 def get_arch_info(bot_file, bot_info):
@@ -29,64 +30,93 @@ def get_arch_info(bot_file, bot_info):
     bot_info.bitness = elffile.elfclass
 
 def check_arch_info(bot_info):
-    pass
+    if bot_info.arch in valid_arch and \
+       bot_info.bitness in valid_arch[bot_info.arch] and \
+       bot_info.endianness in valid_arch[bot_info.arch][bot_info.bitness]:
+        return True
+    return False
 
-def download_base(db_store, time_threshold):
-    repo = Bazaar()
+def is_earlier(t1_str, t2_str):
+    dt1 = datetime.strptime(t1_str, '%Y-%m-%d %H:%M:%S')
+    dt2 = datetime.strptime(t2_str, '%Y-%m-%d %H:%M:%S')
+    return dt1 < dt2
+
+async def download_base(remote_repo, local_repo, db_store, time_threshold):
     for t in valid_tags:
-        bot_list = repo.bazaar_query('tag', t, '1000')
+        bot_list = remote_repo.bazaar_query('tag', t, '1000')
         for bot in bot_list["data"]:
             bot_info = BotInfo(bot["sha256_hash"], t, bot["first_seen"],
                                bot["last_seen"], bot["file_type"],
                                bot["file_size"])
-            if bot_info.first_seen < time_threshold or bot_info.file_type \
+            if is_earlier(bot_info.first_seen, time_threshold) or bot_info.file_type \
                 not in valid_file_type:
                 continue
-            repo.bazaar_download(bot_info.sha256)
-            bot_file = bot_info.sha256
+            remote_repo.bazaar_download(bot_info.bot_id)
+            bot_file = bot_info.bot_id
             get_arch_info(bot_file, bot_info)
             if not check_arch_info(bot_info):
                 os.remove(bot_file)
                 continue
             shutil.move(bot_file, local_repo + os.sep + bot_file)
-            db_store.add_bot(bot_info)
-    db_store.persist()
+            await db_store.add_bot(bot_info)
 
-def download_recent(db_store):
-    repo = Bazaar()
-    bot_list = repo.bazaar_list_samples('time')
+async def download_recent(remote_repo, local_repo, db_store):
+    bot_list = remote_repo.bazaar_list_samples('time')
     for bot in bot_list["data"]:
         bot_info = BotInfo(bot["sha256_hash"], t, bot["first_seen"],
                            bot["last_seen"], bot["file_type"],
                            bot["file_size"])
         if bot_info.file_type not in file_type:
-                continue
+            continue
         find_tag = False
         for t in valid_tags:
             if t in bot["tags"]:
                 find_tag = True
                 break
-        repo.bazaar_download(bot_info.sha256)
-        bot_file = bot_info.sha256
+        if not find_tag:
+            continue
+        remote_repo.bazaar_download(bot_info.bot_id)
+        bot_file = bot_info.bot_id
         get_arch_info(bot_file, bot_info)
         if not check_arch_info(bot_info):
             os.remove(bot_file)
             continue
         shutil.move(bot_file, local_repo + os.sep + bot_file)
-        db_store.add_bot(bot_info)
-    db_store.persist()
+        await db_store.add_bot(bot_info)
 
-
-def main():
-    repo = Bazaar()
-    bot_info_store = BotInfoStore()
+async def aysnc_main(local_repo, base_time):
+    remote_repo = Bazaar()
+    db_store = DBStore()
 
     # get the base
-    time_threshold = None
-    download_base(bot_info_store, time_threshold)
+    await download_base(remote_repo, local_repo, db_store, base_time)
 
     # get bots incrementally
     while True:
-        time.sleep(download_period)
-        download_recent(bot_info_store)
+        await asyncio.sleep(download_period)
+        await download_recent(remote_repo, local_repo, db_store)
+
+def is_valid_datetime_format(datetime_str):
+    try:
+        datetime.strptime(datetime_str, '%Y-%m-%d %H:%M:%S')
+        return True
+    except ValueError:
+        return False
+
+if __name__ == "__main__":
+    #  print(BANNER)
+    #  signal.signal(signal.SIGINT, recv_signal)
+    #  print("[Master] Press CTRL+C whenever you want to exit")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-local_repo", nargs='*', type=str, help="The path to
+                        store malware samples")
+    parser.add_argument("-base_time", nargs='*', type=str, help="The base time
+                        after which the malware will be downloaded, e.g.
+                        2024-03-22 23:59:59")
+    args = parser.parse_args()
+    if args.local_repo is None or not is_valid_datetime_format(args.base_time):
+        print('Bad arguments')
+        sys.exit()
+
+    asyncio.run(async_main(), debug=True)
 
