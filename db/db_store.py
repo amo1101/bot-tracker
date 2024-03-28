@@ -2,7 +2,7 @@ import os
 import sys
 import psycopg
 from enum import Enum
-from dataclass import dataclass, is_dataclass, fields, astuple
+from dataclasses import dataclass, is_dataclass, fields, astuple
 
 class BotStatus(Enum):
     UNKNOWN = "unknown"
@@ -27,7 +27,7 @@ class TrackerInfo:
 class CnCInfo:
     ip: str
     port: str
-    as: str
+    asn: int
     location: str
 
 @dataclass
@@ -42,7 +42,7 @@ class BotInfo:
     endianness: str
     bitness: int
     cnc_ip: str
-    status: str = BotStatus.UNKNOWN.value
+    status: str
     dormant_at: str
     dormant_duration: str
     observe_at: str
@@ -71,10 +71,10 @@ class DBStore:
         self.conn = None
 
     async def open(self):
-        self.conn = await
-        psycopg.AsyncConnection.connect("""dbname=botnet_tracker
-                                           user=postgres
-                                           password=botnet""")
+        conninfo = 'host=localhost port=5432 dbname=botnet_tracker \
+        user=postgres password=botnet'
+        self.conn = await psycopg.AsyncConnection.connect(conninfo)
+
     async def close(self):
         await self.conn.close()
 
@@ -91,8 +91,9 @@ class DBStore:
                     filed_formats = tuple(self._get_format(f) for f in
                                           fields(data_obj.__class__))
                     field_values = astuple(data_obj)
-                    await acur.execute(f"INSERT INTO {tbl} {str(field_names)}
-                                       {str(field_formats)}", field_values)
+                    sql = f"INSERT INTO {tbl} {str(field_names)} {str(field_formats)}"
+                    print("sql: {sql}")
+                    await acur.execute(sql, field_values)
                     acur.commit()
 
     async def add_bot(self, bot):
@@ -116,14 +117,15 @@ class DBStore:
             para += (count,)
         para += (tracker,)
 
-        para = ()
         if self.conn is not None:
             async with aconn.cursor() as acur:
-                await acur.execute(f"SELECT * FROM bot_info where {'status IN 
-                                   %s AND' if status is not None else ''}
-                                   {'bot_id = %s AND'if bot_id is not None else
-                                   ''} tracker = % ORDER BY first_seen {'LIMIT
-                                   %s' if count is not None else ''}", para)
+                sql = f"SELECT * FROM bot_info where \
+                {'status IN %s AND' if status is not None else ''} \
+                {'bot_id = %s AND'if bot_id is not None else ''} \
+                tracker = % ORDER BY first_seen \
+                {'LIMIT %s' if count is not None else ''}"
+                print(f"sql: {sql}")
+                await acur.execute(sql, para)
                 async for record in acur:
                     bots.append(BotInfo(*record))
         return bots
@@ -133,8 +135,10 @@ class DBStore:
             async with aconn.cursor() as acur:
                 field_updates = tuple(f.name + '=' + self._get_format(f) for f in fields(BotInfo))
                 field_values = astuple(bot)
-                await acur.execute(f"UPDATE bot_info SET {str(field_updates)}
-                                   WHERE bot_info.sha256 = %s",
+                sql = f"UPDATE bot_info SET {str(field_updates)} \
+                WHERE bot_info.sha256 = %s"
+                print(f"sql: {sql}")
+                await acur.execute(sql,
                                    field_values + (bot.sha256,))
                 acur.commit()
 

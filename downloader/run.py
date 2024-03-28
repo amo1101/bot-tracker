@@ -4,14 +4,20 @@ import asyncio
 import datetime
 import logging
 import shutil
+import argparse
 from bazaar import Bazaar
 from elftools.elf.elffile import ELFFile
-from db.db_store import BotStatus, BotInfo, TrackerInfo, DBStore
 from datetime import datetime
 
-now = datetime.now()
-current_time = now.strftime("%m-%d-%Y-%H_%M_%S")
-logging.basicConfig(filename='bot-downloader' + current_time + '.log', filemode='w', format='%(asctime)s-%(levelname)s-%(message)s',datefmt='%d-%b-%y %H:%M:%S')
+CUR_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_MODULE_DIR = os.path.dirname(CUR_DIR) + os.sep + 'db'
+sys.path.append(DB_MODULE_DIR)
+
+from db_store import BotStatus, BotInfo, TrackerInfo, DBStore
+
+#  now = datetime.now()
+#  current_time = now.strftime("%m-%d-%Y-%H_%M_%S")
+#  logging.basicConfig(filename='bot-downloader' + current_time + '.log', filemode='w', format='%(asctime)s-%(levelname)s-%(message)s',datefmt='%d-%b-%y %H:%M:%S')
 
 valid_tags = ['mirai']
 valid_file_type = ['elf']
@@ -84,17 +90,23 @@ async def download_recent(remote_repo, local_repo, db_store):
         shutil.move(bot_file, local_repo + os.sep + bot_file)
         await db_store.add_bot(bot_info)
 
-async def aysnc_main(local_repo, base_time):
+async def async_main(local_repo, base_time):
     remote_repo = Bazaar()
     db_store = DBStore()
+    await db_store.open()
 
     # get the base
     await download_base(remote_repo, local_repo, db_store, base_time)
 
     # get bots incrementally
-    while True:
-        await asyncio.sleep(download_period)
-        await download_recent(remote_repo, local_repo, db_store)
+    try:
+        while True:
+            await asyncio.sleep(download_period)
+            await download_recent(remote_repo, local_repo, db_store)
+    except KeyboardInterrupt:
+        print('Interrupted by user')
+    finally:
+        await db_store.close()
 
 def is_valid_datetime_format(datetime_str):
     try:
@@ -108,15 +120,22 @@ if __name__ == "__main__":
     #  signal.signal(signal.SIGINT, recv_signal)
     #  print("[Master] Press CTRL+C whenever you want to exit")
     parser = argparse.ArgumentParser()
-    parser.add_argument("-local_repo", nargs='*', type=str, help="The path to
-                        store malware samples")
-    parser.add_argument("-base_time", nargs='*', type=str, help="The base time
-                        after which the malware will be downloaded, e.g.
-                        2024-03-22 23:59:59")
+    parser.add_argument("-local_repo", nargs='*', type=str, help="The path to store malware samples")
+    parser.add_argument("-base_time", nargs='*', type=str, help="The base time \
+    after which the malware will be downloaded, e.g.2024-03-22 23:59:59")
     args = parser.parse_args()
-    if args.local_repo is None or not is_valid_datetime_format(args.base_time):
+    print(f'local_repo: {args.local_repo}')
+    print(f'base_time: {args.base_time}')
+    if args.local_repo is None or args.base_time is None:
         print('Bad arguments')
         sys.exit()
 
-    asyncio.run(async_main(), debug=True)
+    if args.local_repo[0] is None or not is_valid_datetime_format(args.base_time[0]):
+        print('Bad arguments')
+        sys.exit()
+
+    if not os.path.exists(args.local_repo[0]):
+        os.makedirs(args.local_repo[0])
+
+    asyncio.run(async_main(args.local_repo[0], args.base_time[0]), debug=True)
 
