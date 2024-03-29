@@ -19,7 +19,7 @@ class Bazaar:
         valid_types (list): list of valid types
         valid_keys (list): list of valid keys
     """
-    def __init__(self, url: str = 'https://mb-api.abuse.ch/api/v1/', api_key: str = ""):
+    def __init__(self, url: str = 'https://mb-api.abuse.ch/api/v1/', api_key: str = "10fec6243baa59a4ca9738022ae7d7e9"):
         self.url = url
         self.valid_fields = ['sha256_hash', 'sha1_hash', 'md5_hash', 'file_name', 'signature', 'imphash']
         self.valid_selectors = ['100', 'time']
@@ -113,9 +113,10 @@ class Bazaar:
 
             if(unzip == True):
                 with pyzipper.AESZipFile(hash+".zip") as zf:
-                    zf.pwd = ZIP_PASSWORD
+                    zf.pwd = ZIP_PASSWORD.encode()
                     _ = zf.extractall(".")
                     print("Sample \""+hash+"\" downloaded and unpacked.")
+                    os.remove(hash+".zip")
                     return zf.namelist()
             else:
                 print("Sample \""+hash+"\" downloaded.")
@@ -212,7 +213,7 @@ class Bazaar:
                 'limit': '' + limit + ''
             }
 
-        response = self.session.post(self.url, data=data, timeout=15)
+        response = self.session.post(self.url, data=data, timeout=300)
         json_response = response.json()
 
         if(field):

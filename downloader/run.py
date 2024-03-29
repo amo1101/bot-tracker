@@ -13,16 +13,18 @@ CUR_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_MODULE_DIR = os.path.dirname(CUR_DIR) + os.sep + 'db'
 sys.path.append(DB_MODULE_DIR)
 
-from db_store import BotStatus, BotInfo, TrackerInfo, DBStore
+from db_store import BotStatus, BotInfo, TrackerInfo, DBStore, test_db
 
 #  now = datetime.now()
 #  current_time = now.strftime("%m-%d-%Y-%H_%M_%S")
 #  logging.basicConfig(filename='bot-downloader' + current_time + '.log', filemode='w', format='%(asctime)s-%(levelname)s-%(message)s',datefmt='%d-%b-%y %H:%M:%S')
+logging.basicConfig(format='%(asctime)s-%(levelname)s-%(message)s',datefmt='%d-%b-%y %H:%M:%S', level=logging.DEBUG)
+l = logging.getLogger(name=__name__)
 
 valid_tags = ['mirai']
 valid_file_type = ['elf']
 valid_arch = {'MIPS': {32: ['B','L']}, 'ARM': {32: ['L']}}
-download_period = 3600 # download hourly
+download_period = 10 # download hourly
 
 def get_arch_info(bot_file, bot_info):
     # unzipped file name should be sha256
@@ -42,58 +44,107 @@ def check_arch_info(bot_info):
         return True
     return False
 
+def is_valid_datetime_format(datetime_str):
+    try:
+        datetime.strptime(datetime_str, '%Y-%m-%d %H:%M:%S')
+        return True
+    except ValueError:
+        return False
+
 def is_earlier(t1_str, t2_str):
     dt1 = datetime.strptime(t1_str, '%Y-%m-%d %H:%M:%S')
     dt2 = datetime.strptime(t2_str, '%Y-%m-%d %H:%M:%S')
     return dt1 < dt2
 
+def get_timestamp(timestr):
+    if timestr == '' or timestr is None:
+        return '1970-01-01 00:00:00'
+    else:
+        return timestr
+
 async def download_base(remote_repo, local_repo, db_store, time_threshold):
+    l.debug('download base started...')
     for t in valid_tags:
-        bot_list = remote_repo.bazaar_query('tag', t, '1000')
+        bot_list = remote_repo.bazaar_query('tag', t, '2')
+        l.debug(f'response json: {bot_list}')
+        if bot_list["query_status"] != "ok":
+            continue
         for bot in bot_list["data"]:
-            bot_info = BotInfo(bot["sha256_hash"], t, bot["first_seen"],
-                               bot["last_seen"], bot["file_type"],
+            l.debug(f'bot: {bot}')
+            bot_info = BotInfo(bot["sha256_hash"], t,
+                               get_timestamp(bot["first_seen"]),
+                               get_timestamp(bot["last_seen"]),
+                               bot["file_type"],
                                bot["file_size"])
+            if not is_valid_datetime_format(bot_info.first_seen) or \
+               not is_valid_datetime_format(bot_info.last_seen):
+                l.warning('wrong timestamp format.')
+                continue
             if is_earlier(bot_info.first_seen, time_threshold) or bot_info.file_type \
                 not in valid_file_type:
                 continue
+            l.debug(f'downloading {bot_info.bot_id}...')
             remote_repo.bazaar_download(bot_info.bot_id)
-            bot_file = bot_info.bot_id
+            bot_file = bot_info.bot_id + '.' + bot_info.file_type
             get_arch_info(bot_file, bot_info)
+            l.debug(f'bot_info:\n{repr(bot_info)}')
             if not check_arch_info(bot_info):
                 os.remove(bot_file)
                 continue
             shutil.move(bot_file, local_repo + os.sep + bot_file)
+            l.debug('storing bot_info')
             await db_store.add_bot(bot_info)
+    l.debug('download base done')
 
 async def download_recent(remote_repo, local_repo, db_store):
+    l.debug('download recent started...')
     bot_list = remote_repo.bazaar_list_samples('time')
+    l.debug(f'response json: {bot_list}')
+    if bot_list["query_status"] != "ok":
+        l.debug('No result returned')
+        return
     for bot in bot_list["data"]:
-        bot_info = BotInfo(bot["sha256_hash"], t, bot["first_seen"],
-                           bot["last_seen"], bot["file_type"],
+        bot_info = BotInfo(bot["sha256_hash"], '',
+                           get_timestamp(bot["first_seen"]),
+                           get_timestamp(bot["last_seen"]),
+                           bot["file_type"],
                            bot["file_size"])
+        if not is_valid_datetime_format(bot_info.first_seen) or \
+           not is_valid_datetime_format(bot_info.last_seen):
+            l.warning('wrong timestamp format.')
+            continue
+
         if bot_info.file_type not in file_type:
             continue
         find_tag = False
         for t in valid_tags:
             if t in bot["tags"]:
                 find_tag = True
+                bot_info.family = t
                 break
         if not find_tag:
             continue
+        l.debug(f'downloading {bot_info.bot_id}...')
         remote_repo.bazaar_download(bot_info.bot_id)
-        bot_file = bot_info.bot_id
+        bot_file = bot_info.bot_id + '.' + bot_info.file_type
         get_arch_info(bot_file, bot_info)
+        l.debug(f'bot_info:\n{repr(bot_info)}')
         if not check_arch_info(bot_info):
             os.remove(bot_file)
             continue
+        l.debug('storing bot_info...')
         shutil.move(bot_file, local_repo + os.sep + bot_file)
         await db_store.add_bot(bot_info)
+    l.debug('download recent done')
 
 async def async_main(local_repo, base_time):
+    l.debug('connecting to remote repo...')
     remote_repo = Bazaar()
+    l.debug('connecting to remote repo done')
+    l.debug('connecting to db...')
     db_store = DBStore()
     await db_store.open()
+    l.debug('connecting to db done')
 
     # get the base
     await download_base(remote_repo, local_repo, db_store, base_time)
@@ -107,13 +158,6 @@ async def async_main(local_repo, base_time):
         print('Interrupted by user')
     finally:
         await db_store.close()
-
-def is_valid_datetime_format(datetime_str):
-    try:
-        datetime.strptime(datetime_str, '%Y-%m-%d %H:%M:%S')
-        return True
-    except ValueError:
-        return False
 
 if __name__ == "__main__":
     #  print(BANNER)

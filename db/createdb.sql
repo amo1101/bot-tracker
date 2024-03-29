@@ -1,5 +1,5 @@
 CREATE TABLE IF NOT EXISTS bot_info (
-    bot_id VARCHAR (32) PRIMARY KEY,
+    bot_id VARCHAR (128) PRIMARY KEY,
     family VARCHAR (32),
     first_seen TIMESTAMPTZ NOT NULL,
     last_seen TIMESTAMPTZ,
@@ -8,7 +8,6 @@ CREATE TABLE IF NOT EXISTS bot_info (
     arch VARCHAR (8),
     endianness CHAR (1),
     bitness INT,
-    cnc_ip INET [],
     status VARCHAR (16),
     dormant_at TIMESTAMPTZ,
     dormant_duration INTERVAL,
@@ -20,6 +19,7 @@ CREATE TABLE IF NOT EXISTS bot_info (
 CREATE TABLE IF NOT EXISTS cnc_info (
     ip INET PRIMARY KEY,
     port INT,
+    bot_id VARCHAR (128),
     domain VARCHAR (128),
     asn INT,
     location VARCHAR (32)
@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS cnc_stat (
 );
 
 CREATE TABLE IF NOT EXISTS attack_stat (
-    bot_id VARCHAR (32),
+    bot_id VARCHAR (128),
     cnc_ip INET,
     target INET,
     attack_type VARCHAR (16),
