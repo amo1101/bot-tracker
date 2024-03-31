@@ -3,11 +3,13 @@ import os
 from log import TaskLogger
 import time
 import sys
-from db import *
 from sandbox_context import SandboxContext
 from scheduler import Scheduler
 
-CUR_DIR = os.path.dirname(os.path.realpath(__file__))
+CUR_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_MODULE_DIR = os.path.dirname(CUR_DIR) + os.sep + 'db'
+sys.path.append(DB_MODULE_DIR)
+from db_store import *
 
 l = TaskLogger(__name__)
 
@@ -59,7 +61,7 @@ async def handle_start_bot(args):
     else:
         status = None
         bot_id = args[1]
-        bot_scheduler.start_bot(bot_id)
+        await bot_scheduler.start_bot(bot_id)
         resp = "Bot started"
     return resp
 
@@ -71,7 +73,7 @@ async def handle_stop_bot(args):
     else:
         status = None
         bot_id = args[1]
-        bot_scheduler.stop_bot(bot_id)
+        await bot_scheduler.stop_bot(bot_id)
         resp = "Bot stopped"
     return resp
 
@@ -111,7 +113,7 @@ async def start_server():
         handle_client, '127.0.0.1', 8888)
 
     addr = server.sockets[0].getsockname()
-    print(f'Serving on {addr}')
+    l.debug(f'Command server on {addr}...')
 
     async with server:
         await server.serve_forever()

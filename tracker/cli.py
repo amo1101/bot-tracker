@@ -32,7 +32,7 @@ async def start_cli():
                 print('Wrong argument')
                 show_help()
             writer.write(command.encode())
-            data = await reader.read(100)
+            data = await reader.read(2048)
             if not data:
                 break
             resp = data.decode()

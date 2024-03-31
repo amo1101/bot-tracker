@@ -49,6 +49,11 @@ class BotInfo:
     observe_duration: str = 'P0Y0M0DT0H0M0S'
     tracker: str = ''
 
+    @property
+    def name(self):
+        return self.first_seen + '-' + self.family + '-' + self.bot_id[:8]
+
+
 @dataclass
 class CnCStat:
     ip: str
@@ -99,7 +104,7 @@ class DBStore:
         try:
             await self._insert('bot_info', bot)
         except psycopg.errors.UniqueViolation:
-            pass #TODO: should return false
+            pass #TODO: should return false.primary key dup handling.
 
     async def add_tracker(self, tracker):
         await self._insert('tracker_info', tracker)

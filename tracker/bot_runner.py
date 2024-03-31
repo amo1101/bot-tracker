@@ -10,13 +10,16 @@ from datetime import datetime
 from concurrent.futures import ProcessPoolExecutor
 from packet_analyzer import *
 from packet_capture import *
-from db import *
 from sandbox import Sandbox
 from sandbox_context import SandboxNWFilter, SandboxContext
 
 l = TaskLogger(__name__)
 
-CUR_DIR = os.path.dirname(os.path.realpath(__file__))
+CUR_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_MODULE_DIR = os.path.dirname(CUR_DIR) + os.sep + 'db'
+sys.path.append(DB_MODULE_DIR)
+from db_store import *
+
 
 def init_worker():
     # suppress SIGINT in worker proecess to cleanly reclaim resource only by
@@ -40,10 +43,10 @@ class BotRunner:
         self.live_capture = None
         self.cnc_info = None
         self.log_base = CUR_DIR + os.sep + "log"
-        self.log_dir = self.log_base + os.sep + bot_info.sha256
+        self.log_dir = self.log_base + os.sep + bot_info.name
         self.cnc_probing_time = 5
         self.conn_limit = 10
-        self.mal_repo_ip = "192.168.1.200"
+        self.mal_repo_ip = "127.0.0.1"
         self.scan_ports = "23"  #TODO
         self.start_time = None
         self.dormant_start_time = None

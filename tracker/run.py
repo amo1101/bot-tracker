@@ -6,14 +6,17 @@ import os
 from log import TaskLogger
 import time
 import sys
-from db import *
 from sandbox_context import SandboxContext
 from sandbox_context import SandboxNWFilter
 from sandbox import Sandbox
 from scheduler import Scheduler
 import cmd_handler
 
-CUR_DIR = os.path.dirname(os.path.realpath(__file__))
+CUR_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_MODULE_DIR = os.path.dirname(CUR_DIR) + os.sep + 'db'
+sys.path.append(DB_MODULE_DIR)
+from db_store import *
+
 
 l = TaskLogger(__name__)
 

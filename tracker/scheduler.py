@@ -3,9 +3,13 @@ import libvirt
 import libvirtaio
 import uuid
 from datetime import datetime, timedelta
-from db import *
 from bot_runner import *
 from log import TaskLogger
+
+CUR_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_MODULE_DIR = os.path.dirname(CUR_DIR) + os.sep + 'db'
+sys.path.append(DB_MODULE_DIR)
+from db_store import *
 
 l = TaskLogger(__name__)
 
@@ -39,31 +43,32 @@ class Scheduler:
         for t, o in self.bot_runners.items():
             dd = o.dormant_duration()
             od = o.observe_duration()
-            l.debug(f"bot [{o.bot_info.sha256}]: \ndormant_duration:{dd}\nobserve_duration:{od}")
+            l.debug(f"bot [{o.bot_info.name}]: \ndormant_duration:{dd}\nobserve_duration:{od}")
             if dd > self.max_dormant_duration or od > self.max_observe_duration:
-                l.debug(f"Cancelling running bot [{o.bot_info.sha256}]")
+                l.debug(f"Cancelling running bot [{o.bot_info.name}]")
                 o.bot.status = BotStatus.STOPPED.value
                 await db_store.update_bot_info(o.bot)
                 t.cancel()
 
-    async def _schedule_bots(self, status, bot_id, count):
+    async def _schedule_bots(self, status_list=None, bot_id=None, count=None):
         def task_done_cb(t):
             if t in self.bot_runners:
                 del self.bot_runners[t]
                 l.debug('task done removed')
 
-        bots = await db_store.load_bot_info([status], bot_id, count)
+        bots = await db_store.load_bot_info(status_list, bot_id, count)
         for bot in bots:
             # TODO: need re-init bot info
             bot.status = BotStatus.STARTED.value
             bot_runner = BotRunner(bot, self.sandbox_cxt, self.db_store)
-            task = asyncio.create_task(bot_runner.run(), name=f'Task-{bot.sha256}')
+            task = asyncio.create_task(bot_runner.run(),
+                                       name=f'Task-{bot.name}')
             self.bot_runners[task] = bot_runner
             task.add_done_callback(task_done_cb)
             await self.db_store.update_bot_info(bot)
-            l.debug(f"bot [{bot.sha256}] scheduled")
+            l.debug(f"bot [{bot.name}] scheduled")
 
-    async def _stage_bots(self, status, bot_id, count):
+    async def _stage_bots(self):
         # run bot
         l.debug("Num of running bots: %d", len(self.bot_runners))
         slots = self.max_sandbox_num - len(self.bot_runners)
@@ -71,7 +76,7 @@ class Scheduler:
             l.warning('no sandbox available for bots')
             return
 
-        await self._schedule_bots(BotStatus.UNKNOWN, None, slots)
+        await self._schedule_bots([BotStatus.UNKNOWN.value], None, slots)
 
     async def checkpoint(self):
         try:
