@@ -38,13 +38,13 @@ class BotRunner:
         self.sandbox_ctx = sandbox_ctx
         self.db_store = db_store
         self.sandbox = None
-        self.cnc_analzyer = CnCAnalyzer()
+        self.cnc_analzyer = None
         self.attack_analzyer = None
         self.live_capture = None
-        self.cnc_info = None
         self.log_base = CUR_DIR + os.sep + "log"
         self.log_dir = self.log_base + os.sep + bot_info.name
-        self.cnc_probing_time = 5
+        self.cnc_info = None
+        self.cnc_probing_time = 30
         self.conn_limit = 10
         self.mal_repo_ip = "127.0.0.1"
         self.scan_ports = "23"  #TODO
@@ -68,7 +68,10 @@ class BotRunner:
                                                  output_file=output_file,
                                                  debug=False)
 
-    async def _find_cnc(self):
+    async def _find_cnc(self, own_ip):
+        if self.cnc_analzyer is None:
+            self.cnc_analzyer = CnCAnalyzer(own_ip)
+
         loop = asyncio.get_running_loop()
         try:
             async for packet in self.live_capture.sniff_continuously():
@@ -84,15 +87,19 @@ class BotRunner:
     # TODO: now only monitor cnc status
     async def _handle_attack_report(self, report):
         cnc_status = report['cnc_status']
+        l.debug(f"get cnc status report: {report}")
+        strtime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         if cnc_status == BotStatus.ACTIVE.value:
             self.bot_info.dormant_duration = 0
         elif cnc_status == BotStatus.DISCONNECTED.value:
             self.bot_info.dormant_start_time = datetime.now()
-        await db_store.update_bot_info(self.bot_info)
 
-    async def _observe_attack(self):
+        cnc_stat = CnCStat(report['cnc_ip'], cnc_status, strtime)
+        await db_store.add_cnc_stat(cnc_stat)
+
+    async def _observe_attack(self, cnc_ip, cnc_port, own_ip):
         if self.attack_analzyer is None:
-            self.attack_analzyer = AttackAnalyzer(self.cnc_analzyer.report)
+            self.attack_analzyer = AttackAnalyzer(cnc_ip, cnc_port, own_ip)
 
         loop = asyncio.get_running_loop()
         try:
@@ -150,7 +157,7 @@ class BotRunner:
             self.sandbox = Sandbox(self.sandbox_ctx, self.bot_info.sha256,
                                    self.bot_info.arch)
             self.sandbox.start()
-            _, mac_addr = self.sandbox.get_ifinfo()
+            _, mac_addr, own_ip = self.sandbox.get_ifinfo()
 
             # set default nwfiter
             self.sandbox.apply_nwfilter(SandboxNWFilter.DEFAULT,
@@ -159,17 +166,18 @@ class BotRunner:
 
             # find cnc server
             try:
-                await asyncio.wait_for(self._find_cnc(),
+                await asyncio.wait_for(self._find_cnc(own_ip),
                                        timeout=self.cnc_probing_time)
             except asyncio.TimeoutError:
                 l.warning("Cnc probing timeout...")
                 if self.cnc_analzyer.report.is_ready():
-                    self.cnc_analzyer.report.persist()
                     cnc_info = self.cnc_analzyer.report.get()
                     ip_port = cnc_info[0].split(':')
-                    self.bot_info.cnc_ip = ip_port[0]
-                    self.bot_info.cnc_ip = ip_port[1]
-                    await db_store.update_bot_info(self.bot_info)
+                    # TODO: skip asn and location here
+                    self.cnc_info = CnCInfo(ip_port[0], ip_port[1],
+                                            self.bot_info.bot_id, 0, '')
+                    l.debug(f"Find CnC:{ip_port[0]}:{ip_port[1]}")
+                    await db_store.add_cnc_info(cnc_info)
                 else:
                     l.warning("Cnc not find, stop bot runner...")
                     self.bot_info.status = BotStatus.ERROR
@@ -189,7 +197,9 @@ class BotRunner:
             self.sandbox.apply_nwfilter(nwfilter_type,**args)
 
             # observer attacks
-            await self._observe_attack()
+            await self._observe_attack(self.cnc_info.ip,
+                                       self.cnc_info.port,
+                                       own_ip)
 
         except asyncio.CancelledError:
             l.debug("Bot runner cancelled")

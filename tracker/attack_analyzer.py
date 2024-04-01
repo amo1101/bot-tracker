@@ -6,24 +6,26 @@ from log import TaskLogger
 l = TaskLogger(__name__)
 
 class AttackReport():
-    def __init__(self):
+    def __init__(self, cnc_ip):
         self.cnc_status = None
         self.cnc_ready = False
         self.attack_ready = False
+        self.cnc_ip = cnc_ip
 
     def is_ready(self):
         return self.cnc_ready
 
     def get(self):
         self.cnc_ready = False
-        return {'cnc_status': self.cnc_status}
+        return {'cnc_ip': cnc_ip,
+                'cnc_status': self.cnc_status}
 
 class AttackAnalyzer():
     def __init__(self, cnc_ip, cnc_port, own_ip):
         self.cnc_ip = cnc_ip
         self.cnc_port = cnc_port
         self.own_ip = own_ip
-        self.report = AttackReport()
+        self.report = AttackReport(cnc_ip)
 
     def _analyze_cnc_status(self, pkt):
         state = ""
@@ -46,9 +48,13 @@ class AttackAnalyzer():
                         state = "OTHER"
 
         if state in ["SYN","SYN_ACK",'SUC',"OTHER"]:
-            self.report.cnc_status = CnCStatus.ALIVE.value
+            if self.report.cnc_status != CnCStatus.ALIVE.value:
+                self.report.cnc_ready = True
+                self.report.cnc_status = CnCStatus.ALIVE.value
         elif state in ["RST", "FIN"]:
-            self.report.cnc_status = CnCStatus.DISCONNECTED.value
+            if self.report.cnc_status != CnCStatus.DISCONNECTED.value:
+                self.report.cnc_ready = True
+                self.report.cnc_status = CnCStatus.DISCONNECTED.value
 
     def _analyze_attack(self, pkt):
         pass

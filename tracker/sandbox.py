@@ -24,6 +24,7 @@ class Sandbox:
         self.ifinfo = None
         self.port_dev = None
         self.mac_address = ""
+        self.ip = ''
         self.fs = None
         self.filter_binding = None
 
@@ -122,9 +123,10 @@ class Sandbox:
                 print(f"{k}:{v}")
             self.port_dev = list(ifaces.keys())[0]
             self.mac_address = ifaces[self.port_dev]['hwaddr']
+            #self.ip = ifaces[self.port_dev][]
             l.debug("get port_dev %s, mac_address: %s", self.port_dev,
                     self.mac_address)
-        return (self.port_dev, self.mac_address)
+        return (self.port_dev, self.mac_address, self.ip)
 
     def apply_nwfilter(self, filter_name, **kwargs):
         self.get_ifinfo()
