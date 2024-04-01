@@ -4,14 +4,24 @@ import psycopg
 from enum import Enum
 from dataclasses import dataclass, is_dataclass, fields, astuple
 
+INIT_TIME_STAMP = '1970-01-01 00:00:00'
+INIT_INTERVAL = 'P0Y0M0DT0H0M0S'
+
+# unknown: initial status, waiting to be scheduled
+# staged: already been scheduled in sandbox and under cnc probing
+# dormant: CnC is found, but CnC communication is not observed
+# active: CnC communication is observed
+# interrupted: observing is interrupted, can be resumed
+# unstaged: observing is stopped due to maximum dormant period reached
+#           auto scheduling mode only
+# error: some error status need to be futher checked manually
 class BotStatus(Enum):
     UNKNOWN = "unknown"
-    STARTED = "started"
+    STAGED = "staged"
     DORMANT = "dormant"
     ACTIVE = "active"
-    PAUSED = "paused"
     INTERRUPTED = "interrupted"
-    STOPPED = "stopped"
+    UNSTAGED = "unstaged"
     ERROR = "error"
 
 class CnCStatus(Enum):
@@ -31,27 +41,33 @@ class CnCInfo:
     asn: int
     location: str
 
+# dormant_at:
+#   status -> active, reset to init value
+#   status -> dormant, set the timestamp
+# dormant_duration: always accure, even after resuming from interrupted
+# observe_at: set the timestamp when start observing after CnC is found
+# observer_duration: always accure, even after resuming from interrupted
 @dataclass
 class BotInfo:
     bot_id: str
     family: str
     first_seen: str
-    last_seen: str = '1970-01-01 00:00:00'
+    last_seen: str = INIT_TIME_STAMP
     file_type: str = ''
     file_size: int = 0
     arch: str = ''
     endianness: str = ''
     bitness: int = 0
     status: str = 'unknown'
-    dormant_at: str = '1970-01-01 00:00:00'
-    dormant_duration: str = 'P0Y0M0DT0H0M0S'
-    observe_at: str = '1970-01-01 00:00:00'
-    observe_duration: str = 'P0Y0M0DT0H0M0S'
+    dormant_at: str = INIT_TIME_STAMP
+    dormant_duration: str = INIT_INTERVAL
+    observe_at: str = INIT_TIME_STAMP
+    observe_duration: str = INIT_INTERVAL
     tracker: str = ''
 
     @property
     def name(self):
-        return self.first_seen + '-' + self.family + '-' + self.bot_id[:8]
+        return self.first_seen.replace(' ', '-').replace(':','-') + '-' + self.family + '-' + self.bot_id[:8]
 
 
 @dataclass

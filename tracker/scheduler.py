@@ -16,8 +16,9 @@ l = TaskLogger(__name__)
 CHECKPOINT_INTERVAL = 5
 
 class Scheduler:
-    def __init__(self, sandbox_ctx, db_store):
+    def __init__(self, mode, sandbox_ctx, db_store):
         self.tracker_id = None #TODO: bot migration will be done via CLI 
+        self.mode = 0 # 0 mean manual mode, 1 means auto mode
         self.sandbox_cxt = sandbox_ctx
         self.db_store = db_store
         self.max_sandbox_num = 5
@@ -32,8 +33,6 @@ class Scheduler:
         for t, o in self.bot_runners.items():
             if not t.cancelled():
                 o = self.bot_runners[t]
-                o.bot_info.status = BotStatus.INTERRUPTED
-                await db_store.update_bot_info(o.bot_info)
                 t.cancel()
             else:
                 l.debug(f'task {t.get_name()} has been cancelled')
@@ -81,8 +80,9 @@ class Scheduler:
     async def checkpoint(self):
         try:
             while True:
-                await self._unstage_bots()
-                await self._stage_bots()
+                if self.mode == 1:
+                    await self._unstage_bots()
+                    await self._stage_bots()
                 await asyncio.sleep(CHECKPOINT_INTERVAL)
         except asyncio.CancelledError:
             l.warning("Scheduler cancelled")
@@ -97,7 +97,7 @@ class Scheduler:
 
     async def stop_bot(self, bot_id):
         for t, o in self.bot_runners.items():
-            if o.bot_info.sha256 == bot_id:
+            if o.bot_info.bot_id == bot_id:
                 o.bot.status = BotStatus.STOPPED.value
                 await db_store.update_bot_info(o.bot)
                 t.cancel()

@@ -49,6 +49,7 @@ class BotRunner:
         self.mal_repo_ip = "127.0.0.1"
         self.scan_ports = "23"  #TODO
         self.start_time = None
+        self.notify_unstage = False
         self.dormant_start_time = None
         self.observe_start_time = None
 
@@ -119,6 +120,21 @@ class BotRunner:
     def observe_duration(self):
         return datetime.now() - self.observe_start_time
 
+    def notify_unstage(self):
+        self.notify_unstage_= True
+
+    def init_bot_info(self):
+        status = self.bot_info.status
+        if status == BotStatus.UNKNOWN.value:
+            pass
+        elif status == BotStatus.STOPPED.value: # manually restarted
+            self.bot_info.status = BotStatus.UNKNOWN.value
+            self.bot_info.dormant_at = INIT_TIME_STAMP
+            self.bot_info.dormant_duration = INIT_INTERVAL
+            self.bot_info.observe_at = INIT_TIME_STAMP
+            self.bot_info.observe_duration = INIT_INTERVAL
+        else:
+
     async def run(self):
         try:
             #  self.start_time = datetime.now()
@@ -154,7 +170,7 @@ class BotRunner:
 
             l.debug(f'Bot runner started at {self.start_time}')
             self._create_log_dir()
-            self.sandbox = Sandbox(self.sandbox_ctx, self.bot_info.sha256,
+            self.sandbox = Sandbox(self.sandbox_ctx, self.bot_info.name,
                                    self.bot_info.arch)
             self.sandbox.start()
             _, mac_addr, own_ip = self.sandbox.get_ifinfo()

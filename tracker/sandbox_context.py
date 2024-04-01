@@ -43,7 +43,7 @@ class SandboxContext:
         self.net_conf = self.config_base + os.sep + "network.xml"
         self.sandbox_registry = \
         {
-            "armv7": [
+            "ARM": [
                         "sandbox_armv7.xml",
                         "openwrt-armsr-armv7-generic-kernel.bin",
                         "openwrt-armsr-armv7-generic-ext4-rootfs.img"
