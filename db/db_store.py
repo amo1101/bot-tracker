@@ -2,10 +2,11 @@ import os
 import sys
 import psycopg
 from enum import Enum
+from datetime import datetime, timezone, timedelta
 from dataclasses import dataclass, is_dataclass, fields, astuple
 
-INIT_TIME_STAMP = '1970-01-01 00:00:00'
-INIT_INTERVAL = 'P0Y0M0DT0H0M0S'
+INIT_TIME_STAMP = datetime(1970,1,1,0,0,0)
+INIT_INTERVAL = timedelta(seconds=0)
 
 # unknown: initial status, waiting to be scheduled
 # staged: already been scheduled in sandbox and under cnc probing
@@ -15,6 +16,7 @@ INIT_INTERVAL = 'P0Y0M0DT0H0M0S'
 # unstaged: observing is stopped due to maximum dormant period reached
 #           auto scheduling mode only
 # error: some error status need to be futher checked manually
+# duplicate: bot with the same CnC already exist, no need to observe
 class BotStatus(Enum):
     UNKNOWN = "unknown"
     STAGED = "staged"
@@ -23,6 +25,7 @@ class BotStatus(Enum):
     INTERRUPTED = "interrupted"
     UNSTAGED = "unstaged"
     ERROR = "error"
+    DUPLICATE = "duplicate"
 
 class CnCStatus(Enum):
     UNKNOWN = "unknown"
@@ -38,8 +41,17 @@ class CnCInfo:
     ip: str
     port: str
     bot_id: str
-    asn: int
-    location: str
+    domain: str = ''
+    asn: int = 0
+    location: str = ''
+
+    def __repr__(self):
+        return f'ip: {self.ip}\n'+\
+            f'port: {self.port}\n'+\
+            f'bot_id: {self.bot_id}\n'+\
+            f'domain: {self.domain}\n'+\
+            f'asn: {self.asn}\n'+\
+            f'location: {self.location}'
 
 # dormant_at:
 #   status -> active, reset to init value
@@ -51,23 +63,40 @@ class CnCInfo:
 class BotInfo:
     bot_id: str
     family: str
-    first_seen: str
-    last_seen: str = INIT_TIME_STAMP
+    first_seen: datetime
+    last_seen: datetime = INIT_TIME_STAMP
     file_type: str = ''
     file_size: int = 0
     arch: str = ''
     endianness: str = ''
     bitness: int = 0
     status: str = 'unknown'
-    dormant_at: str = INIT_TIME_STAMP
-    dormant_duration: str = INIT_INTERVAL
-    observe_at: str = INIT_TIME_STAMP
-    observe_duration: str = INIT_INTERVAL
+    dormant_at: datetime = INIT_TIME_STAMP
+    dormant_duration: timedelta = INIT_INTERVAL
+    observe_at: datetime = INIT_TIME_STAMP
+    observe_duration: timedelta = INIT_INTERVAL
     tracker: str = ''
 
     @property
     def name(self):
-        return self.first_seen.replace(' ', '-').replace(':','-') + '-' + self.family + '-' + self.bot_id[:8]
+        return self.first_seen.strftime('%Y-%m-%d-%H-%M-%S') + '-' + self.family + '-' + self.bot_id[:8]
+
+    def __repr__(self):
+        return f'bot_id: {self.bot_id}\n'+\
+            f'family: {self.family}\n'+\
+            f'first_seen: {self.first_seen.strftime("%Y-%m-%d %H-%M-%S")}\n'+\
+            f'last_seen: {self.last_seen.strftime("%Y-%m-%d %H-%M-%S")}\n'+\
+            f'file_type: {self.file_type}\n'+\
+            f'file_size: {self.file_size}\n'+\
+            f'arch: {self.arch}\n'+\
+            f'endianness: {self.endianness}\n'+\
+            f'bitness: {self.bitness}\n'+\
+            f'status: {self.status}\n'+\
+            f'dormant_at: {self.dormant_at.strftime("%Y-%m-%d %H-%M-%S")}\n'+\
+            f'dormant_duration: {self.dormant_duration}\n'+\
+            f'observe_at: {self.observe_at.strftime("%Y-%m-%d %H-%M-%S")}\n'+\
+            f'observe_duration: {self.observe_duration}\n'+\
+            f'tracker: {self.tracker}'
 
 
 @dataclass
@@ -101,8 +130,9 @@ class DBStore:
         await self.conn.close()
 
     def _place_holder(self, field):
-        _ph_ = {str: '%s', int: '%s'}
-        return  _ph_[field.type]
+        #  _ph_ = {str: '%s', int: '%s'}
+        #  return  _ph_[field.type]
+        return "%s"
 
     async def _insert(self, tbl, data_obj):
         if is_dataclass(data_obj.__class__):
@@ -125,7 +155,6 @@ class DBStore:
     async def add_tracker(self, tracker):
         await self._insert('tracker_info', tracker)
 
-    #TODO
     async def load_bot_info(self, status_list=None, bot_id=None, count=None,
                             tracker=None):
         bots = []
@@ -176,8 +205,45 @@ class DBStore:
                 await cur.execute(sql, field_values + (bot.bot_id,))
                 await self.conn.commit()
 
+    async def bot_exist(self, bot_id):
+        bots = await self.load_bot_info(None, bot_id)
+        return len(bots) != 0
+
+
     async def add_cnc_info(self, cnc_info):
         await self._insert('cnc_info', cnc_info)
+
+    async def load_cnc_info(self, bot_id=None, ip=None):
+        cnc_info = []
+        para = ()
+
+        sql = "SELECT * FROM cnc_info"
+        filters = []
+        if bot_id is not None:
+            para += (bot_id,)
+            filters.append('bot_id = %s')
+        if ip is not None:
+            para += (ip,)
+            filters.append('ip = %s')
+
+        filter_str = ' AND '.join(f for f in filters)
+        if len(filters) > 0:
+            sql += ' WHERE '
+            sql += filter_str
+
+        print(f"sql: {sql}")
+        print(f"para: {para}")
+
+        if self.conn is not None:
+            async with self.conn.cursor() as cur:
+                await cur.execute(sql, para)
+                async for record in cur:
+                    cnc_info.append(CnCInfo(*record))
+        return cnc_info
+
+    async def cnc_exist(self, ip):
+        cnc = await self.load_cnc_info(None, ip)
+        return len(cnc) != 0
 
     async def add_cnc_stat(self, cnc_stat):
         await self._insert('cnc_stat', cnc_stat)
@@ -185,63 +251,95 @@ class DBStore:
     async def add_attack_stat(self, attack):
         await self._insert('attack_stat', attack)
 
+
+TEST_TS1 = datetime.strptime('2022-02-01 15:00:09', "%Y-%m-%d %H:%M:%S")
+TEST_TS2 = datetime.strptime('2022-02-01 16:00:09', "%Y-%m-%d %H:%M:%S")
+TEST_TS3 = datetime.strptime('2022-02-01 17:00:09', "%Y-%m-%d %H:%M:%S")
+TEST_TS4 = datetime.strptime('2022-02-01 18:00:09', "%Y-%m-%d %H:%M:%S")
+
 async def test_db_1():
     db_store = DBStore()
     await db_store.open()
-    b = BotInfo('00000000','mirai','2022-02-01 15:00:09','1970-01-01 00:00:00','elf',100)
-    b1 = BotInfo('00000001','mirai','2022-02-01 15:00:09','1970-01-01 00:00:00','elf',100)
-    print(f'add bot:{repr(b)}')
+    b = BotInfo('00000000','mirai',TEST_TS1, INIT_TIME_STAMP,'elf',100)
+    b1 = BotInfo('00000001','mirai',TEST_TS1, INIT_TIME_STAMP,'elf',100)
+    print(f'add bot:\n{repr(b)}\n')
     await db_store.add_bot(b)
-    print(f'add bot:{repr(b1)}')
+    print(f'add bot:\n{repr(b1)}\n')
     await db_store.add_bot(b1)
     bots = await db_store.load_bot_info()
     for bot in bots:
-        print(repr(bot))
+        print(f'{repr(bot)}\n')
     await db_store.close()
 
 async def test_db_2():
     db_store = DBStore()
     await db_store.open()
-    b = BotInfo('00000011','mirai','2022-02-01 15:00:09','1970-01-01 00:00:00','elf',100)
-    b1 = BotInfo('00000012','mirai','2022-02-01 15:00:09','1970-01-01 00:00:00','elf',100)
-    print(f'add bot:{repr(b)}')
+    check = await db_store.bot_exist('00000010')
+    print(f'bot 00000001 exists? {check}')
+    b = BotInfo('00000010','mirai',TEST_TS1, INIT_TIME_STAMP,'elf',100)
+    b1 = BotInfo('00000011','mirai',TEST_TS1, INIT_TIME_STAMP,'elf',100)
+    print(f'add bot:\n{repr(b)}\n')
     await db_store.add_bot(b)
-    print(f'add bot:{repr(b1)}')
+    print(f'add bot:\n{repr(b1)}\n')
     await db_store.add_bot(b1) #confliction
+    check1 = await db_store.bot_exist('00000010')
+    print(f'bot 00000001 exists? {check1}')
     await db_store.close()
 
 async def test_db_3():
     db_store = DBStore()
     await db_store.open()
-    b = BotInfo('00000021','mirai','2022-02-01 15:00:09','1970-01-01 00:00:00',
+    b = BotInfo('00000021','mirai',TEST_TS1,INIT_TIME_STAMP,
                 'elf',100,'ARM','L',32,'unknown',
-                '2024-03-29 19:00:08','P6Y5M4DT3H2M1S',
-                '2024-03-28 23:09:56','P6Y5M4DT3H10M1S')
-    b1 = BotInfo('00000022','mirai','2022-02-01 15:00:09','1970-01-01 00:00:00',
-                 'elf',100,'ARM','L',32,'active',
-                 '2024-03-29 19:00:08','P6Y5M4DT3H2M1S',
-                 '2024-03-28 23:09:56','P6Y5M4DT3H1M10S')
-    print(f'add bot:{repr(b)}')
+                TEST_TS2,INIT_INTERVAL,TEST_TS3,INIT_INTERVAL)
+    b1 = BotInfo('00000022','mirai',TEST_TS1,INIT_TIME_STAMP,
+                'elf',100,'ARM','L',32,'active',
+                TEST_TS3,INIT_INTERVAL,TEST_TS4,INIT_INTERVAL)
+
+    print(f'add bot:\n{repr(b)}\n')
     await db_store.add_bot(b)
-    print(f'add bot:{repr(b1)}')
+    print(f'add bot:\n{repr(b1)}\n')
     await db_store.add_bot(b1)
     bots = await db_store.load_bot_info([],None,2)
     for bot in bots:
         print(repr(bot))
     b1.status = 'dormant'
-    print(f'update bot:{repr(b1)}')
+    print(f'update bot:\n{repr(b1)}\n')
     await db_store.update_bot_info(b1)
     bots = await db_store.load_bot_info(['unknown','active'],None,2)
     for bot in bots:
-        print(repr(bot))
+        print(f'{repr(bot)}\n')
     bots = await db_store.load_bot_info(['unknown','dormant'],'12345678',2)
     for bot in bots:
-        print(repr(bot))
+        print(f'{repr(bot)}\n')
     await db_store.close()
 
-db_test_cases = {'case 1: insert and load': test_db_1,
-                 'case 2: primary key confliction': test_db_2,
-                 'case 3: all fields insert, update and load with filter': test_db_3}
+async def test_db_4():
+    db_store = DBStore()
+    await db_store.open()
+    check = await db_store.cnc_exist('109.123.1.1')
+    print(f'cnc 109.123.1.1 exists? {check}')
+    c = CnCInfo('109.123.1.1','2323','00000001','example.com', 0, 'China')
+    print(f'add cncinfo:\n{repr(c)}\n')
+    await db_store.add_cnc_info(c)
+    check1 = await db_store.cnc_exist('109.123.1.1')
+    print(f'cnc 109.123.1.1 exists? {check1}')
+    c1 = CnCInfo('109.123.1.2','2323','00000011','sina.com', 0, 'China')
+    print(f'add cncinfo:\n{repr(c1)}\n')
+    await db_store.add_cnc_info(c1)
+    cncs = await db_store.load_cnc_info()
+    for cnc in cncs:
+        print(f'{repr(cnc)}\n')
+    cncs1 = await db_store.load_cnc_info('00000001')
+    for cnc in cncs1:
+        print(f'{repr(cnc)}\n')
+    await db_store.close()
+
+
+db_test_cases = {'case 1: BotInfo insert and load': test_db_1,
+                 'case 2: BotInfo primary key confliction': test_db_2,
+                 'case 3: BotInfo all fields insert, update and load with filter': test_db_3,
+                 'case 4: CnCInfo insert and load': test_db_4}
 
 # before doing the test, manually drop tables
 async def test_db():

@@ -5,7 +5,7 @@ import os
 import sys
 import signal
 from log import TaskLogger
-from datetime import datetime
+from datetime import datetime, timedelta
 #  from aiomultiprocess import Pool
 from concurrent.futures import ProcessPoolExecutor
 from packet_analyzer import *
@@ -50,8 +50,10 @@ class BotRunner:
         self.scan_ports = "23"  #TODO
         self.start_time = None
         self.notify_unstage = False
-        self.dormant_start_time = None
-        self.observe_start_time = None
+        self.notify_error = False
+        self.notify_duplicate = False
+        self.dormant_time = INIT_TIME_STAMP
+        self.staged_time = INIT_TIME_STAMP
 
     def _create_log_dir(self):
         if not os.path.exists(self.log_base):
@@ -70,6 +72,12 @@ class BotRunner:
                                                  debug=False)
 
     async def _find_cnc(self, own_ip):
+        # check if cnc already exist
+        self.cnc_info = await self.db_store.load_cnc_info(self.bot_info.bot_id)
+        if len(self.cnc_info) > 0:
+            l.debug('CnC already exist.')
+            return
+
         if self.cnc_analzyer is None:
             self.cnc_analzyer = CnCAnalyzer(own_ip)
 
@@ -91,9 +99,9 @@ class BotRunner:
         l.debug(f"get cnc status report: {report}")
         strtime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         if cnc_status == BotStatus.ACTIVE.value:
-            self.bot_info.dormant_duration = 0
+            await self.update_bot_info(BotStatus.ACTIVE)
         elif cnc_status == BotStatus.DISCONNECTED.value:
-            self.bot_info.dormant_start_time = datetime.now()
+            await self.update_bot_info(BotStatus.DORMANT)
 
         cnc_stat = CnCStat(report['cnc_ip'], cnc_status, strtime)
         await db_store.add_cnc_stat(cnc_stat)
@@ -115,6 +123,8 @@ class BotRunner:
             #  pass
 
     def dormant_duration(self):
+        if self.dormant_time is None:
+            return 0
         return datetime.now() - self.dormant_start_time
 
     def observe_duration(self):
@@ -123,17 +133,50 @@ class BotRunner:
     def notify_unstage(self):
         self.notify_unstage_= True
 
-    def init_bot_info(self):
-        status = self.bot_info.status
-        if status == BotStatus.UNKNOWN.value:
-            pass
-        elif status == BotStatus.STOPPED.value: # manually restarted
-            self.bot_info.status = BotStatus.UNKNOWN.value
+    def notify_error(self):
+        self.notify_error = True
+
+    def notify_dup(self):
+        self.notify_dup = True
+
+    async def update_bot_info(self, status=None):
+        if status is None:
+            # merely update timing info
+            self.bot_info.observe_duration += self.observe_duration()
+            if self.bot_info.status == BotStatus.DORMANT.value:
+                self.bot_info.dormant_duration += self.dormant_duration()
+
+        if status == BotStatus.STAGED:
+            self.bot_info.status = BotStatus.STAGED.value
+            self.staged_time = datetime.now()
+            self.bot_info.observe_at = self.staged_time
+
+        if status == BotStatus.DORMANT:
+            self.bot_info.status = BotStatus.DORMANT.value
+            self.dormant_time = datetime.now()
+            self.bot_info.dormant_at = self.dormant_time
+
+        if status == BotStatus.ACTIVE:
+            self.bot_info.status = BotStatus.ACTIVE.value
+            self.dormant_time = INIT_TIME_STAMP
             self.bot_info.dormant_at = INIT_TIME_STAMP
             self.bot_info.dormant_duration = INIT_INTERVAL
-            self.bot_info.observe_at = INIT_TIME_STAMP
-            self.bot_info.observe_duration = INIT_INTERVAL
-        else:
+
+        if status == BotStatus.INTERRUPTED:
+            if self.notify_unstage == True:
+                # Finish observing
+                self.bot_info.status = BotStatus.UNSTAGED.value
+            elif self.notify_error == True:
+                # Error occured 
+                self.bot_info.status = BotStatus.ERROR.value
+            elif self.notify_dup == True:
+                # Duplicated
+                self.bot_info.status = BotStatus.DUPLICATE.value
+            else:
+                # Interrupted
+                self.bot_info.status = BotStatus.INTERRUPTED.value
+
+        await db_store.update_bot_info(self.bot_info)
 
     async def run(self):
         try:
@@ -162,17 +205,15 @@ class BotRunner:
 
             #  await self._observe_attack()
             #  #  return
-
-            #TODO
-            self.start_time = datetime.now()
-            self.dormant_start_time = datetime.now()
-            self.observe_start_time = datetime.now()
-
-            l.debug(f'Bot runner started at {self.start_time}')
+            l.debug(f'Bot runner {self.bot_info.name} started')
             self._create_log_dir()
             self.sandbox = Sandbox(self.sandbox_ctx, self.bot_info.name,
                                    self.bot_info.arch)
             self.sandbox.start()
+
+            # transit status to staged
+            await self.update_bot_info(BotStatus.STAGED)
+
             _, mac_addr, own_ip = self.sandbox.get_ifinfo()
 
             # set default nwfiter
@@ -190,14 +231,22 @@ class BotRunner:
                     cnc_info = self.cnc_analzyer.report.get()
                     ip_port = cnc_info[0].split(':')
                     # TODO: skip asn and location here
-                    self.cnc_info = CnCInfo(ip_port[0], ip_port[1],
-                                            self.bot_info.bot_id, 0, '')
+                    # TODO: we can support multiple CnCs, but now only use 1
+                    self.cnc_info.append(CnCInfo(ip_port[0], ip_port[1],
+                                                 self.bot_info.bot_id, 0, ''))
                     l.debug(f"Find CnC:{ip_port[0]}:{ip_port[1]}")
+
+                    # Check if CnC already existed
+                    exists = await db_store.cnc_exist(ip_port[0])
+                    if exists:
+                        self.notify_dup()
+                        self.destroy()
+                        return
+
                     await db_store.add_cnc_info(cnc_info)
                 else:
                     l.warning("Cnc not find, stop bot runner...")
-                    self.bot_info.status = BotStatus.ERROR
-                    await db_store.update_bot_info(self.bot_info)
+                    self.notify_error()
                     self.destroy()
                     return
 
@@ -211,6 +260,9 @@ class BotRunner:
                 args["scan_ports"] = self.scan_ports
 
             self.sandbox.apply_nwfilter(nwfilter_type,**args)
+
+            # Set bot status to dormant before we observer CnC communication
+            await self.update_bot_info(BotStatus.DORMANT)
 
             # observer attacks
             await self._observe_attack(self.cnc_info.ip,
@@ -226,6 +278,7 @@ class BotRunner:
     async def destroy(self):
         try:
             l.debug("Bot runner destroyed")
+            await self.update_bot_info(BotStatus.INTERRUPTED)
             self.sanbox.fetch_log(self.log_dir)
             self.sandbox.destroy()
             await self.live_capture.close_async()

@@ -13,7 +13,7 @@ CUR_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_MODULE_DIR = os.path.dirname(CUR_DIR) + os.sep + 'db'
 sys.path.append(DB_MODULE_DIR)
 
-from db_store import BotStatus, BotInfo, TrackerInfo, DBStore, test_db
+from db_store import *
 
 #  now = datetime.now()
 #  current_time = now.strftime("%m-%d-%Y-%H_%M_%S")
@@ -44,23 +44,20 @@ def check_arch_info(bot_info):
         return True
     return False
 
-def is_valid_datetime_format(datetime_str):
+def is_valid_datetime_format(t_str):
     try:
-        datetime.strptime(datetime_str, '%Y-%m-%d %H:%M:%S')
+        if t_str == '' or t_str is None:
+            return True
+        datetime.strptime(t_str, '%Y-%m-%d %H:%M:%S')
         return True
     except ValueError:
         return False
 
-def is_earlier(t1_str, t2_str):
-    dt1 = datetime.strptime(t1_str, '%Y-%m-%d %H:%M:%S')
-    dt2 = datetime.strptime(t2_str, '%Y-%m-%d %H:%M:%S')
-    return dt1 < dt2
-
 def get_timestamp(timestr):
     if timestr == '' or timestr is None:
-        return '1970-01-01 00:00:00'
+        return INIT_TIME_STAMP
     else:
-        return timestr
+        return datetime.strptime(timestr, '%Y-%m-%d %H:%M:%S')
 
 async def download_base(remote_repo, local_repo, db_store, time_threshold):
     l.debug('download base started...')
@@ -71,16 +68,20 @@ async def download_base(remote_repo, local_repo, db_store, time_threshold):
             continue
         for bot in bot_list["data"]:
             l.debug(f'bot: {bot}')
+            exists = await db_store.bot_exist(bot['sha256_hash'])
+            if exists:
+                l.debug(f'bot {bot["sha256_hash"]} already downloaded')
+                continue
+            if not is_valid_datetime_format(bot['first_seen']) or \
+               not is_valid_datetime_format(bot['last_seen']):
+                l.warning('wrong timestamp format.')
+                continue
             bot_info = BotInfo(bot["sha256_hash"], t,
                                get_timestamp(bot["first_seen"]),
                                get_timestamp(bot["last_seen"]),
                                bot["file_type"],
                                bot["file_size"])
-            if not is_valid_datetime_format(bot_info.first_seen) or \
-               not is_valid_datetime_format(bot_info.last_seen):
-                l.warning('wrong timestamp format.')
-                continue
-            if is_earlier(bot_info.first_seen, time_threshold) or bot_info.file_type \
+            if bot_info.first_seen < time_threshold or bot_info.file_type \
                 not in valid_file_type:
                 continue
             l.debug(f'downloading {bot_info.bot_id}...')
@@ -104,17 +105,21 @@ async def download_recent(remote_repo, local_repo, db_store):
         l.debug('No result returned')
         return
     for bot in bot_list["data"]:
+        exists = await db_store.bot_exist(bot['sha256_hash'])
+        if exists:
+            l.debug(f'bot {bot["sha256_hash"]} already downloaded')
+            continue
+        if not is_valid_datetime_format(bot['first_seen']) or \
+           not is_valid_datetime_format(bot['last_seen']):
+            l.warning('wrong timestamp format.')
+            continue
         bot_info = BotInfo(bot["sha256_hash"], '',
                            get_timestamp(bot["first_seen"]),
                            get_timestamp(bot["last_seen"]),
                            bot["file_type"],
                            bot["file_size"])
-        if not is_valid_datetime_format(bot_info.first_seen) or \
-           not is_valid_datetime_format(bot_info.last_seen):
-            l.warning('wrong timestamp format.')
-            continue
 
-        if bot_info.file_type not in file_type:
+        if bot_info.file_type not in valid_file_type:
             continue
         find_tag = False
         for t in valid_tags:
@@ -138,6 +143,8 @@ async def download_recent(remote_repo, local_repo, db_store):
     l.debug('download recent done')
 
 async def async_main(local_repo, base_time):
+    #  await test_db()
+    #  return
     l.debug('connecting to remote repo...')
     remote_repo = Bazaar()
     l.debug('connecting to remote repo done')
@@ -178,8 +185,10 @@ if __name__ == "__main__":
         print('Bad arguments')
         sys.exit()
 
+    time_threshold = datetime.strptime(args.base_time[0], '%Y-%m-%d %H:%M:%S')
+
     if not os.path.exists(args.local_repo[0]):
         os.makedirs(args.local_repo[0])
 
-    asyncio.run(async_main(args.local_repo[0], args.base_time[0]), debug=True)
+    asyncio.run(async_main(args.local_repo[0], time_threshold), debug=True)
 

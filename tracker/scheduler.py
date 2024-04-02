@@ -45,8 +45,6 @@ class Scheduler:
             l.debug(f"bot [{o.bot_info.name}]: \ndormant_duration:{dd}\nobserve_duration:{od}")
             if dd > self.max_dormant_duration or od > self.max_observe_duration:
                 l.debug(f"Cancelling running bot [{o.bot_info.name}]")
-                o.bot.status = BotStatus.STOPPED.value
-                await db_store.update_bot_info(o.bot)
                 t.cancel()
 
     async def _schedule_bots(self, status_list=None, bot_id=None, count=None):
@@ -58,13 +56,11 @@ class Scheduler:
         bots = await db_store.load_bot_info(status_list, bot_id, count)
         for bot in bots:
             # TODO: need re-init bot info
-            bot.status = BotStatus.STARTED.value
             bot_runner = BotRunner(bot, self.sandbox_cxt, self.db_store)
             task = asyncio.create_task(bot_runner.run(),
                                        name=f'Task-{bot.name}')
             self.bot_runners[task] = bot_runner
             task.add_done_callback(task_done_cb)
-            await self.db_store.update_bot_info(bot)
             l.debug(f"bot [{bot.name}] scheduled")
 
     async def _stage_bots(self):
@@ -75,7 +71,12 @@ class Scheduler:
             l.warning('no sandbox available for bots')
             return
 
-        await self._schedule_bots([BotStatus.UNKNOWN.value], None, slots)
+        await self._schedule_bots([BotStatus.UNKNOWN.value,
+                                   BotStatus.INTERRUPTED.value], None, slots)
+
+    async def _update_bot_info(self):
+        for _, o in self.bot_runners.items():
+            await o.update_bot_info()
 
     async def checkpoint(self):
         try:
@@ -84,6 +85,7 @@ class Scheduler:
                     await self._unstage_bots()
                     await self._stage_bots()
                 await asyncio.sleep(CHECKPOINT_INTERVAL)
+                await self._update_bot_info()
         except asyncio.CancelledError:
             l.warning("Scheduler cancelled")
         finally:
@@ -98,7 +100,5 @@ class Scheduler:
     async def stop_bot(self, bot_id):
         for t, o in self.bot_runners.items():
             if o.bot_info.bot_id == bot_id:
-                o.bot.status = BotStatus.STOPPED.value
-                await db_store.update_bot_info(o.bot)
                 t.cancel()
                 break
