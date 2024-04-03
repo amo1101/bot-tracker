@@ -11,9 +11,9 @@ if [ $? -eq 0 ]; then
     cp -rf $BOT_DIR $MOUNT_FOLDER/
     cat > $MOUNT_FOLDER/etc/rc.local << EOF
         # start bot
-        if [[$BOT_NAME == "TEST*"]]; then
+        if [[$BOT_NAME == "test-*"]]; then
             # start testbot
-            /bot/bot.py $BOT_NAME
+            /bot/testbot/bot.py $BOT_NAME
         else
             /bot/start_bot.sh $BOT_NAME
         exit 0 

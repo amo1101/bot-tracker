@@ -1,6 +1,4 @@
 import asyncio
-import libvirt
-import libvirtaio
 import uuid
 from datetime import datetime, timedelta
 from bot_runner import *
@@ -13,7 +11,7 @@ from db_store import *
 
 l = TaskLogger(__name__)
 
-CHECKPOINT_INTERVAL = 5
+CHECKPOINT_INTERVAL = 10
 
 class Scheduler:
     def __init__(self, mode, sandbox_ctx, db_store):
@@ -55,7 +53,6 @@ class Scheduler:
 
         bots = await db_store.load_bot_info(status_list, bot_id, count)
         for bot in bots:
-            # TODO: need re-init bot info
             bot_runner = BotRunner(bot, self.sandbox_cxt, self.db_store)
             task = asyncio.create_task(bot_runner.run(),
                                        name=f'Task-{bot.name}')
@@ -64,7 +61,6 @@ class Scheduler:
             l.debug(f"bot [{bot.name}] scheduled")
 
     async def _stage_bots(self):
-        # run bot
         l.debug("Num of running bots: %d", len(self.bot_runners))
         slots = self.max_sandbox_num - len(self.bot_runners)
         if slots <= 0
@@ -84,8 +80,8 @@ class Scheduler:
                 if self.mode == 1:
                     await self._unstage_bots()
                     await self._stage_bots()
-                await asyncio.sleep(CHECKPOINT_INTERVAL)
                 await self._update_bot_info()
+                await asyncio.sleep(CHECKPOINT_INTERVAL)
         except asyncio.CancelledError:
             l.warning("Scheduler cancelled")
         finally:

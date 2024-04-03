@@ -68,7 +68,7 @@ async def download_base(remote_repo, local_repo, db_store, time_threshold):
             continue
         for bot in bot_list["data"]:
             l.debug(f'bot: {bot}')
-            exists = await db_store.bot_exist(bot['sha256_hash'])
+            exists = await db_store.bot_exists(bot['sha256_hash'])
             if exists:
                 l.debug(f'bot {bot["sha256_hash"]} already downloaded')
                 continue
@@ -105,7 +105,7 @@ async def download_recent(remote_repo, local_repo, db_store):
         l.debug('No result returned')
         return
     for bot in bot_list["data"]:
-        exists = await db_store.bot_exist(bot['sha256_hash'])
+        exists = await db_store.bot_exists(bot['sha256_hash'])
         if exists:
             l.debug(f'bot {bot["sha256_hash"]} already downloaded')
             continue

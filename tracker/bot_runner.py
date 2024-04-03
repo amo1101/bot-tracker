@@ -8,7 +8,8 @@ from log import TaskLogger
 from datetime import datetime, timedelta
 #  from aiomultiprocess import Pool
 from concurrent.futures import ProcessPoolExecutor
-from packet_analyzer import *
+from cnc_analyzer import *
+from attack_analyzer import *
 from packet_capture import *
 from sandbox import Sandbox
 from sandbox_context import SandboxNWFilter, SandboxContext
@@ -73,6 +74,7 @@ class BotRunner:
 
     async def _find_cnc(self, own_ip):
         # check if cnc already exist
+        # TODO: maybe we should use (ip: port) to identify a unique CnC?
         self.cnc_info = await self.db_store.load_cnc_info(self.bot_info.bot_id)
         if len(self.cnc_info) > 0:
             l.debug('CnC already exist.')
@@ -84,7 +86,6 @@ class BotRunner:
         loop = asyncio.get_running_loop()
         try:
             async for packet in self.live_capture.sniff_continuously():
-                pass
                 self.cnc_analzyer.report = await loop.run_in_executor(BotRunner.analyzer_executor,
                                            self.cnc_analzyer.analyze,
                                            packet)
@@ -97,13 +98,13 @@ class BotRunner:
     async def _handle_attack_report(self, report):
         cnc_status = report['cnc_status']
         l.debug(f"get cnc status report: {report}")
-        strtime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        attack_time = datetime.now()
         if cnc_status == BotStatus.ACTIVE.value:
             await self.update_bot_info(BotStatus.ACTIVE)
         elif cnc_status == BotStatus.DISCONNECTED.value:
             await self.update_bot_info(BotStatus.DORMANT)
 
-        cnc_stat = CnCStat(report['cnc_ip'], cnc_status, strtime)
+        cnc_stat = CnCStat(report['cnc_ip'], cnc_status, attack_time)
         await db_store.add_cnc_stat(cnc_stat)
 
     async def _observe_attack(self, cnc_ip, cnc_port, own_ip):
@@ -123,12 +124,14 @@ class BotRunner:
             #  pass
 
     def dormant_duration(self):
-        if self.dormant_time is None:
-            return 0
-        return datetime.now() - self.dormant_start_time
+        if self.dormant_time == INIT_TIME_STAMP:
+            return INIT_INTERVAL
+        return datetime.now() - self.dormant_time
 
     def observe_duration(self):
-        return datetime.now() - self.observe_start_time
+        if self.staged_time == INIT_TIME_STAMP:
+            return INIT_INTERVAL
+        return datetime.now() - self.staged_time
 
     def notify_unstage(self):
         self.notify_unstage_= True

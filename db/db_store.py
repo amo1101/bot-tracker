@@ -104,7 +104,7 @@ class CnCStat:
     ip: str
     # could be: connected/disconnected
     status: str
-    time: str
+    time: datetime
 
 # TODO
 @dataclass
@@ -114,8 +114,8 @@ class AttackStat:
     # could be: connected/disconnected
     target: str
     attack_type: str
-    time: str
-    duration: str
+    time: datetime
+    duration: timedelta
 
 class DBStore:
     def __init__(self):
@@ -205,7 +205,7 @@ class DBStore:
                 await cur.execute(sql, field_values + (bot.bot_id,))
                 await self.conn.commit()
 
-    async def bot_exist(self, bot_id):
+    async def bot_exists(self, bot_id):
         bots = await self.load_bot_info(None, bot_id)
         return len(bots) != 0
 
@@ -241,7 +241,7 @@ class DBStore:
                     cnc_info.append(CnCInfo(*record))
         return cnc_info
 
-    async def cnc_exist(self, ip):
+    async def cnc_exists(self, ip):
         cnc = await self.load_cnc_info(None, ip)
         return len(cnc) != 0
 
@@ -274,7 +274,7 @@ async def test_db_1():
 async def test_db_2():
     db_store = DBStore()
     await db_store.open()
-    check = await db_store.bot_exist('00000010')
+    check = await db_store.bot_exists('00000010')
     print(f'bot 00000001 exists? {check}')
     b = BotInfo('00000010','mirai',TEST_TS1, INIT_TIME_STAMP,'elf',100)
     b1 = BotInfo('00000011','mirai',TEST_TS1, INIT_TIME_STAMP,'elf',100)
@@ -282,7 +282,7 @@ async def test_db_2():
     await db_store.add_bot(b)
     print(f'add bot:\n{repr(b1)}\n')
     await db_store.add_bot(b1) #confliction
-    check1 = await db_store.bot_exist('00000010')
+    check1 = await db_store.bot_exists('00000010')
     print(f'bot 00000001 exists? {check1}')
     await db_store.close()
 
@@ -317,12 +317,12 @@ async def test_db_3():
 async def test_db_4():
     db_store = DBStore()
     await db_store.open()
-    check = await db_store.cnc_exist('109.123.1.1')
+    check = await db_store.cnc_exists('109.123.1.1')
     print(f'cnc 109.123.1.1 exists? {check}')
     c = CnCInfo('109.123.1.1','2323','00000001','example.com', 0, 'China')
     print(f'add cncinfo:\n{repr(c)}\n')
     await db_store.add_cnc_info(c)
-    check1 = await db_store.cnc_exist('109.123.1.1')
+    check1 = await db_store.cnc_exists('109.123.1.1')
     print(f'cnc 109.123.1.1 exists? {check1}')
     c1 = CnCInfo('109.123.1.2','2323','00000011','sina.com', 0, 'China')
     print(f'add cncinfo:\n{repr(c1)}\n')
