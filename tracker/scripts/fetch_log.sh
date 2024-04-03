@@ -1,7 +1,7 @@
 #!/bin/bash
 
-LOG_DIR=$1
-FS_PATH=$2
+FS_PATH=$1
+LOG_DIR=$2
 
 MOUNT_FOLDER=`mktemp -d`
 mount $FS_PATH $MOUNT_FOLDER

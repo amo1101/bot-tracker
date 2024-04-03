@@ -1,6 +1,5 @@
 import sys
 import os
-from db import CnCStatus
 from log import TaskLogger
 
 l = TaskLogger(__name__)

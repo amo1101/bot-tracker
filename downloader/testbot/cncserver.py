@@ -1,6 +1,6 @@
 import asyncio
 
-clients = {}  # 保存客户端信息
+clients = {}
 
 async def handle_client(reader, writer):
     client_name = None

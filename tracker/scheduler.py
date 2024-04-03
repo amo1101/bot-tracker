@@ -1,4 +1,5 @@
 import asyncio
+from enum import Enum
 import uuid
 from datetime import datetime, timedelta
 from bot_runner import *
@@ -13,10 +14,14 @@ l = TaskLogger(__name__)
 
 CHECKPOINT_INTERVAL = 10
 
+class SchedulerMode(Enum):
+    MANUAL = "manual"
+    AUTO = "auto"
+
 class Scheduler:
     def __init__(self, mode, sandbox_ctx, db_store):
         self.tracker_id = None #TODO: bot migration will be done via CLI 
-        self.mode = 0 # 0 mean manual mode, 1 means auto mode
+        self.mode = mode # 0 mean manual mode, 1 means auto mode
         self.sandbox_cxt = sandbox_ctx
         self.db_store = db_store
         self.max_sandbox_num = 5
@@ -40,9 +45,9 @@ class Scheduler:
         for t, o in self.bot_runners.items():
             dd = o.dormant_duration()
             od = o.observe_duration()
-            l.debug(f"bot [{o.bot_info.name}]: \ndormant_duration:{dd}\nobserve_duration:{od}")
+            l.debug(f"bot [{o.bot_info.tag}]: \ndormant_duration:{dd}\nobserve_duration:{od}")
             if dd > self.max_dormant_duration or od > self.max_observe_duration:
-                l.debug(f"Cancelling running bot [{o.bot_info.name}]")
+                l.debug(f"Cancelling running bot [{o.bot_info.tag}]")
                 t.cancel()
 
     async def _schedule_bots(self, status_list=None, bot_id=None, count=None):
@@ -55,15 +60,15 @@ class Scheduler:
         for bot in bots:
             bot_runner = BotRunner(bot, self.sandbox_cxt, self.db_store)
             task = asyncio.create_task(bot_runner.run(),
-                                       name=f'Task-{bot.name}')
+                                       name=f'Task-{bot.tag}')
             self.bot_runners[task] = bot_runner
             task.add_done_callback(task_done_cb)
-            l.debug(f"bot [{bot.name}] scheduled")
+            l.debug(f"bot [{bot.tag}] scheduled")
 
     async def _stage_bots(self):
         l.debug("Num of running bots: %d", len(self.bot_runners))
         slots = self.max_sandbox_num - len(self.bot_runners)
-        if slots <= 0
+        if slots <= 0:
             l.warning('no sandbox available for bots')
             return
 
@@ -77,7 +82,8 @@ class Scheduler:
     async def checkpoint(self):
         try:
             while True:
-                if self.mode == 1:
+                #  l.debug('Scheduler checkpoint...')
+                if self.mode == SchedulerMode.AUTO:
                     await self._unstage_bots()
                     await self._stage_bots()
                 await self._update_bot_info()

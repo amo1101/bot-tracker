@@ -2,15 +2,15 @@ import asyncio
 import time
 
 cmd_config = {
-    'list_bot': [1,2]
-    'list_tracker': [1,1]
-    'start_bot': [2,2]
-    'stop_bot': [2,2]
+    'list_bot': [1,2],
+    'list_tracker': [1,1],
+    'start_bot': [2,2],
+    'stop_bot': [2,2],
     'balance_load': [1,1]
 }
 
 def check_args(command):
-    cmd_spilt = command.split(' ')
+    cmd_split = command.split(' ')
     cmd = cmd_split[0]
     argc = len(cmd_split)
     if cmd not in cmd_config:
@@ -31,8 +31,11 @@ async def start_cli():
             if not check_args(command):
                 print('Wrong argument')
                 show_help()
+            print(f'command: {command}')
             writer.write(command.encode())
-            data = await reader.read(2048)
+            print('command sent..')
+            data = await reader.read(8192)
+            print('command response..')
             if not data:
                 break
             resp = data.decode()

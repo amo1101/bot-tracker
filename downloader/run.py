@@ -86,7 +86,7 @@ async def download_base(remote_repo, local_repo, db_store, time_threshold):
                 continue
             l.debug(f'downloading {bot_info.bot_id}...')
             remote_repo.bazaar_download(bot_info.bot_id)
-            bot_file = bot_info.bot_id + '.' + bot_info.file_type
+            bot_file = bot_info.file_name
             get_arch_info(bot_file, bot_info)
             l.debug(f'bot_info:\n{repr(bot_info)}')
             if not check_arch_info(bot_info):
@@ -131,7 +131,7 @@ async def download_recent(remote_repo, local_repo, db_store):
             continue
         l.debug(f'downloading {bot_info.bot_id}...')
         remote_repo.bazaar_download(bot_info.bot_id)
-        bot_file = bot_info.bot_id + '.' + bot_info.file_type
+        bot_file = bot_info.file_name
         get_arch_info(bot_file, bot_info)
         l.debug(f'bot_info:\n{repr(bot_info)}')
         if not check_arch_info(bot_info):

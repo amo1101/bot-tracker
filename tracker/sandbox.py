@@ -14,9 +14,10 @@ from log import TaskLogger
 l = TaskLogger(__name__)
 
 class Sandbox:
-    def __init__(self, context, name, arch):
+    def __init__(self, context, name, bot_file, arch):
         self.context = context
         self.name = name
+        self.bot_file = bot_file
         self.arch = arch
         self.parameter = None
         self.dom = None
@@ -73,7 +74,7 @@ class Sandbox:
         # copy bot directory to sandbox fs
         bot_dir = self.context.get_bot_dir()
         s = SandboxContext.SandboxScript.PREPARE_FS
-        self._run_script(s, self.name, bot_dir, dst)
+        self._run_script(s, self.bot_file, bot_dir, dst)
 
     def _get_config(self):
         return self.context.get_sandbox_config(self.arch, self.name)
@@ -84,7 +85,7 @@ class Sandbox:
 
     def fetch_log(self, dst):
         s = SandboxContext.SandboxScript.FETCH_LOG
-        self._run_script(s, dst, self.fs)
+        self._run_script(s, self.fs, dst)
 
     def start(self):
         self._prepare_kernel()

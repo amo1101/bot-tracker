@@ -125,7 +125,7 @@ class CnCAnalyzer():
         return(res) #return rank
 
     def analyze(self, pkt):
-        self.report.count++
+        self.report.count += 1
         not_found_dns_addr = self.check_dns_address(pkt)
         if not_found_dns_addr:
             if not_found_dns_addr in self.report.ip_dict:

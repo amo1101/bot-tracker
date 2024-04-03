@@ -43,7 +43,7 @@ class BotRunner:
         self.attack_analzyer = None
         self.live_capture = None
         self.log_base = CUR_DIR + os.sep + "log"
-        self.log_dir = self.log_base + os.sep + bot_info.name
+        self.log_dir = self.log_base + os.sep + bot_info.tag
         self.cnc_info = None
         self.cnc_probing_time = 30
         self.conn_limit = 10
@@ -208,10 +208,11 @@ class BotRunner:
 
             #  await self._observe_attack()
             #  #  return
-            l.debug(f'Bot runner {self.bot_info.name} started')
+            l.debug(f'Bot runner {self.bot_info.tag} started')
             self._create_log_dir()
-            self.sandbox = Sandbox(self.sandbox_ctx, self.bot_info.name,
-                                   self.bot_info.arch)
+            self.sandbox = Sandbox(self.sandbox_ctx, self.bot_info.tag,
+                                   self.bot_info.file_name,
+                                   self.bot_info.arch) #TODO: map arch
             self.sandbox.start()
 
             # transit status to staged

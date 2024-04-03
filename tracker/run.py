@@ -9,7 +9,7 @@ import sys
 from sandbox_context import SandboxContext
 from sandbox_context import SandboxNWFilter
 from sandbox import Sandbox
-from scheduler import Scheduler
+from scheduler import SchedulerMode, Scheduler
 import cmd_handler
 
 CUR_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -26,7 +26,7 @@ async def async_main(arguments = None):
     sandbox_ctx.start()
     db_store = DBStore()
     await db_store.open()
-    scheduler = Scheduler(sandbox_ctx, db_store)
+    scheduler = Scheduler(SchedulerMode.MANUAL, sandbox_ctx, db_store)
     cmd_handler.start_cmd_handler(scheduler, db_store)
     await scheduler.checkpoint()
     await db_store.close()

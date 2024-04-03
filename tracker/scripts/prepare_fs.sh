@@ -10,12 +10,7 @@ mount $FS_PATH $MOUNT_FOLDER
 if [ $? -eq 0 ]; then
     cp -rf $BOT_DIR $MOUNT_FOLDER/
     cat > $MOUNT_FOLDER/etc/rc.local << EOF
-        # start bot
-        if [[$BOT_NAME == "test-*"]]; then
-            # start testbot
-            /bot/testbot/bot.py $BOT_NAME
-        else
-            /bot/start_bot.sh $BOT_NAME
+        /bot/start_bot.sh $BOT_NAME
         exit 0 
     EOF
 fi

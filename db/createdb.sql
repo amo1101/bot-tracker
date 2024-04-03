@@ -58,7 +58,7 @@ INSERT INTO bot_info (
     observe_duration,
     tracker) VALUES (
     '00000001',
-    'test-arm',
+    'bot',
     '2024-04-01 00:00:00',
     '1970-01-01 00:00:00',
     'py',
@@ -90,7 +90,7 @@ INSERT INTO bot_info (
     observe_duration,
     tracker) VALUES (
     '00000002',
-    'test-mips',
+    'bot',
     '2024-04-01 01:00:00',
     '1970-01-01 00:00:00',
     'py',
@@ -122,7 +122,7 @@ INSERT INTO bot_info (
     observe_duration,
     tracker) VALUES (
     '00000003',
-    'test-mipsel',
+    'bot',
     '2024-04-01 02:00:00',
     '1970-01-01 00:00:00',
     'py',

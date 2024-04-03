@@ -78,7 +78,11 @@ class BotInfo:
     tracker: str = ''
 
     @property
-    def name(self):
+    def file_name(self):
+        return self.bot_id + '.' + self.file_type
+
+    @property
+    def tag(self):
         return self.first_seen.strftime('%Y-%m-%d-%H-%M-%S') + '-' + self.family + '-' + self.bot_id[:8]
 
     def __repr__(self):

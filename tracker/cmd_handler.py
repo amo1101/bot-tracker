@@ -17,19 +17,12 @@ server_task = None
 bot_scheduler = None
 bot_db_store = None
 
-cmd_registry = {
-    'list_bot': handle_list_bot,
-    'start_bot': handle_start_bot,
-    'stop_bot': handle_stop_bot,
-    'list_tracker': handle_list_tracker,
-    'balance_load': handle_balance_load
-}
-
 # command: list_bot [--all] [bot_id]
 # without args: list all running bots
 # --all: list all bots
 # bot_id: list bot specified by bot_id
 async def handle_list_bot(args):
+    l.debug(f'handle_list_bot: {args}')
     resp = ""
     argc = len(args)
     if argc > 3 or argc < 1:
@@ -38,7 +31,7 @@ async def handle_list_bot(args):
         status = None
         bot_id = None
         if argc == 1:
-            status = [BotStatus.STARTED.value,
+            status = [BotStatus.STAGED.value,
                       BotStatus.ACTIVE.value,
                       BotStatus.DORMANT.value]
         elif args[1] == '--all':
@@ -46,14 +39,15 @@ async def handle_list_bot(args):
         else:
             bot_id = args[1]
     bots = await bot_db_store.load_bot_info(status, bot_id)
-    resp = 'List of bots:\n'
+    resp = 'List of bots:\n------------------------------------\n\n'
     for b in bots:
         resp += repr(b)
-        resp += '\n'
+        resp += '\n\n'
     return resp
 
 
 async def handle_start_bot(args):
+    l.debug(f'handle_start_bot: {args}')
     resp = ""
     argc = len(args)
     if argc != 2:
@@ -66,6 +60,7 @@ async def handle_start_bot(args):
     return resp
 
 async def handle_stop_bot(args):
+    l.debug(f'handle_stop_bot: {args}')
     resp = ""
     argc = len(args)
     if argc != 2:
@@ -85,9 +80,18 @@ async def handle_list_tracker(args):
 async def handle_balance_load(args):
     pass
 
+cmd_registry = {
+    'list_bot': handle_list_bot,
+    'start_bot': handle_start_bot,
+    'stop_bot': handle_stop_bot,
+    'list_tracker': handle_list_tracker,
+    'balance_load': handle_balance_load
+}
+
 async def handle_client(reader, writer):
     while True:
         data = await reader.read(100)
+        l.debug(f'received command: {data}')
         if not data:
             break
 
