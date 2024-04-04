@@ -32,16 +32,15 @@ async def async_main(arguments = None):
     await db_store.close()
     sandbox_ctx.destroy()
 
+from cnc_analyzer import *
+from attack_analyzer import *
 def test():
-    ctx = SandboxContext()
-    ctx.start()
-    sbx = Sandbox(ctx, "bot", "armv7")
-    sbx.start()
-    sbx.apply_nwfilter(SandboxNWFilter.DEFAULT)
-    sbx.apply_nwfilter(SandboxNWFilter.CNC)
-    sbx.apply_nwfilter(SandboxNWFilter.CONN_LIMIT)
-    sbx.destroy()
-    ctx.destroy()
+    pcap = CUR_DIR + os.sep + '../test/capture.pcap'
+    own_ip = '192.168.122.50'
+    cnc_ip = '10.11.45.60'
+    cnc_port = '22'
+    test_cnc_analyzer(pcap,own_ip)
+    test_att_analyzer(pcap,cnc_ip,cnc_port,own_ip)
 
 if __name__ == "__main__":
     try:

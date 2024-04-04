@@ -26,13 +26,13 @@ done
 #start services
 for drv in qemu network nodedev nwfilter secret storage
 do
-  sudo systemctl start virt${drv}d{,-ro,-admin}.socket
+  sudo systemctl restart virt${drv}d{,-ro,-admin}.socket
 done
 
 #start logd lockd 
 for drv in log lock
 do
-  sudo systemctl start virt${drv}d{,-admin}.socket
+  sudo systemctl restart virt${drv}d{,-admin}.socket
 done
 
 #check service

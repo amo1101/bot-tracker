@@ -75,7 +75,7 @@ class CnCReport():
                         shoud_be_added = False
                 if shoud_be_added:
                     dict_all[ip] = self.ip_dict[ip]
-                    l.debug(str(ip)+"="+str(ip_dict[ip]))
+                    l.debug(str(ip)+"="+str(self.ip_dict[ip]))
 
         l.debug("***********")
         self.cnc_info = sorted(dict_all.items(), key=lambda kv: kv[1]['Score'], reverse=True)
@@ -154,7 +154,8 @@ class CnCAnalyzer():
                     if pkt.tcp.flags_ack!="1":
                         state = "SYN"
                     else:
-                        return # don't need to take into account SYN ACK
+                        pass
+                        #  return self.report # don't need to take into account SYN ACK
                 else:
                     if self.own_ip and pkt.ip.dst==self.own_ip or "192.168" not in pkt.ip.src: # it's a server response
                         if pkt.tcp.flags_reset=='1':
@@ -182,3 +183,20 @@ class CnCAnalyzer():
             # print(pkt)
         return self.report
 
+
+import pyshark
+
+cc_analyzer = None
+
+def inspect_packet(pkt):
+    cc_analyzer.analyze(pkt)
+
+def test_cnc_analyzer(pcap, own_ip):
+    global cc_analyzer
+    if cc_analyzer is not None:
+        del cc_analyzer
+    cc_analyzer = CnCAnalyzer(own_ip)
+    cap = pyshark.FileCapture(pcap)
+    cap.apply_on_packets(inspect_packet)
+    result = cc_analyzer.report.get()
+    print(f'result of cnc_analyze: {result}')

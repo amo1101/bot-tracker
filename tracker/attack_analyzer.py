@@ -2,6 +2,11 @@ import sys
 import os
 from log import TaskLogger
 
+CUR_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_MODULE_DIR = os.path.dirname(CUR_DIR) + os.sep + 'db'
+sys.path.append(DB_MODULE_DIR)
+from db_store import CnCStatus
+
 l = TaskLogger(__name__)
 
 class AttackReport():
@@ -16,7 +21,7 @@ class AttackReport():
 
     def get(self):
         self.cnc_ready = False
-        return {'cnc_ip': cnc_ip,
+        return {'cnc_ip': self.cnc_ip,
                 'cnc_status': self.cnc_status}
 
 class AttackAnalyzer():
@@ -62,3 +67,20 @@ class AttackAnalyzer():
         self._analyze_cnc_status(pkt)
         self._analyze_attack(pkt)
         return self.report
+
+import pyshark
+
+att_analyzer = None
+
+def inspect_packet(pkt):
+    att_analyzer.analyze(pkt)
+    if att_analyzer.report.is_ready():
+        print(f'result of att_analyze: {att_analyzer.report.get()}')
+
+def test_att_analyzer(pcap, cnc_ip, cnc_port, own_ip):
+    global att_analyzer
+    if att_analyzer is not None:
+        del att_analyzer
+    att_analyzer = AttackAnalyzer(cnc_ip, cnc_port, own_ip)
+    cap = pyshark.FileCapture(pcap)
+    cap.apply_on_packets(inspect_packet)
