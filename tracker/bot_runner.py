@@ -47,12 +47,12 @@ class BotRunner:
         self.cnc_info = None
         self.cnc_probing_time = 30
         self.conn_limit = 10
-        self.mal_repo_ip = "127.0.0.1"
+        self.mal_repo_ip = "10.11.45.60"
         self.scan_ports = "23"  #TODO
         self.start_time = None
         self.notify_unstage = False
         self.notify_error = False
-        self.notify_duplicate = False
+        self.notify_dup = False
         self.dormant_time = INIT_TIME_STAMP
         self.staged_time = INIT_TIME_STAMP
 
@@ -133,15 +133,6 @@ class BotRunner:
             return INIT_INTERVAL
         return datetime.now() - self.staged_time
 
-    def notify_unstage(self):
-        self.notify_unstage_= True
-
-    def notify_error(self):
-        self.notify_error = True
-
-    def notify_dup(self):
-        self.notify_dup = True
-
     async def update_bot_info(self, status=None):
         if status is None:
             # merely update timing info
@@ -179,7 +170,7 @@ class BotRunner:
                 # Interrupted
                 self.bot_info.status = BotStatus.INTERRUPTED.value
 
-        await db_store.update_bot_info(self.bot_info)
+        await self.db_store.update_bot_info(self.bot_info)
 
     async def run(self):
         try:
@@ -243,14 +234,14 @@ class BotRunner:
                     # Check if CnC already existed
                     exists = await db_store.cnc_exist(ip_port[0])
                     if exists:
-                        self.notify_dup()
+                        self.notify_dup = True
                         self.destroy()
                         return
 
                     await db_store.add_cnc_info(cnc_info)
                 else:
                     l.warning("Cnc not find, stop bot runner...")
-                    self.notify_error()
+                    self.notify_error = True
                     self.destroy()
                     return
 

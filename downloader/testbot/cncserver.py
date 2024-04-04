@@ -4,6 +4,8 @@ clients = {}
 
 async def handle_client(reader, writer):
     client_name = None
+    client_host, client_port = writer.get_extra_info('peername')
+    print(f'bot connected from {client_host}:{client_port}')
     while True:
         data = await reader.read(100)
         if not data:
@@ -54,7 +56,7 @@ async def handle_client(reader, writer):
 
 async def main():
     server = await asyncio.start_server(
-        handle_client, '127.0.0.1', 8888)
+        handle_client, '127.0.0.1', 9999)
 
     addr = server.sockets[0].getsockname()
     print(f'Serving on {addr}')

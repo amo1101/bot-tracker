@@ -105,7 +105,7 @@ class CnCAnalyzer():
                 return pkt.dns.qry_name
             elif for_test == 0x8000 and "a" in dns_dir and "qry_name" in dns_dir: # it's a response and no error
                 # print(dir(pkt.dns))
-                DNS_Mappings[pkt.dns.a] = pkt.dns.qry_name
+                self.DNS_Mappings[pkt.dns.a] = pkt.dns.qry_name
                 # print("qry_name",pkt.dns.qry_name,":",pkt.dns.a)    
         return None
 
@@ -156,7 +156,7 @@ class CnCAnalyzer():
                     else:
                         return # don't need to take into account SYN ACK
                 else:
-                    if own_ip and pkt.ip.dst==own_ip or "192.168" not in pkt.ip.src: # it's a server response
+                    if self.own_ip and pkt.ip.dst==self.own_ip or "192.168" not in pkt.ip.src: # it's a server response
                         if pkt.tcp.flags_reset=='1':
                             # print(dir(pkt.tcp))
                             state = "RST"
@@ -167,7 +167,7 @@ class CnCAnalyzer():
                         else:
                             state = "OTHER"
                     else: #otherwise, we don't care about the client behaviors
-                        if not own_ip:
+                        if not self.own_ip:
                            l.debug("Determining state is not accurate, own_ip is missing")
                         state = "OTHER"
 

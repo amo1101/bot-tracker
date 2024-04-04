@@ -48,5 +48,5 @@ if __name__ == "__main__":
     try:
         asyncio.run(start_cli(),debug=True)
     except KeyboardInterrupt:
-        l.debug('Interrupted by user')
+        print('Interrupted by user')
 

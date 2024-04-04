@@ -48,6 +48,7 @@ class Scheduler:
             l.debug(f"bot [{o.bot_info.tag}]: \ndormant_duration:{dd}\nobserve_duration:{od}")
             if dd > self.max_dormant_duration or od > self.max_observe_duration:
                 l.debug(f"Cancelling running bot [{o.bot_info.tag}]")
+                o.notify_unstage = True
                 t.cancel()
 
     async def _schedule_bots(self, status_list=None, bot_id=None, count=None):
@@ -56,7 +57,7 @@ class Scheduler:
                 del self.bot_runners[t]
                 l.debug('task done removed')
 
-        bots = await db_store.load_bot_info(status_list, bot_id, count)
+        bots = await self.db_store.load_bot_info(status_list, bot_id, count)
         for bot in bots:
             bot_runner = BotRunner(bot, self.sandbox_cxt, self.db_store)
             task = asyncio.create_task(bot_runner.run(),

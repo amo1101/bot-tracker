@@ -205,8 +205,10 @@ class DBStore:
                 field_updates = ','.join(f.name + '=' + self._place_holder(f) for f in fields(BotInfo))
                 field_values = astuple(bot)
                 sql = f"UPDATE bot_info SET {field_updates} WHERE bot_info.bot_id = %s"
+                para = field_values + (bot.bot_id,)
                 print(f"sql: {sql}")
-                await cur.execute(sql, field_values + (bot.bot_id,))
+                print(f"para: {para}")
+                await cur.execute(sql, para)
                 await self.conn.commit()
 
     async def bot_exists(self, bot_id):

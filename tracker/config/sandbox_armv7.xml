@@ -16,5 +16,8 @@
     <interface type='network'>
       <source network='mynet' portgroup='sandbox'/>
     </interface>
+    <console type='pty'>
+      <target type='serial' port='0'/>
+    </console>
   </devices>
 </domain>

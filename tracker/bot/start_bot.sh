@@ -9,15 +9,17 @@ BOT_NAME=$1
 
 # configure malware repo
 USERNAME=frankwu
-HOST=127.0.0.1
+HOST=10.11.45.60
 DOWNLOAD_PATH=/home/$USERNAME/code/bot-tracker/downloader/malware_repo
 
 # sandbox key file
+# make sure sandbox pub key is in ~/.ssh/authorized_keys on malware_repo server
 KEY_FILE=sandbox_key
 
 mkdir -p log syscall
 
 # malware repo server should be a known host
+mkdir -p /root/.ssh
 cp known_hosts /root/.ssh/
 
 # wait for network

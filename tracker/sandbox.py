@@ -8,7 +8,7 @@ import logging
 import time
 import sys
 import subprocess
-import sandbox_context
+from sandbox_context import *
 from log import TaskLogger
 
 l = TaskLogger(__name__)
@@ -73,7 +73,7 @@ class Sandbox:
 
         # copy bot directory to sandbox fs
         bot_dir = self.context.get_bot_dir()
-        s = SandboxContext.SandboxScript.PREPARE_FS
+        s = SandboxScript.PREPARE_FS
         self._run_script(s, self.bot_file, bot_dir, dst)
 
     def _get_config(self):
@@ -84,7 +84,7 @@ class Sandbox:
             os.remove(self.fs)
 
     def fetch_log(self, dst):
-        s = SandboxContext.SandboxScript.FETCH_LOG
+        s = SandboxScript.FETCH_LOG
         self._run_script(s, self.fs, dst)
 
     def start(self):

