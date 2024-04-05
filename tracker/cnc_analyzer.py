@@ -31,9 +31,17 @@ class CnCReport():
         self.cnc_info = []
 
     def is_ready(self):
-        if self.cnc_info is None:
-           self.cnc_info = self.get()
+        if len(self.cnc_info) == 0:
+           self.get()
         return len(self.cnc_info) > 0
+
+    def __repr__(self):
+        return f'ip_dict: {self.ip_dict}\n'+\
+            f'port_dict: {self.port_dict}\n'+\
+            f'DNS_Mappings: {self.DNS_Mappings}\n'+\
+            f'count: {self.count}\n'+\
+            f'Alexa_ranking: {self.Alexa_ranking}\n'+\
+            f'cnc_info: {self.cnc_info}\n'
 
     def get(self):
         if len(self.cnc_info) > 0:
@@ -79,6 +87,7 @@ class CnCReport():
 
         l.debug("***********")
         self.cnc_info = sorted(dict_all.items(), key=lambda kv: kv[1]['Score'], reverse=True)
+        l.debug(f'cnc_info: {self.cnc_info}')
         return self.cnc_info[0]
 
 class CnCAnalyzer():
@@ -125,6 +134,8 @@ class CnCAnalyzer():
         return(res) #return rank
 
     def analyze(self, pkt):
+        l.debug(f'report 0:\n{repr(self.report)}')
+        #  print(f'pkt: {pkt}')
         self.report.count += 1
         not_found_dns_addr = self.check_dns_address(pkt)
         if not_found_dns_addr:
@@ -180,7 +191,7 @@ class CnCAnalyzer():
                         self.report.ip_dict[target][state] = 1
                 else:
                     self.report.ip_dict[target] = {"Total":1, state:1}
-            # print(pkt)
+        l.debug(f'report 1:\n{repr(self.report)}')
         return self.report
 
 
@@ -198,5 +209,8 @@ def test_cnc_analyzer(pcap, own_ip):
     cc_analyzer = CnCAnalyzer(own_ip)
     cap = pyshark.FileCapture(pcap)
     cap.apply_on_packets(inspect_packet)
-    result = cc_analyzer.report.get()
-    print(f'result of cnc_analyze: {result}')
+    if cc_analyzer.report.is_ready():
+        result = cc_analyzer.report.get()
+        print(f'result of cnc_analyze: {result}')
+    else:
+        print(f'result of cnc_analyze not ready')

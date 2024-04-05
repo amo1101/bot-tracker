@@ -5,6 +5,7 @@ BOT_DIR=$2
 FS_PATH=$3
 
 MOUNT_FOLDER=`mktemp -d`
+chmod 755 $FS_PATH
 mount $FS_PATH $MOUNT_FOLDER
 
 if [ $? -eq 0 ]; then

@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS bot_info (
 );
 
 CREATE TABLE IF NOT EXISTS cnc_info (
-    ip INET PRIMARY KEY,
+    ip VARCHAR (32) PRIMARY KEY,
     port INT,
     bot_id VARCHAR (128),
     domain VARCHAR (128),
@@ -26,15 +26,15 @@ CREATE TABLE IF NOT EXISTS cnc_info (
 );
 
 CREATE TABLE IF NOT EXISTS cnc_stat (
-    ip INET PRIMARY KEY,
+    ip VARCHAR (32),
     status VARCHAR (16),
     update_at TIMESTAMPTZ
 );
 
 CREATE TABLE IF NOT EXISTS attack_stat (
     bot_id VARCHAR (128),
-    cnc_ip INET,
-    target INET,
+    cnc_ip VARCHAR (32),
+    target VARCHAR (32),
     attack_type VARCHAR (16),
     attack_at TIMESTAMPTZ,
     attack_duration INTERVAL

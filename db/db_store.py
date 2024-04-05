@@ -106,9 +106,9 @@ class BotInfo:
 @dataclass
 class CnCStat:
     ip: str
-    # could be: connected/disconnected
+    # could be: alive/disconnected
     status: str
-    time: datetime
+    update_at: datetime
 
 # TODO
 @dataclass
@@ -147,6 +147,7 @@ class DBStore:
                     field_values = astuple(data_obj)
                     sql = f"INSERT INTO {tbl} ({field_names}) VALUES ({field_formats})"
                     print(f"sql: {sql}")
+                    print(f"para: {field_values}")
                     await cur.execute(sql, field_values)
                     await self.conn.commit()
 
@@ -341,11 +342,19 @@ async def test_db_4():
         print(f'{repr(cnc)}\n')
     await db_store.close()
 
+async def test_db_5():
+    db_store = DBStore()
+    await db_store.open()
+    c = CnCStat('109.123.1.1','alive',TEST_TS4)
+    print(f'add cncstat:\n{repr(c)}\n')
+    await db_store.add_cnc_stat(c)
+    await db_store.close()
 
 db_test_cases = {'case 1: BotInfo insert and load': test_db_1,
                  'case 2: BotInfo primary key confliction': test_db_2,
                  'case 3: BotInfo all fields insert, update and load with filter': test_db_3,
-                 'case 4: CnCInfo insert and load': test_db_4}
+                 'case 4: CnCInfo insert and load': test_db_4,
+                 'case 5: CnCStat insert and load': test_db_5}
 
 # before doing the test, manually drop tables
 async def test_db():

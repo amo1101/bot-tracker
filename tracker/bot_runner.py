@@ -99,13 +99,13 @@ class BotRunner:
         cnc_status = report['cnc_status']
         l.debug(f"get cnc status report: {report}")
         attack_time = datetime.now()
-        if cnc_status == BotStatus.ACTIVE.value:
+        if cnc_status == CnCStatus.ALIVE.value:
             await self.update_bot_info(BotStatus.ACTIVE)
-        elif cnc_status == BotStatus.DISCONNECTED.value:
+        elif cnc_status == CnCStatus.DISCONNECTED.value:
             await self.update_bot_info(BotStatus.DORMANT)
 
         cnc_stat = CnCStat(report['cnc_ip'], cnc_status, attack_time)
-        await db_store.add_cnc_stat(cnc_stat)
+        await self.db_store.add_cnc_stat(cnc_stat)
 
     async def _observe_attack(self, cnc_ip, cnc_port, own_ip):
         if self.attack_analzyer is None:
@@ -119,6 +119,8 @@ class BotRunner:
                                               packet)
                 if self.attack_analzyer.report.is_ready():
                     await self._handle_attack_report(self.attack_analzyer.report.get())
+                else:
+                    l.debug('attack report is not ready')
         finally:
             l.debug('_observe_attack finalized')
             #  pass
@@ -227,28 +229,29 @@ class BotRunner:
                     ip_port = cnc_info[0].split(':')
                     # TODO: skip asn and location here
                     # TODO: we can support multiple CnCs, but now only use 1
-                    self.cnc_info.append(CnCInfo(ip_port[0], ip_port[1],
-                                                 self.bot_info.bot_id, 0, ''))
+                    # TODO: domain should be fetched from cnc_info
+                    self.cnc_info.append(CnCInfo(ip_port[0], int(ip_port[1]),
+                                                 self.bot_info.bot_id, '', 0, ''))
                     l.debug(f"Find CnC:{ip_port[0]}:{ip_port[1]}")
 
                     # Check if CnC already existed
-                    exists = await db_store.cnc_exist(ip_port[0])
+                    exists = await self.db_store.cnc_exists(ip_port[0])
                     if exists:
                         self.notify_dup = True
-                        self.destroy()
+                        await self.destroy()
                         return
 
-                    await db_store.add_cnc_info(cnc_info)
+                    await self.db_store.add_cnc_info(self.cnc_info[0])
                 else:
                     l.warning("Cnc not find, stop bot runner...")
                     self.notify_error = True
-                    self.destroy()
+                    await self.destroy()
                     return
 
             # enforce nwfilter
             nwfilter_type = SandboxNWFilter.CNC
             args = {"mal_repo_ip": self.mal_repo_ip,
-                    "cnc_ip": self.cnc_info}
+                    "cnc_ip": self.cnc_info[0].ip}
             if self.conn_limit > 0:
                 nwfilter_type = SandboxNWFilter.CONN_LIMIT
                 args["conn_limit"] = str(self.conn_limit)
@@ -260,8 +263,8 @@ class BotRunner:
             await self.update_bot_info(BotStatus.DORMANT)
 
             # observer attacks
-            await self._observe_attack(self.cnc_info.ip,
-                                       self.cnc_info.port,
+            await self._observe_attack(self.cnc_info[0].ip,
+                                       self.cnc_info[0].port,
                                        own_ip)
 
         except asyncio.CancelledError:
@@ -274,7 +277,7 @@ class BotRunner:
         try:
             l.debug("Bot runner destroyed")
             await self.update_bot_info(BotStatus.INTERRUPTED)
-            self.sanbox.fetch_log(self.log_dir)
+            self.sandbox.fetch_log(self.log_dir)
             self.sandbox.destroy()
             await self.live_capture.close_async()
         except RuntimeError:

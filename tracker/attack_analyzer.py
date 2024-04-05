@@ -11,7 +11,7 @@ l = TaskLogger(__name__)
 
 class AttackReport():
     def __init__(self, cnc_ip):
-        self.cnc_status = None
+        self.cnc_status = CnCStatus.UNKNOWN.value
         self.cnc_ready = False
         self.attack_ready = False
         self.cnc_ip = cnc_ip
@@ -24,6 +24,13 @@ class AttackReport():
         return {'cnc_ip': self.cnc_ip,
                 'cnc_status': self.cnc_status}
 
+    def __repr__(self):
+        return f'cnc_status: {self.cnc_status}\n'+\
+            f'cnc_ready: {self.cnc_ready}\n'+\
+            f'attack_ready: {self.attack_ready}\n'+\
+            f'cnc_ip: {self.cnc_ip}\n'
+
+
 class AttackAnalyzer():
     def __init__(self, cnc_ip, cnc_port, own_ip):
         self.cnc_ip = cnc_ip
@@ -35,7 +42,6 @@ class AttackAnalyzer():
         state = ""
         if 'tcp' in dir(pkt):
             if pkt.ip.src == self.cnc_ip and pkt.ip.dst == self.own_ip:
-                self.report.cnc_ready = True
                 if pkt.tcp.flags_syn=='1':
                     if pkt.tcp.flags_ack!="1":
                         state = "SYN"
@@ -64,8 +70,10 @@ class AttackAnalyzer():
         pass
 
     def analyze(self, pkt):
+        l.debug(f'report 0: {self.report}')
         self._analyze_cnc_status(pkt)
         self._analyze_attack(pkt)
+        l.debug(f'report 1: {self.report}')
         return self.report
 
 import pyshark

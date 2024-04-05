@@ -143,8 +143,8 @@ async def download_recent(remote_repo, local_repo, db_store):
     l.debug('download recent done')
 
 async def async_main(local_repo, base_time):
-    #  await test_db()
-    #  return
+    await test_db()
+    return
     l.debug('connecting to remote repo...')
     remote_repo = Bazaar()
     l.debug('connecting to remote repo done')

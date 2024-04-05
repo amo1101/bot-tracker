@@ -35,8 +35,9 @@ async def async_main(arguments = None):
 from cnc_analyzer import *
 from attack_analyzer import *
 def test():
-    pcap = CUR_DIR + os.sep + '../test/capture.pcap'
-    own_ip = '192.168.122.50'
+    #  pcap = CUR_DIR + os.sep + '../test/capture.pcap'
+    pcap = CUR_DIR + os.sep + 'log/2024-04-01-00-00-00-test-bot/capture.pcap'
+    own_ip = '192.168.122.82'
     cnc_ip = '10.11.45.60'
     cnc_port = '22'
     test_cnc_analyzer(pcap,own_ip)
