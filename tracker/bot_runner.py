@@ -45,7 +45,7 @@ class BotRunner:
         self.log_base = CUR_DIR + os.sep + "log"
         self.log_dir = self.log_base + os.sep + bot_info.tag
         self.cnc_info = None
-        self.cnc_probing_time = 30
+        self.cnc_probing_time = 60
         self.conn_limit = 10
         self.mal_repo_ip = "10.11.45.60"
         self.scan_ports = "23"  #TODO
@@ -72,7 +72,7 @@ class BotRunner:
                                                  output_file=output_file,
                                                  debug=False)
 
-    async def _find_cnc(self, own_ip):
+    async def _find_cnc(self, own_ip, excluded_ips):
         # check if cnc already exist
         # TODO: maybe we should use (ip: port) to identify a unique CnC?
         self.cnc_info = await self.db_store.load_cnc_info(self.bot_info.bot_id)
@@ -81,7 +81,7 @@ class BotRunner:
             return
 
         if self.cnc_analzyer is None:
-            self.cnc_analzyer = CnCAnalyzer(own_ip)
+            self.cnc_analzyer = CnCAnalyzer(own_ip, excluded_ips)
 
         loop = asyncio.get_running_loop()
         try:
@@ -220,7 +220,7 @@ class BotRunner:
 
             # find cnc server
             try:
-                await asyncio.wait_for(self._find_cnc(own_ip),
+                await asyncio.wait_for(self._find_cnc(own_ip, [self.mal_repo_ip]),
                                        timeout=self.cnc_probing_time)
             except asyncio.TimeoutError:
                 l.warning("Cnc probing timeout...")

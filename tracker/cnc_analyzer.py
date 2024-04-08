@@ -88,13 +88,15 @@ class CnCReport():
         l.debug("***********")
         self.cnc_info = sorted(dict_all.items(), key=lambda kv: kv[1]['Score'], reverse=True)
         l.debug(f'cnc_info: {self.cnc_info}')
-        return self.cnc_info[0]
+        if len(self.cnc_info) > 0:
+            return self.cnc_info[0]
 
 class CnCAnalyzer():
-    def __init__(self, own_ip, excluded_ports=None):
+    def __init__(self, own_ip, excluded_ips=None, excluded_ports=None):
         self.report = CnCReport()
         self.own_ip = own_ip
         self.excluded_ports = excluded_ports
+        self.excluded_ips = excluded_ips
         self.background_fields = ["icmpv6", "icmp", "mdns", "dns", "dhcpv6", "dhcp", "arp", "ntp"]
 
     def is_background_traffic(self, pkt):
@@ -114,7 +116,7 @@ class CnCAnalyzer():
                 return pkt.dns.qry_name
             elif for_test == 0x8000 and "a" in dns_dir and "qry_name" in dns_dir: # it's a response and no error
                 # print(dir(pkt.dns))
-                self.DNS_Mappings[pkt.dns.a] = pkt.dns.qry_name
+                self.report.DNS_Mappings[pkt.dns.a] = pkt.dns.qry_name
                 # print("qry_name",pkt.dns.qry_name,":",pkt.dns.a)    
         return None
 
@@ -154,8 +156,11 @@ class CnCAnalyzer():
                     target = pkt.ip.dst + ":" + pkt.tcp.dstport
                 state = ""
                 port_num = target.split(":")[1]
-                if self.excluded_ports and port_num in self.excluded_ports:
-                    return # this port is not a candidate for CnCs
+                dst_ip = target.split(":")[0]
+                if (self.excluded_ports and port_num in self.excluded_ports) or \
+                   (self.excluded_ips and dst_ip in self.excluded_ips):
+                    l.debug(f'report 1:\n{repr(self.report)}')
+                    return self.report
                 if target not in self.report.ip_dict: # this is a new IP address contacted by port port_num
                     if port_num in self.report.port_dict:
                         self.report.port_dict[port_num] +=1 # a new host of this port was contacted

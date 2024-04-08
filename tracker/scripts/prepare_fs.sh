@@ -12,6 +12,7 @@ if [ $? -eq 0 ]; then
     cp -rf $BOT_DIR $MOUNT_FOLDER/
     chmod +x $MOUNT_FOLDER/bot/start_bot.sh
     cat > $MOUNT_FOLDER/etc/rc.local << EOF
+        cd /bot/
         /bot/start_bot.sh $BOT_NAME
         exit 0 
 EOF

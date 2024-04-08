@@ -19,12 +19,10 @@ if [ $? -eq 0 ]; then
     fi
 
     mkdir "$new_folder"
-    mv log $new_folder/
-    mv syscall $new_folder/
+    
     mv *.pcap $new_folder/
-
-    cp -rf $MOUNT_FOLDER/bot/log $LOG_DIR/
-    cp -rf $MOUNT_FOLDER/bot/syscall $LOG_DIR/
+    cp -rf $MOUNT_FOLDER/bot/log $LOG_DIR/$new_folder/
+    cp -rf $MOUNT_FOLDER/bot/syscall $LOG_DIR/$new_folder/
 fi
 
 umount $MOUNT_FOLDER

