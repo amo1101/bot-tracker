@@ -20,14 +20,13 @@ mkdir -p log syscall
 
 # malware repo server should be a known host
 mkdir -p /root/.ssh
+mkdir -p /.ssh
 cp known_hosts /root/.ssh/
+cp known_hosts /.ssh/
 
-# wait for network
-sleep 30
-
-echo "Downloading bot from $HOST:$DOWNLOAD_PATH"
-scp -i $KEY_FILE $USERNAME@$HOST:$DOWNLOAD_PATH/$BOT_NAME .
-chmod +x $BOT_NAME
+echo "Downloading bot from $HOST:$DOWNLOAD_PATH/$BOT_NAME"
+/usr/bin/scp -i ./$KEY_FILE $USERNAME@$HOST:$DOWNLOAD_PATH/$BOT_NAME ./$BOT_NAME
+chmod +x ./$BOT_NAME
 
 echo "Running bot with strace: $BOT_NAME"
 rm -f alice

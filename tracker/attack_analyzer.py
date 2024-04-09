@@ -39,32 +39,19 @@ class AttackAnalyzer():
         self.report = AttackReport(cnc_ip)
 
     def _analyze_cnc_status(self, pkt):
-        state = ""
         if 'tcp' in dir(pkt):
+            # we only monitor sync_ack or fin_ack from server -> client
             if pkt.ip.src == self.cnc_ip and pkt.ip.dst == self.own_ip:
-                if pkt.tcp.flags_syn=='1':
-                    if pkt.tcp.flags_ack!="1":
-                        state = "SYN"
-                    else:
-                        state = "SYN_ACK"
+                if pkt.tcp.flags_syn=='1' and pkt.tcp.flags_ack=='1':
+                        # server ACK the SYN, connection established
+                        self.report.cnc_status = CnCStatus.ALIVE.value
+                        self.report.cnc_ready = True
+                elif pkt.tcp.flags_fin=='1':
+                        # server initiate FIN, connection broken
+                        self.report.cnc_status = CnCStatus.DISCONNECTED.value
+                        self.report.cnc_ready = True
                 else:
-                    if pkt.tcp.flags_reset=='1':
-                        state = "RST"
-                    elif pkt.tcp.flags_fin=="1":
-                        state = "FIN"
-                    elif pkt.tcp.len!="0":
-                        state = "SUC"
-                    else:
-                        state = "OTHER"
-
-        if state in ["SYN","SYN_ACK",'SUC',"OTHER"]:
-            if self.report.cnc_status != CnCStatus.ALIVE.value:
-                self.report.cnc_ready = True
-                self.report.cnc_status = CnCStatus.ALIVE.value
-        elif state in ["RST", "FIN"]:
-            if self.report.cnc_status != CnCStatus.DISCONNECTED.value:
-                self.report.cnc_ready = True
-                self.report.cnc_status = CnCStatus.DISCONNECTED.value
+                    pass
 
     def _analyze_attack(self, pkt):
         pass

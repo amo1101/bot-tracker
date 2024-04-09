@@ -40,7 +40,7 @@ def main():
     while True:
         asyncio.run(start_bot())
         print('bot is disconected, will restart again')
-        time.sleep(10)
+        time.sleep(20)
 
 if __name__ == "__main__":
     main()

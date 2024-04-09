@@ -45,7 +45,7 @@ class BotRunner:
         self.log_base = CUR_DIR + os.sep + "log"
         self.log_dir = self.log_base + os.sep + bot_info.tag
         self.cnc_info = None
-        self.cnc_probing_time = 60
+        self.cnc_probing_time = 180
         self.conn_limit = 10
         self.mal_repo_ip = "10.11.45.60"
         self.scan_ports = "23"  #TODO

@@ -8,12 +8,19 @@ MOUNT_FOLDER=`mktemp -d`
 chmod 755 $FS_PATH
 mount $FS_PATH $MOUNT_FOLDER
 
+cat > $MOUNT_FOLDER/etc/run_bot.sh << EOF
+#!/bin/sh
+sleep 30
+cd /bot; ./start_bot.sh $BOT_NAME &
+EOF
+
+chmod +x $MOUNT_FOLDER/etc/run_bot.sh
+
 if [ $? -eq 0 ]; then
     cp -rf $BOT_DIR $MOUNT_FOLDER/
     chmod +x $MOUNT_FOLDER/bot/start_bot.sh
     cat > $MOUNT_FOLDER/etc/rc.local << EOF
-        cd /bot/
-        /bot/start_bot.sh $BOT_NAME
+        /etc/run_bot.sh
         exit 0 
 EOF
 fi
