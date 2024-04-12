@@ -14,14 +14,16 @@ l = TaskLogger(__name__)
 
 CHECKPOINT_INTERVAL = 10
 
+
 class SchedulerMode(Enum):
     MANUAL = "manual"
     AUTO = "auto"
 
+
 class Scheduler:
     def __init__(self, mode, sandbox_ctx, db_store):
-        self.tracker_id = None #TODO: bot migration will be done via CLI 
-        self.mode = mode # 0 mean manual mode, 1 means auto mode
+        self.tracker_id = None  # TODO: bot migration will be done via CLI
+        self.mode = mode  # 0 mean manual mode, 1 means auto mode
         self.sandbox_cxt = sandbox_ctx
         self.db_store = db_store
         self.max_sandbox_num = 5
@@ -92,7 +94,7 @@ class Scheduler:
         except asyncio.CancelledError:
             l.warning("Scheduler cancelled")
         finally:
-            #TODO: we do not need to cancel tasks when interrupted, asyncio
+            # TODO: we do not need to cancel tasks when interrupted, asyncio
             # handle it
             #  self.destroy()
             pass

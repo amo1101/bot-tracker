@@ -6,6 +6,7 @@ import sys
 
 log_format = '%(asctime)s-%(name)s-%(levelname)s-%(message)s'
 
+
 class TaskStreamHandler(logging.StreamHandler):
     def __init__(self):
         super().__init__()
@@ -21,7 +22,8 @@ class TaskStreamHandler(logging.StreamHandler):
             pass
         super().emit(record)
 
-class TaskLogger():
+
+class TaskLogger:
 
     def __init__(self, name):
         self._logger = logging.getLogger(name)
@@ -44,4 +46,3 @@ class TaskLogger():
 
     def critical(self, *args, **kwargs):
         self._logger.critical(*args, **kwargs)
-

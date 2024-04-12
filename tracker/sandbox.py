@@ -13,6 +13,7 @@ from log import TaskLogger
 
 l = TaskLogger(__name__)
 
+
 class Sandbox:
     def __init__(self, context, name, bot_file, arch):
         self.context = context
@@ -32,7 +33,7 @@ class Sandbox:
     @staticmethod
     def _life_cycle_cb(conn, dom, event, detail, dom_changed_event):
         if event == libvirt.VIR_DOMAIN_EVENT_STARTED or event == \
-           libvirt.VIR_DOMAIN_EVENT_STOPPED:
+                libvirt.VIR_DOMAIN_EVENT_STOPPED:
             l.debug("domain lifecycle event occured, event: %d, detail: %d",
                     event, detail)
             dom_changed_event.set()
@@ -58,7 +59,7 @@ class Sandbox:
                 return False
             return True
         except Exception as err:
-            l.error(f'exception occured: {err}')
+            l.error(f'exception occurred: {err}')
             return False
 
     def _prepare_fs(self):
@@ -120,7 +121,7 @@ class Sandbox:
                 time.sleep(2)
                 ifaces = self.dom.interfaceAddresses(libvirt.VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_LEASE)
             print("ifaces are ....")
-            for k,v in ifaces.items():
+            for k, v in ifaces.items():
                 print(f"{k}:{v}")
             self.port_dev = list(ifaces.keys())[0]
             self.mac_address = ifaces[self.port_dev]['hwaddr']
@@ -134,18 +135,18 @@ class Sandbox:
         # It's ok to give a superset of parameters, SandboxContext will choose
         #  args = \
         #  {
-            #  sandbox_context.SandboxNWFilterParameter.PORT_DEV.value:
-                #  self.port_dev,
-            #  sandbox_context.SandboxNWFilterParameter.MAC_ADDR.value:
-                #  self.mac_address,
-            #  sandbox_context.SandboxNWFilterParameter.MAL_REPO_IP.value:
-               #  self.mal_repo_ip,
-            #  sandbox_context.SandboxNWFilterParameter.CNC_IP.value:
-               #  self.cnc_ip,
-            #  sandbox_context.SandboxNWFilterParameter.CONN_LIMIT.value:
-               #  self.conn_limit,
-            #  sandbox_context.SandboxNWFilterParameter.SCAN_PORT.value:
-               #  self.scan_port
+        #  sandbox_context.SandboxNWFilterParameter.PORT_DEV.value:
+        #  self.port_dev,
+        #  sandbox_context.SandboxNWFilterParameter.MAC_ADDR.value:
+        #  self.mac_address,
+        #  sandbox_context.SandboxNWFilterParameter.MAL_REPO_IP.value:
+        #  self.mal_repo_ip,
+        #  sandbox_context.SandboxNWFilterParameter.CNC_IP.value:
+        #  self.cnc_ip,
+        #  sandbox_context.SandboxNWFilterParameter.CONN_LIMIT.value:
+        #  self.conn_limit,
+        #  sandbox_context.SandboxNWFilterParameter.SCAN_PORT.value:
+        #  self.scan_port
         #  }
 
         if self.filter_binding:
@@ -164,7 +165,6 @@ class Sandbox:
         l.debug("filter %s is applied", filter_name.value)
         return True
 
-
     def destroy(self):
         self._destroy_fs()
         if self.filter_binding:
@@ -172,4 +172,3 @@ class Sandbox:
             self.filter_binding.delete()
         self.dom.destroy()
         l.debug("dom destroyed %s", self.name)
-

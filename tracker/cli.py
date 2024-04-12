@@ -2,12 +2,13 @@ import asyncio
 import time
 
 cmd_config = {
-    'list_bot': [1,2],
-    'list_tracker': [1,1],
-    'start_bot': [2,2],
-    'stop_bot': [2,2],
-    'balance_load': [1,1]
+    'list_bot': [1, 2],
+    'list_tracker': [1, 1],
+    'start_bot': [2, 2],
+    'stop_bot': [2, 2],
+    'balance_load': [1, 1]
 }
+
 
 def check_args(command):
     cmd_split = command.split(' ')
@@ -19,8 +20,10 @@ def check_args(command):
         return False
     return True
 
+
 def show_help():
     pass
+
 
 async def start_cli():
     reader, writer = await asyncio.open_connection('127.0.0.1', 8888)
@@ -44,9 +47,9 @@ async def start_cli():
         writer.close()
         await writer.wait_closed()
 
+
 if __name__ == "__main__":
     try:
-        asyncio.run(start_cli(),debug=True)
+        asyncio.run(start_cli(), debug=True)
     except KeyboardInterrupt:
         print('Interrupted by user')
-

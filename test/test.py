@@ -10,9 +10,10 @@ from concurrent.futures import ProcessPoolExecutor
 import logging
 
 #  logging.basicConfig(format='%(asctime)s-%(task_name)s-%(name)s-%(levelname)s-%(message)s',
-                    #  datefmt='%d-%b-%y %H:%M:%S', level = logging.DEBUG)
+#  datefmt='%d-%b-%y %H:%M:%S', level = logging.DEBUG)
 
 log_format = '%(asctime)s-%(name)s-%(levelname)s-%(message)s'
+
 
 class MyStreamHandler(logging.StreamHandler):
     def __init__(self):
@@ -28,7 +29,8 @@ class MyStreamHandler(logging.StreamHandler):
             pass
         super().emit(record)
 
-class TaskLogger():
+
+class TaskLogger:
     #  _next_id = itertools.count().__next__
     #  _task_ids = weakref.WeakKeyDictionary()
 
@@ -40,13 +42,13 @@ class TaskLogger():
         self._logger.setLevel(logging.DEBUG)
 
     #  def _task_name(self):
-        #  task_name = asyncio.current_task().get_name()
-        #  if task_name is None:
-            #  task_name = 'null'
-        #  return f't-{task_name[0:6]}'
-        #  if task not in self._task_ids:
-            #  self._task_ids[task] = self._next_id()
-        #  return f'task-{self._task_ids[task]}'
+    #  task_name = asyncio.current_task().get_name()
+    #  if task_name is None:
+    #  task_name = 'null'
+    #  return f't-{task_name[0:6]}'
+    #  if task not in self._task_ids:
+    #  self._task_ids[task] = self._next_id()
+    #  return f'task-{self._task_ids[task]}'
 
     def debug(self, *args, **kwargs):
         self._logger.debug(*args, **kwargs)
@@ -63,7 +65,9 @@ class TaskLogger():
     def critical(self, *args, **kwargs):
         self._logger.critical(*args, **kwargs)
 
+
 l = TaskLogger(__name__)
+
 
 class capture:
     def __init__(self):
@@ -77,7 +81,8 @@ class capture:
                 yield self.count
                 self.count += 1
         finally:
-           l.debug('gen finilized')
+            l.debug('gen finilized')
+
 
 #  analyzerContextPool = {}
 
@@ -86,9 +91,11 @@ def init_worker():
     #  global analyzerContextPool
     #  analyzerContextPool.clear()
 
+
 class analyzerReport:
     def __init__(self):
         self.result = 0
+
 
 class analyzer:
     def __init__(self):
@@ -101,9 +108,11 @@ class analyzer:
         l.debug(f"analyze result: {self.report.result}")
         return self.report
 
+
 class test:
     executor = ProcessPoolExecutor(max_workers=2,
                                    initializer=init_worker)
+
     def __init__(self, name):
         self.name = name
         self.tasks = set()
@@ -118,18 +127,18 @@ class test:
             async for n in self.gen.gen_item():
                 #  self.analyzer.analyze(n)
                 #  with ProcessPoolExecutor(max_workers=1) as pool:
-                    #  await loop.run_in_executor(pool,
-                                           #  self.analyzer.analyze,
-                                           #  n)
+                #  await loop.run_in_executor(pool,
+                #  self.analyzer.analyze,
+                #  n)
                 res = await loop.run_in_executor(test.executor,
-                                           self.analyzer.analyze,
-                                           n)
+                                                 self.analyzer.analyze,
+                                                 n)
                 self.analyzer.report = res
                 l.debug(f'{self.name}-cnc, result {res.result}')
         #  except asyncio.TimeoutError:
-            #  l.debug(f'{self.name}-cnc-timeout, result {self.analyzer.get_result()}')
+        #  l.debug(f'{self.name}-cnc-timeout, result {self.analyzer.get_result()}')
         #  except asyncio.CancelledError:
-            #  l.debug(f'{self.name}-cnc-cancelled, result {self.analyzer.get_result()}')
+        #  l.debug(f'{self.name}-cnc-cancelled, result {self.analyzer.get_result()}')
         finally:
             l.debug(f'{self.name}-cnc-finally')
 
@@ -143,8 +152,8 @@ class test:
                 #  l.debug(f"get an item...{n}")
                 #  self.analyzer.analyze(n)
                 res = await loop.run_in_executor(test.executor,
-                                           self.analyzer.analyze,
-                                           n)
+                                                 self.analyzer.analyze,
+                                                 n)
                 self.analyzer.report = res
                 l.debug(f'{self.name}-attack result {res.result}')
         finally:
@@ -163,6 +172,7 @@ class test:
         except KeyboardInterrupt:
             l.debug(f'{self.name} run task is interrupted')
 
+
 class test_sche:
     def __init__(self):
         self.count = 0
@@ -179,7 +189,7 @@ class test_sche:
                         del self.tasks[t]
 
                 if self.count % 5 == 0:
-                    tn = f'task-{self.count/5}'
+                    tn = f'task-{self.count / 5}'
                     obj = test(tn)
                     t = asyncio.create_task(obj.run(), name=tn)
                     self.tasks[t] = obj
@@ -189,7 +199,7 @@ class test_sche:
                 self.count += 1
         except asyncio.CancelledError:
             l.debug('sched cancelled')
-            for k,v in self.tasks.items():
+            for k, v in self.tasks.items():
                 if not k.done():
                     k.cancel()
                 else:
@@ -204,6 +214,7 @@ async def async_main():
         await ts.sched()
     except asyncio.CancelledError:
         l.debug('User cancelled async main')
+
 
 def test_time():
     td = timedelta(days=0, hours=0, minutes=0, seconds=30)
@@ -220,14 +231,16 @@ def test_time():
             l.debug('time is up')
             break
         else:
-            l.debug(f'time left: \n{td-tdiff}')
+            l.debug(f'time left: \n{td - tdiff}')
+
 
 def test_dict():
-    d = {'a':'1','b':'2','c':'3','d':'4','e':'5'}
+    d = {'a': '1', 'b': '2', 'c': '3', 'd': '4', 'e': '5'}
     to_del = []
-    for k,v in d.items():
+    for k, v in d.items():
         del d[k]
         print(f'after delete {k}, d:{d}')
+
 
 async def task1():
     try:
@@ -239,6 +252,7 @@ async def task1():
     finally:
         print('task1 get finalized error')
 
+
 async def task2():
     try:
         print('task2 enter')
@@ -247,6 +261,7 @@ async def task2():
     except asyncio.CancelledError:
         print('task2 get cancelled error')
         raise asyncio.CancelledError
+
 
 async def async_task():
     try:
@@ -268,5 +283,3 @@ if __name__ == '__main__':
         asyncio.run(async_task())
     except KeyboardInterrupt:
         print('Main Interrupted')
-
-

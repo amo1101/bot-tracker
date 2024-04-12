@@ -5,17 +5,16 @@ import time
 import sys
 from sandbox_context import SandboxContext
 from scheduler import Scheduler
+from db_store import *
 
 CUR_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_MODULE_DIR = os.path.dirname(CUR_DIR) + os.sep + 'db'
-sys.path.append(DB_MODULE_DIR)
-from db_store import *
 
 l = TaskLogger(__name__)
 
 server_task = None
 bot_scheduler = None
 bot_db_store = None
+
 
 # command: list_bot [--all] [bot_id]
 # without args: list all running bots
@@ -59,6 +58,7 @@ async def handle_start_bot(args):
         resp = "Bot started"
     return resp
 
+
 async def handle_stop_bot(args):
     l.debug(f'handle_stop_bot: {args}')
     resp = ""
@@ -72,13 +72,16 @@ async def handle_stop_bot(args):
         resp = "Bot stopped"
     return resp
 
-#TODO
+
+# TODO
 async def handle_list_tracker(args):
     pass
 
-#TODO
+
+# TODO
 async def handle_balance_load(args):
     pass
+
 
 cmd_registry = {
     'list_bot': handle_list_bot,
@@ -88,6 +91,7 @@ cmd_registry = {
     'balance_load': handle_balance_load
 }
 
+
 async def handle_client(reader, writer):
     while True:
         data = await reader.read(100)
@@ -96,7 +100,7 @@ async def handle_client(reader, writer):
             break
 
         message = data.decode()
-        para = message.split(' ',2)
+        para = message.split(' ', 2)
         cmd = para[0]
         resp = ""
         if cmd not in cmd_registry:
@@ -122,10 +126,9 @@ async def start_server():
     async with server:
         await server.serve_forever()
 
+
 def start_cmd_handler(scheduler, db_store):
     global bot_db_store, bot_scheduler
     bot_db_store = db_store
     bot_scheduler = scheduler
     asyncio.create_task(start_server(), name='cmd_handler')
-
-

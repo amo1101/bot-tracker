@@ -6,6 +6,7 @@ from log import TaskLogger
 
 l = TaskLogger(__name__)
 
+
 class AsyncLiveCapture(LiveCapture):
     def __init__(self, interface=None, bpf_filter=None, display_filter=None,
                  output_file=None, debug=False):
@@ -37,7 +38,7 @@ class AsyncLiveCapture(LiveCapture):
 
         parser = self._setup_tshark_output_parser()
         packets_captured = 0
-        data =  b''
+        data = b''
 
         try:
             while True:
@@ -57,7 +58,7 @@ class AsyncLiveCapture(LiveCapture):
                 if packet_count and packets_captured >= packet_count:
                     break
 
-                if packets_captured % 100==0:
+                if packets_captured % 100 == 0:
                     self._log.debug(f"received {packets_captured} packets...")
 
         finally:

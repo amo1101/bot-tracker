@@ -12,22 +12,25 @@ from log import TaskLogger
 l = TaskLogger(__name__)
 CUR_DIR = os.path.dirname(os.path.realpath(__file__))
 
+
 class SandboxNWFilter(Enum):
     DEFAULT = "sandbox-default-filter"
     CNC = "sandbox-cnc-filter"
     CONN_LIMIT = "sandbox-conn-limit-filter"
 
+
 class SandboxScript(Enum):
     PREPARE_FS = "prepare_fs.sh"
     FETCH_LOG = "fetch_log.sh"
 
+
 #  class SandboxNWFilterParameter(Enum):
-    #  PORT_DEV = "portdev"
-    #  MAC_ADDR = "mac"
-    #  MAL_REPO_IP = "MAL_REPO_IP"
-    #  CNC_IP = "CNC_IP"
-    #  SCAN_PORT = "SCAN_PORT"
-    #  CONN_LIMIT = "CONN_LIMIT"
+#  PORT_DEV = "portdev"
+#  MAC_ADDR = "mac"
+#  MAL_REPO_IP = "MAL_REPO_IP"
+#  CNC_IP = "CNC_IP"
+#  SCAN_PORT = "SCAN_PORT"
+#  CONN_LIMIT = "CONN_LIMIT"
 
 class SandboxContext:
     def __init__(self):
@@ -42,27 +45,27 @@ class SandboxContext:
         self.bot_dir = CUR_DIR + os.sep + "bot"
         self.net_conf = self.config_base + os.sep + "network.xml"
         self.sandbox_registry = \
-        {
-            "ARM": [
-                        "sandbox_armv7.xml",
-                        "openwrt-armsr-armv7-generic-kernel.bin",
-                        "openwrt-armsr-armv7-generic-ext4-rootfs.img"
-                     ]
-        }
+            {
+                "ARM": [
+                    "sandbox_armv7.xml",
+                    "openwrt-armsr-armv7-generic-kernel.bin",
+                    "openwrt-armsr-armv7-generic-ext4-rootfs.img"
+                ]
+            }
 
         self.sandbox_nwfilter_registry = \
-        {
-            SandboxNWFilter.DEFAULT.value: ["default_filter.xml", "bind_default_filter.xml"],
-            SandboxNWFilter.CNC.value: ["cnc_filter.xml", "bind_cnc_filter.xml"],
-            SandboxNWFilter.CONN_LIMIT.value: ["conn_limit_filter.xml", "bind_conn_limit_filter.xml"]
-        }
+            {
+                SandboxNWFilter.DEFAULT.value: ["default_filter.xml", "bind_default_filter.xml"],
+                SandboxNWFilter.CNC.value: ["cnc_filter.xml", "bind_cnc_filter.xml"],
+                SandboxNWFilter.CONN_LIMIT.value: ["conn_limit_filter.xml", "bind_conn_limit_filter.xml"]
+            }
 
         self.nwfilter_objs = []
 
     @staticmethod
     def _net_lifecycle_cb(conn, net, event, detail, net_changed_event):
         if event == libvirt.VIR_NETWORK_EVENT_STARTED or event == \
-           libvirt.VIR_NETWORK_EVENT_STOPPED:
+                libvirt.VIR_NETWORK_EVENT_STOPPED:
             l.debug("network lifecycle event occured, event: %d, detail: %d",
                     event, detail)
             net_changed_event.set()
@@ -93,7 +96,7 @@ class SandboxContext:
 
     def get_sandbox_kernel(self, arch):
         if arch not in self.sandbox_registry:
-            return ("", "")
+            return "", ""
 
         kernel_file = self.sandbox_registry[arch][1]
         return (self.image_base + os.sep + kernel_file,
@@ -101,7 +104,7 @@ class SandboxContext:
 
     def get_sandbox_fs(self, arch, name):
         if arch not in self.sandbox_registry:
-            return ("", "")
+            return "", ""
 
         fs_src = self.sandbox_registry[arch][2]
         fs_dst = f"openwrt-vm-{arch}-{name}-ext4-rootfs.img"
@@ -112,7 +115,7 @@ class SandboxContext:
         if name == SandboxScript.PREPARE_FS:
             return self.scripts_base + os.sep + SandboxScript.PREPARE_FS.value
         elif name == SandboxScript.FETCH_LOG:
-            return self.scripts_base +os.sep + SandboxScript.FETCH_LOG.value
+            return self.scripts_base + os.sep + SandboxScript.FETCH_LOG.value
         else:
             return ""
 
@@ -145,14 +148,14 @@ class SandboxContext:
         # key: key of input parameter
         # value: [xpath, attr_to_match, atrr_to_set]
         para_to_check = \
-        {
-            "port_dev":["//portdev","name"],
-            "mac_addr":["//mac","address"],
-            "mal_repo_ip":["//filterref/parameter[@name='MAL_REPO_IP']","value"],
-            "cnc_ip":["//filterref/parameter[@name='CNC_IP']","value"],
-            "scan_ports":["//filterref/parameter[@name='SCAN_PORT']","value"],
-            "conn_limit":["//filterref/parameter[@name='CONN_LIMIT']","value"]
-        }
+            {
+                "port_dev": ["//portdev", "name"],
+                "mac_addr": ["//mac", "address"],
+                "mal_repo_ip": ["//filterref/parameter[@name='MAL_REPO_IP']", "value"],
+                "cnc_ip": ["//filterref/parameter[@name='CNC_IP']", "value"],
+                "scan_ports": ["//filterref/parameter[@name='SCAN_PORT']", "value"],
+                "conn_limit": ["//filterref/parameter[@name='CONN_LIMIT']", "value"]
+            }
 
         if filter_name == SandboxNWFilter.DEFAULT:
             del para_to_check["cnc_ip"]
@@ -176,7 +179,7 @@ class SandboxContext:
         l.debug(f'para_to_check: {para_to_check}')
         # set parameters
         tree = etree.fromstring(bind_xml)
-        for k,v in para_to_check.items():
+        for k, v in para_to_check.items():
             l.debug(f'-->k:{k}, v:{v}')
             if k in kwargs:
                 para_element = tree.xpath(v[0])[0]
@@ -194,9 +197,9 @@ class SandboxContext:
 
         # have to delete existing binding firstly
         #  bo = self.conn.nwfilterBindingLookupByPortDev(\
-                #  kwargs[SandboxNWFilterParameter.PORT_DEV.value])
+        #  kwargs[SandboxNWFilterParameter.PORT_DEV.value])
         #  if bo:
-            #  bo.delete()
+        #  bo.delete()
 
         return self.conn.nwfilterBindingCreateXML(binding_xml)
 
@@ -211,20 +214,20 @@ class SandboxContext:
             l.debug("destroy default network...")
             default_net.destroy()
 
-        with open(self.net_conf,'r') as file:
+        with open(self.net_conf, 'r') as file:
             net_xml = file.read()
 
         #  async with aiofiles.open(self.net_conf, mode='r') as file:
-            #  net_xml = await file.read()
+        #  net_xml = await file.read()
 
         self.net = self.conn.networkCreateXMLFlags(net_xml)
 
         #  self.conn.networkEventRegisterAny(self.net,
-                                          #  libvirt.VIR_NETWORK_EVENT_ID_LIFECYCLE,
-                                          #  self._net_lifecycle_cb, net_changed_event)
+        #  libvirt.VIR_NETWORK_EVENT_ID_LIFECYCLE,
+        #  self._net_lifecycle_cb, net_changed_event)
 
         #  if self.net.isActive():
-            #  l.debug("network is active....")
+        #  l.debug("network is active....")
 
         #  await asyncio.wait_for(net_changed_event.wait(), 2)
         # TODO is networkCreateXMLFlags synchronous?
@@ -251,4 +254,3 @@ class SandboxContext:
             l.debug("destroying network...")
             self.net.destroy()
         self.conn.close()
-
