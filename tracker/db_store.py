@@ -129,12 +129,17 @@ class AttackStat:
 
 
 class DBStore:
-    def __init__(self):
+    def __init__(self, host, port, dbname, user, psw):
         self.conn = None
+        self.host = host
+        self.port = port
+        self.dbname = dbname
+        self.user = user
+        self.psw = psw
 
     async def open(self):
-        conninfo = 'host=localhost port=5432 dbname=botnet_tracker \
-        user=postgres password=botnet'
+        conninfo = f'host={self.host} port={self.port} dbname={self.dbname} \
+        user={self.user} password={self.psw}'
         self.conn = await psycopg.AsyncConnection.connect(conninfo)
 
     async def close(self):

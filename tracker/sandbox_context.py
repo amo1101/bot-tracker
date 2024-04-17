@@ -33,7 +33,13 @@ class SandboxScript(Enum):
 #  CONN_LIMIT = "CONN_LIMIT"
 
 class SandboxContext:
-    def __init__(self):
+    def __init__(self, network_peak,
+                 network_average,
+                 network_burst,
+                 port_peak,
+                 port_average,
+                 port_burst,
+                 port_max_conn):
         #  self.loop = loop
         self.event_imp = None
         self.conn = None
@@ -44,6 +50,13 @@ class SandboxContext:
         self.scripts_base = CUR_DIR + os.sep + "scripts"
         self.bot_dir = CUR_DIR + os.sep + "bot"
         self.net_conf = self.config_base + os.sep + "network.xml"
+        self.network_peak = network_peak
+        self.network_average = network_average
+        self.network_burst = network_burst
+        self.port_peak = port_peak
+        self.port_average = port_average
+        self.port_burst = port_burst
+        self.port_max_conn = port_max_conn
         self.sandbox_registry = \
             {
                 "ARM": [

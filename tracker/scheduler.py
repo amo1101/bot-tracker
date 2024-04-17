@@ -21,17 +21,30 @@ class SchedulerMode(Enum):
 
 
 class Scheduler:
-    def __init__(self, mode, sandbox_ctx, db_store):
-        self.tracker_id = None  # TODO: bot migration will be done via CLI
+    def __init__(self,
+                 tracker_id,
+                 mode,
+                 max_sandbox_num,
+                 max_dormant_duration,
+                 max_packet_analyzing_workers,
+                 cnc_probing_duration,
+                 bot_scan_ports,
+                 sandbox_ctx,
+                 db_store):
+        self.tracker_id = tracker_id  # TODO: bot migration will be done via CLI
         self.mode = mode  # 0 mean manual mode, 1 means auto mode
-        self.sandbox_cxt = sandbox_ctx
-        self.db_store = db_store
-        self.max_sandbox_num = 5
-        self.max_dormant_duration = timedelta(days=0, hours=0, minutes=0,
-                                              seconds=300)
+        self.max_sandbox_num = max_sandbox_num
+        self.max_dormant_duration = timedelta(days=0, hours=max_dormant_duration, minutes=0,
+                                              seconds=0)
         self.max_observe_duration = timedelta(days=7, hours=0, minutes=0,
                                               seconds=0)
-        # {running_task: botrunner obj}
+        self.max_packet_analyzing_workers = max_packet_analyzing_workers
+        self.cnc_probing_duration = cnc_probing_duration
+        self.bot_scan_ports = bot_scan_ports
+        self.sandbox_cxt = sandbox_ctx
+        self.db_store = db_store
+
+        # {running_task: bot-runner obj}
         self.bot_runners = {}
 
     async def destroy(self):
