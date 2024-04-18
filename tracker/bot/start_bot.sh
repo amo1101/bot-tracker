@@ -1,16 +1,16 @@
 #!/bin/sh
 
-if [ $# -lt 1 ]; then
-    echo "Usage: $0 bot_name"
+if [ $# -lt 4 ]; then
+    echo "Usage: $0 bot_name bot_repo_ip bot_repo_user bot_repo_path"
     exit 1
 fi
 
 BOT_NAME=$1
 
 # configure malware repo
-USERNAME=frankwu
-HOST=10.11.45.60
-DOWNLOAD_PATH=/home/$USERNAME/code/bot-tracker/downloader/malware_repo
+HOST=$2
+USERNAME=$3
+DOWNLOAD_PATH=$4
 
 # sandbox key file
 # make sure sandbox pub key is in ~/.ssh/authorized_keys on malware_repo server

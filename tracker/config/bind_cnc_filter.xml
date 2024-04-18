@@ -8,6 +8,8 @@
   <filterref filter='sandbox-cnc-filter'>
     <parameter name='MAL_REPO_IP' value='192.168.122.1'/>
     <parameter name='CNC_IP' value='192.168.122.2'/>
+    <parameter name='CONN_LIMIT' value='10'/>
+    <parameter name='SCAN_PORT' value='23,2323'/>
   </filterref>
 </filterbinding>
 

@@ -11,36 +11,30 @@ sys.path.append(DB_MODULE_DIR)
 from db_store import *
 
 l = TaskLogger(__name__)
-
-CHECKPOINT_INTERVAL = 10
-
-
-class SchedulerMode(Enum):
-    MANUAL = "manual"
-    AUTO = "auto"
-
+SCHEDULER_MODE_MANNUAL = 0
+SCHEDULER_MODE_AUTO = 1
 
 class Scheduler:
     def __init__(self,
                  tracker_id,
                  mode,
+                 checkpoint_interval,
                  max_sandbox_num,
                  max_dormant_duration,
                  max_packet_analyzing_workers,
                  cnc_probing_duration,
-                 bot_scan_ports,
                  sandbox_ctx,
                  db_store):
         self.tracker_id = tracker_id  # TODO: bot migration will be done via CLI
         self.mode = mode  # 0 mean manual mode, 1 means auto mode
+        self.checkpoint_interval = checkpoint_interval
         self.max_sandbox_num = max_sandbox_num
         self.max_dormant_duration = timedelta(days=0, hours=max_dormant_duration, minutes=0,
                                               seconds=0)
         self.max_observe_duration = timedelta(days=7, hours=0, minutes=0,
                                               seconds=0)
-        self.max_packet_analyzing_workers = max_packet_analyzing_workers
+        BotRunner.max_analyzing_workers = max_packet_analyzing_workers
         self.cnc_probing_duration = cnc_probing_duration
-        self.bot_scan_ports = bot_scan_ports
         self.sandbox_cxt = sandbox_ctx
         self.db_store = db_store
 
@@ -74,7 +68,7 @@ class Scheduler:
 
         bots = await self.db_store.load_bot_info(status_list, bot_id, count)
         for bot in bots:
-            bot_runner = BotRunner(bot, self.sandbox_cxt, self.db_store)
+            bot_runner = BotRunner(bot, self.cnc_probing_duration, self.sandbox_cxt, self.db_store)
             task = asyncio.create_task(bot_runner.run(),
                                        name=f'Task-{bot.tag}')
             self.bot_runners[task] = bot_runner
@@ -99,11 +93,11 @@ class Scheduler:
         try:
             while True:
                 #  l.debug('Scheduler checkpoint...')
-                if self.mode == SchedulerMode.AUTO:
+                if self.mode == SCHEDULER_MODE_AUTO:
                     await self._unstage_bots()
                     await self._stage_bots()
                 await self._update_bot_info()
-                await asyncio.sleep(CHECKPOINT_INTERVAL)
+                await asyncio.sleep(self.checkpoint_interval)
         except asyncio.CancelledError:
             l.warning("Scheduler cancelled")
         finally:

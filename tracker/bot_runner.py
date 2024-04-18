@@ -28,10 +28,11 @@ def init_worker():
 
 class BotRunner:
     # use process pool for packet analyzing
-    analyzer_executor = ProcessPoolExecutor(max_workers=1,
+    max_analyzing_workers = 1
+    analyzer_executor = ProcessPoolExecutor(max_workers=max_analyzing_workers,
                                             initializer=init_worker)
 
-    def __init__(self, bot_info, sandbox_ctx, db_store):
+    def __init__(self, bot_info, cnc_probing_duration, sandbox_ctx, db_store):
         self.bot_info = bot_info
         self.sandbox_ctx = sandbox_ctx
         self.db_store = db_store
@@ -42,10 +43,7 @@ class BotRunner:
         self.log_base = CUR_DIR + os.sep + "log"
         self.log_dir = self.log_base + os.sep + bot_info.tag
         self.cnc_info = None
-        self.cnc_probing_time = 180
-        self.conn_limit = 10
-        self.mal_repo_ip = "10.11.45.60"
-        self.scan_ports = "23"  # TODO
+        self.cnc_probing_time = cnc_probing_duration
         self.start_time = None
         self.notify_unstage = False
         self.notify_error = False
@@ -173,32 +171,6 @@ class BotRunner:
 
     async def run(self):
         try:
-            #  self.start_time = datetime.now()
-            #  self.dormant_start_time = datetime.now()
-            #  self.observe_start_time = datetime.now()
-            #  l.debug('testing packet monitoring started')
-            #  self._create_log_dir()
-            #  iface = 'enp0s3'
-            #  output_file = self.log_dir + os.sep + "capture.pcap"
-            #  self.live_capture = AsyncLiveCapture(interface=iface,
-            #  output_file=output_file,
-            #  debug=True)
-            #  # find cnc server
-            #  try:
-            #  await asyncio.wait_for(self._find_cnc(),
-            #  timeout=self.cnc_probing_time)
-            #  except asyncio.TimeoutError:
-            #  l.warning("Cnc probing timeout...")
-            #  if self.cnc_analyzer.report.is_ready():
-            #  self.cnc_analyzer.report.persist()
-            #  else:
-            #  l.warning("Cnc not find, stop bot runner...")
-            #  self.destroy()
-            #  return
-
-            #  await self._observe_attack()
-            #  #  return
-            l.debug(f'Bot runner {self.bot_info.tag} started')
             self._create_log_dir()
             self.sandbox = Sandbox(self.sandbox_ctx, self.bot_info.tag,
                                    self.bot_info.file_name,
@@ -211,8 +183,7 @@ class BotRunner:
             _, mac_addr, own_ip = self.sandbox.get_ifinfo()
 
             # set default nwfiter
-            self.sandbox.apply_nwfilter(SandboxNWFilter.DEFAULT,
-                                        mal_repo_ip=self.mal_repo_ip)
+            self.sandbox.apply_nwfilter(SandboxNWFilter.DEFAULT)
             self._init_capture(mac_addr)
 
             # find cnc server
@@ -247,13 +218,7 @@ class BotRunner:
 
             # enforce nwfilter
             nwfilter_type = SandboxNWFilter.CNC
-            args = {"mal_repo_ip": self.mal_repo_ip,
-                    "cnc_ip": self.cnc_info[0].ip}
-            if self.conn_limit > 0:
-                nwfilter_type = SandboxNWFilter.CONN_LIMIT
-                args["conn_limit"] = str(self.conn_limit)
-                args["scan_ports"] = self.scan_ports
-
+            args = {"cnc_ip": self.cnc_info[0].ip}
             self.sandbox.apply_nwfilter(nwfilter_type, **args)
 
             # Set bot status to dormant before we observe CnC communication

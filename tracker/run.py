@@ -36,7 +36,11 @@ async def async_main(arguments=None):
                                  config['rate_limit']['port_peak'],
                                  config['rate_limit']['port_average'],
                                  config['rate_limit']['port_burst'],
-                                 config['rate_limit']['port_max_conn'])
+                                 config['network_control']['max_conn'],
+                                 config['network_control']['scan_ports'].split(','),
+                                 config['local_bot_repo']['ip'],
+                                 config['local_bot_repo']['user'],
+                                 config['local_bot_repo']['path'])
     sandbox_ctx.start()
     db_store = DBStore(config['database']['host'],
                        config['database']['port'],
@@ -46,11 +50,11 @@ async def async_main(arguments=None):
     await db_store.open()
     scheduler = Scheduler(config['tracker']['id'],
                           config['scheduler']['mode'],
+                          int(config['scheduler']['checkpoint_interval']),
                           int(config['scheduler']['max_sandbox_num']),
                           int(config['scheduler']['max_dormant_duration']),
                           int(config['scheduler']['max_packet_analyzing_workers']),
                           int(config['scheduler']['cnc_probing_duration']),
-                          config['scheduler']['bot_scan_ports'].split(','),
                           sandbox_ctx,
                           db_store)
     cmd_handler.start_cmd_handler(scheduler, db_store)

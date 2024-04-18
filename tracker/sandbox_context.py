@@ -16,7 +16,6 @@ CUR_DIR = os.path.dirname(os.path.realpath(__file__))
 class SandboxNWFilter(Enum):
     DEFAULT = "sandbox-default-filter"
     CNC = "sandbox-cnc-filter"
-    CONN_LIMIT = "sandbox-conn-limit-filter"
 
 
 class SandboxScript(Enum):
@@ -39,7 +38,11 @@ class SandboxContext:
                  port_peak,
                  port_average,
                  port_burst,
-                 port_max_conn):
+                 port_max_conn,
+                 scan_ports,
+                 local_bot_repo_ip,
+                 local_bot_repo_user,
+                 local_bot_repo_path):
         #  self.loop = loop
         self.event_imp = None
         self.conn = None
@@ -57,6 +60,10 @@ class SandboxContext:
         self.port_average = port_average
         self.port_burst = port_burst
         self.port_max_conn = port_max_conn
+        self.scan_ports = scan_ports
+        self.local_bot_repo_ip = local_bot_repo_ip
+        self.local_bot_repo_user = local_bot_repo_user
+        self.local_bot_repo_path = local_bot_repo_path
         self.sandbox_registry = \
             {
                 "ARM": [
@@ -68,9 +75,9 @@ class SandboxContext:
 
         self.sandbox_nwfilter_registry = \
             {
+                SandboxNWFilter.CONN_LIMIT.value: ["conn_limit_filter.xml", ""]
                 SandboxNWFilter.DEFAULT.value: ["default_filter.xml", "bind_default_filter.xml"],
                 SandboxNWFilter.CNC.value: ["cnc_filter.xml", "bind_cnc_filter.xml"],
-                SandboxNWFilter.CONN_LIMIT.value: ["conn_limit_filter.xml", "bind_conn_limit_filter.xml"]
             }
 
         self.nwfilter_objs = []
@@ -82,6 +89,23 @@ class SandboxContext:
             l.debug("network lifecycle event occured, event: %d, detail: %d",
                     event, detail)
             net_changed_event.set()
+
+    def _get_net_config(self):
+        with open(self.net_conf, 'r') as file:
+            net_xml = file.read()
+        tree = etree.fromstring(net_xml)
+
+        net_bandwidth_node = tree.xpath("//bandwidth/outbound")[0]
+        net_bandwidth_node.set('average', self.network_average)
+        net_bandwidth_node.set('peak', self.network_peak)
+        net_bandwidth_node.set('burst', self.network_burst)
+
+        port_bandwidth_node = tree.xpath("//portgroup/bandwidth/outbound")[0]
+        port_bandwidth_node.set('average', self.port_average)
+        port_bandwidth_node.set('peak', self.port_peak)
+        port_bandwidth_node.set('burst', self.port_burst)
+
+        return etree.tostring(tree, encoding='unicode')
 
     def is_support_arch(self, arch):
         return arch in self.sandbox_registry
@@ -135,6 +159,11 @@ class SandboxContext:
     def get_bot_dir(self):
         return self.bot_dir
 
+    def get_bot_repo(self):
+        return self.local_bot_repo_ip,
+               self.local_bot_repo_user,
+               self.local_bot_repo_path
+
     def _define_nwfilters(self):
         for k, v in self.sandbox_nwfilter_registry.items():
             with open(self.config_base + os.sep + v[0], 'r') as file:
@@ -158,12 +187,14 @@ class SandboxContext:
 
         l.debug(f'filter: {filter_name}, kwargs: {kwargs}')
 
+        if 'port_dev' not in kwargs or 'mac_addr' not in kwargs:
+            l.error('port_dev or mac_adr not specified')
+            return ''
+
         # key: key of input parameter
         # value: [xpath, attr_to_match, atrr_to_set]
         para_to_check = \
             {
-                "port_dev": ["//portdev", "name"],
-                "mac_addr": ["//mac", "address"],
                 "mal_repo_ip": ["//filterref/parameter[@name='MAL_REPO_IP']", "value"],
                 "cnc_ip": ["//filterref/parameter[@name='CNC_IP']", "value"],
                 "scan_ports": ["//filterref/parameter[@name='SCAN_PORT']", "value"],
@@ -172,12 +203,7 @@ class SandboxContext:
 
         if filter_name == SandboxNWFilter.DEFAULT:
             del para_to_check["cnc_ip"]
-            del para_to_check["scan_ports"]
-            del para_to_check["conn_limit"]
         elif filter_name == SandboxNWFilter.CNC:
-            del para_to_check["scan_ports"]
-            del para_to_check["conn_limit"]
-        else:
             pass
 
         if not all(p in kwargs for p in para_to_check):
@@ -192,17 +218,37 @@ class SandboxContext:
         l.debug(f'para_to_check: {para_to_check}')
         # set parameters
         tree = etree.fromstring(bind_xml)
+        # set portdev and mac
+        tree.xpath("//portdev").set("name" kwargs['port_dev'])
+        tree.xpath("//mac").set("address" kwargs['mac_addr'])
+        # set parameters
+        parent = tree("//filterref")
         for k, v in para_to_check.items():
             l.debug(f'-->k:{k}, v:{v}')
             if k in kwargs:
                 para_element = tree.xpath(v[0])[0]
                 if para_element is not None:
-                    para_element.set(v[1], kwargs[k])
+                    val = kwargs[k]
+                    if isinstance(val, list):
+                        for e in val:
+                            para_copied = etree.Element(para_element.tag, para_element.attrib)
+                            para_copied.set(v[1], e)
+                            parent.append(para_copied)
+                        parent.remove(para_element)
+                    else:
+                        para_element.set(v[1], val)
 
         return etree.tostring(tree, encoding='unicode')
 
+    def create_sandbox(self, sandbox_xml):
+        return self.conn.createXML(sandbox_xml, libvirt.VIR_DOMAIN_START_VALIDATE)
+
     def apply_nwfilter(self, filter_name, **kwargs):
-        binding_xml = self._get_nwfilter_binding(filter_name, **kwargs)
+        binding_xml = self._get_nwfilter_binding(filter_name,
+                                                 mal_repo_ip=self.mal_repo_ip,
+                                                 scan_ports=self.scan_ports,
+                                                 conn_limit=self.port_max_conn,
+                                                 **kwargs)
         if binding_xml == "":
             return None
 
@@ -227,12 +273,10 @@ class SandboxContext:
             l.debug("destroy default network...")
             default_net.destroy()
 
-        with open(self.net_conf, 'r') as file:
-            net_xml = file.read()
 
         #  async with aiofiles.open(self.net_conf, mode='r') as file:
         #  net_xml = await file.read()
-
+        net_xml = self._get_net_config()
         self.net = self.conn.networkCreateXMLFlags(net_xml)
 
         #  self.conn.networkEventRegisterAny(self.net,

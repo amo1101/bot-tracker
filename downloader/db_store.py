@@ -16,7 +16,7 @@ INIT_INTERVAL = timedelta(seconds=0)
 # interrupted: observing is interrupted, can be resumed
 # unstaged: observing is stopped due to maximum dormant period reached
 #           auto scheduling mode only
-# error: some error status need to be further checked manually
+# error: some error status need to be futher checked manually
 # duplicate: bot with the same CnC already exist, no need to observe
 class BotStatus(Enum):
     UNKNOWN = "unknown"
@@ -129,12 +129,17 @@ class AttackStat:
 
 
 class DBStore:
-    def __init__(self):
+    def __init__(self, host, port, dbname, user, psw):
         self.conn = None
+        self.host = host
+        self.port = port
+        self.dbname = dbname
+        self.user = user
+        self.psw = psw
 
     async def open(self):
-        conninfo = 'host=localhost port=5432 dbname=botnet_tracker \
-        user=postgres password=botnet'
+        conninfo = f'host={self.host} port={self.port} dbname={self.dbname} \
+        user={self.user} password={self.psw}'
         self.conn = await psycopg.AsyncConnection.connect(conninfo)
 
     async def close(self):

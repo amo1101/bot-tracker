@@ -4,7 +4,7 @@ import asyncio
 import datetime
 import logging
 import shutil
-import argparse
+import configparser
 from bazaar import Bazaar
 from elftools.elf.elffile import ELFFile
 from datetime import datetime
@@ -145,14 +145,38 @@ async def download_recent(remote_repo, local_repo, db_store):
     l.debug('download recent done')
 
 
-async def async_main(local_repo, base_time):
+async def async_main():
     #await test_db()
-    #return
+    global valid_tags
+    config = configparser.ConfigParser()
+    ini_file = CUR_DIR + os.sep + 'config.ini'
+    if not os.path.exists(ini_file):
+        l.error('ini file not exist!')
+        return
+    config.read(ini_file)
+
+    valid_tags = config['downloader']['tags'].split(',')
+
+    local_repo = config['downloader']['local_repo']
+    base_time = config['downloader']['base_time']
+    if local_repo is None or not is_valid_datetime_format(base_time):
+        print('Bad arguments')
+        return
+
+    time_threshold = datetime.strptime(base_time, '%Y-%m-%d %H:%M:%S')
+
+    if not os.path.exists(local_repo):
+        os.makedirs(local_repo)
+
     l.debug('connecting to remote repo...')
-    remote_repo = Bazaar()
+    remote_repo = Bazaar(api_key=config['downloader']['api_key'])
     l.debug('connecting to remote repo done')
     l.debug('connecting to db...')
-    db_store = DBStore()
+    db_store = DBStore(config['database']['host'],
+                       config['database']['port'],
+                       config['database']['dbname'],
+                       config['database']['user'],
+                       config['database']['password'])
     await db_store.open()
     l.debug('connecting to db done')
 
@@ -174,24 +198,4 @@ if __name__ == "__main__":
     #  print(BANNER)
     #  signal.signal(signal.SIGINT, recv_signal)
     #  print("[Master] Press CTRL+C whenever you want to exit")
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-local_repo", nargs='*', type=str, help="The path to store malware samples")
-    parser.add_argument("-base_time", nargs='*', type=str, help="The base time \
-    after which the malware will be downloaded, e.g.2024-03-22 23:59:59")
-    args = parser.parse_args()
-    print(f'local_repo: {args.local_repo}')
-    print(f'base_time: {args.base_time}')
-    if args.local_repo is None or args.base_time is None:
-        print('Bad arguments')
-        sys.exit()
-
-    if args.local_repo[0] is None or not is_valid_datetime_format(args.base_time[0]):
-        print('Bad arguments')
-        sys.exit()
-
-    time_threshold = datetime.strptime(args.base_time[0], '%Y-%m-%d %H:%M:%S')
-
-    if not os.path.exists(args.local_repo[0]):
-        os.makedirs(args.local_repo[0])
-
-    asyncio.run(async_main(args.local_repo[0], time_threshold), debug=True)
+    asyncio.run(async_main(), debug=True)

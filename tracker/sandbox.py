@@ -74,8 +74,10 @@ class Sandbox:
 
         # copy bot directory to sandbox fs
         bot_dir = self.context.get_bot_dir()
+        bot_repo_ip, bot_repo_user, bot_repo_path = self.context.get_bot_repo()
         s = SandboxScript.PREPARE_FS
-        self._run_script(s, self.bot_file, bot_dir, dst)
+        self._run_script(s, self.bot_file, bot_dir, dst, bot_repo_ip,
+                         bot_repo_user, bot_repo_path)
 
     def _get_config(self):
         return self.context.get_sandbox_config(self.arch, self.name)
@@ -91,14 +93,13 @@ class Sandbox:
     def start(self):
         self._prepare_kernel()
         self._prepare_fs()
-        dom_xml = self._get_config()
+        sandbox_xml = self._get_config()
         l.debug("dom config:")
-        l.debug("%s", dom_xml)
+        l.debug("%s", sandbox_xml)
 
-        self.dom = self.context.conn.createXML(dom_xml,
-                                               libvirt.VIR_DOMAIN_START_VALIDATE)
+        self.dom = self.context.create_sandbox(sandbox_xml)
         if self.dom is None:
-            l.error("create domain %s failed", self.name)
+            l.error("create sandbox %s failed", self.name)
             return
 
         while True:
@@ -132,23 +133,6 @@ class Sandbox:
 
     def apply_nwfilter(self, filter_name, **kwargs):
         self.get_ifinfo()
-        # It's ok to give a superset of parameters, SandboxContext will choose
-        #  args = \
-        #  {
-        #  sandbox_context.SandboxNWFilterParameter.PORT_DEV.value:
-        #  self.port_dev,
-        #  sandbox_context.SandboxNWFilterParameter.MAC_ADDR.value:
-        #  self.mac_address,
-        #  sandbox_context.SandboxNWFilterParameter.MAL_REPO_IP.value:
-        #  self.mal_repo_ip,
-        #  sandbox_context.SandboxNWFilterParameter.CNC_IP.value:
-        #  self.cnc_ip,
-        #  sandbox_context.SandboxNWFilterParameter.CONN_LIMIT.value:
-        #  self.conn_limit,
-        #  sandbox_context.SandboxNWFilterParameter.SCAN_PORT.value:
-        #  self.scan_port
-        #  }
-
         if self.filter_binding:
             self.filter_binding.delete()
             self.filter_binding = None

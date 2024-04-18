@@ -1,7 +1,4 @@
 <filter name='sandbox-conn-limit-filter'>
-  <!-- enforced based on cnc filter -->
-  <filterref filter='sandbox-cnc-filter'/>
-  
   <!-- discard scan traffic based on target port -->
   <rule action='drop' direction='out' priority='300'>
     <tcp dstportstart='$SCAN_PORT'/>
