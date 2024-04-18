@@ -32,8 +32,12 @@ class BotRunner:
     analyzer_executor = ProcessPoolExecutor(max_workers=max_analyzing_workers,
                                             initializer=init_worker)
 
-    def __init__(self, bot_info, cnc_probing_duration, sandbox_ctx, db_store):
+    def __init__(self, bot_info, bot_repo_ip, bot_repo_user, bot_repo_path,
+                 cnc_probing_duration, sandbox_ctx, db_store):
         self.bot_info = bot_info
+        self.bot_repo_ip = bot_repo_ip
+        self.bot_repo_user = bot_repo_user
+        self.bot_repo_path = bot_repo_path
         self.sandbox_ctx = sandbox_ctx
         self.db_store = db_store
         self.sandbox = None
@@ -172,9 +176,13 @@ class BotRunner:
     async def run(self):
         try:
             self._create_log_dir()
-            self.sandbox = Sandbox(self.sandbox_ctx, self.bot_info.tag,
+            self.sandbox = Sandbox(self.sandbox_ctx,
+                                   self.bot_info.tag,
                                    self.bot_info.file_name,
-                                   self.bot_info.arch)  # TODO: map arch
+                                   self.bot_info.arch,
+                                   self.bot_repo_ip,
+                                   self.bot_repo_user,
+                                   self.bot_repo_path)  # TODO: map arch
             self.sandbox.start()
 
             # transit status to staged
@@ -188,7 +196,7 @@ class BotRunner:
 
             # find cnc server
             try:
-                await asyncio.wait_for(self._find_cnc(own_ip, [self.mal_repo_ip]),
+                await asyncio.wait_for(self._find_cnc(own_ip, [self.bot_repo_ip]),
                                        timeout=self.cnc_probing_time)
             except asyncio.TimeoutError:
                 l.warning("Cnc probing timeout...")

@@ -9,7 +9,5 @@ for b in $bindings; do
 done
 
 virsh nwfilter-undefine sandbox-default-filter
-virsh nwfilter-undefine sandbox-conn-limit-filter
 virsh nwfilter-undefine sandbox-cnc-filter
-virsh nwfilter-undefine sandbox-conn-limit-filter
 virsh net-destroy mynet

@@ -15,12 +15,15 @@ l = TaskLogger(__name__)
 
 
 class Sandbox:
-    def __init__(self, context, name, bot_file, arch):
+    def __init__(self, context, name, bot_file, arch,
+                 bot_repo_ip, bot_repo_user, bot_repo_path):
         self.context = context
         self.name = name
         self.bot_file = bot_file
         self.arch = arch
-        self.parameter = None
+        self.bot_repo_ip = bot_repo_ip
+        self.bot_repo_user = bot_repo_user
+        self.bot_repo_path = bot_repo_path
         self.dom = None
         #  self.dom_changed_event = asyncio.Event()
         self.ifinfo = None
@@ -74,10 +77,9 @@ class Sandbox:
 
         # copy bot directory to sandbox fs
         bot_dir = self.context.get_bot_dir()
-        bot_repo_ip, bot_repo_user, bot_repo_path = self.context.get_bot_repo()
         s = SandboxScript.PREPARE_FS
-        self._run_script(s, self.bot_file, bot_dir, dst, bot_repo_ip,
-                         bot_repo_user, bot_repo_path)
+        self._run_script(s, self.bot_file, bot_dir, dst, self.bot_repo_ip,
+                         self.bot_repo_user, self.bot_repo_path)
 
     def _get_config(self):
         return self.context.get_sandbox_config(self.arch, self.name)
@@ -141,6 +143,7 @@ class Sandbox:
         self.filter_binding = self.context.apply_nwfilter(filter_name,
                                                           port_dev=self.port_dev,
                                                           mac_addr=self.mac_address,
+                                                          mal_repo_ip=self.bot_repo_ip,
                                                           **kwargs)
         if not self.filter_binding:
             l.error("failed to apply nw filter")

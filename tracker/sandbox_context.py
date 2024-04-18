@@ -32,17 +32,15 @@ class SandboxScript(Enum):
 #  CONN_LIMIT = "CONN_LIMIT"
 
 class SandboxContext:
-    def __init__(self, network_peak,
+    def __init__(self,
+                 network_peak,
                  network_average,
                  network_burst,
                  port_peak,
                  port_average,
                  port_burst,
                  port_max_conn,
-                 scan_ports,
-                 local_bot_repo_ip,
-                 local_bot_repo_user,
-                 local_bot_repo_path):
+                 scan_ports):
         #  self.loop = loop
         self.event_imp = None
         self.conn = None
@@ -61,9 +59,6 @@ class SandboxContext:
         self.port_burst = port_burst
         self.port_max_conn = port_max_conn
         self.scan_ports = scan_ports
-        self.local_bot_repo_ip = local_bot_repo_ip
-        self.local_bot_repo_user = local_bot_repo_user
-        self.local_bot_repo_path = local_bot_repo_path
         self.sandbox_registry = \
             {
                 "ARM": [
@@ -75,7 +70,6 @@ class SandboxContext:
 
         self.sandbox_nwfilter_registry = \
             {
-                SandboxNWFilter.CONN_LIMIT.value: ["conn_limit_filter.xml", ""]
                 SandboxNWFilter.DEFAULT.value: ["default_filter.xml", "bind_default_filter.xml"],
                 SandboxNWFilter.CNC.value: ["cnc_filter.xml", "bind_cnc_filter.xml"],
             }
@@ -159,11 +153,6 @@ class SandboxContext:
     def get_bot_dir(self):
         return self.bot_dir
 
-    def get_bot_repo(self):
-        return self.local_bot_repo_ip,
-               self.local_bot_repo_user,
-               self.local_bot_repo_path
-
     def _define_nwfilters(self):
         for k, v in self.sandbox_nwfilter_registry.items():
             with open(self.config_base + os.sep + v[0], 'r') as file:
@@ -171,6 +160,7 @@ class SandboxContext:
             obj = self.conn.nwfilterDefineXML(xml_desc)
             if obj:
                 self.nwfilter_objs.append(obj)
+                l.debug(f'nwfilter defined: {xml_desc}')
             else:
                 l.error("Failed to define nwfilter %s", k)
                 return False
@@ -219,10 +209,10 @@ class SandboxContext:
         # set parameters
         tree = etree.fromstring(bind_xml)
         # set portdev and mac
-        tree.xpath("//portdev").set("name" kwargs['port_dev'])
-        tree.xpath("//mac").set("address" kwargs['mac_addr'])
+        tree.xpath("//portdev")[0].set("name", kwargs['port_dev'])
+        tree.xpath("//mac")[0].set("address", kwargs['mac_addr'])
         # set parameters
-        parent = tree("//filterref")
+        parent = tree.xpath("//filterref")[0]
         for k, v in para_to_check.items():
             l.debug(f'-->k:{k}, v:{v}')
             if k in kwargs:
@@ -245,7 +235,6 @@ class SandboxContext:
 
     def apply_nwfilter(self, filter_name, **kwargs):
         binding_xml = self._get_nwfilter_binding(filter_name,
-                                                 mal_repo_ip=self.mal_repo_ip,
                                                  scan_ports=self.scan_ports,
                                                  conn_limit=self.port_max_conn,
                                                  **kwargs)
@@ -277,6 +266,7 @@ class SandboxContext:
         #  async with aiofiles.open(self.net_conf, mode='r') as file:
         #  net_xml = await file.read()
         net_xml = self._get_net_config()
+        l.debug(f'net_xml: {net_xml}')
         self.net = self.conn.networkCreateXMLFlags(net_xml)
 
         #  self.conn.networkEventRegisterAny(self.net,
@@ -299,7 +289,9 @@ class SandboxContext:
             l.error("failed to define network filters")
             return False
 
-        return False
+        l.debug("nwfilters are defined")
+
+        return True
 
     def destroy(self):
         # now we should have all domains destroyed

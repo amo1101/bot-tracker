@@ -17,6 +17,9 @@ SCHEDULER_MODE_AUTO = 1
 class Scheduler:
     def __init__(self,
                  tracker_id,
+                 bot_repo_ip,
+                 bot_repo_user,
+                 bot_repo_path,
                  mode,
                  checkpoint_interval,
                  max_sandbox_num,
@@ -26,6 +29,9 @@ class Scheduler:
                  sandbox_ctx,
                  db_store):
         self.tracker_id = tracker_id  # TODO: bot migration will be done via CLI
+        self.bot_repo_ip = bot_repo_ip
+        self.bot_repo_user = bot_repo_user
+        self.bot_repo_path = bot_repo_path
         self.mode = mode  # 0 mean manual mode, 1 means auto mode
         self.checkpoint_interval = checkpoint_interval
         self.max_sandbox_num = max_sandbox_num
@@ -68,7 +74,13 @@ class Scheduler:
 
         bots = await self.db_store.load_bot_info(status_list, bot_id, count)
         for bot in bots:
-            bot_runner = BotRunner(bot, self.cnc_probing_duration, self.sandbox_cxt, self.db_store)
+            bot_runner = BotRunner(bot,
+                                   self.bot_repo_ip,
+                                   self.bot_repo_user,
+                                   self.bot_repo_path,
+                                   self.cnc_probing_duration,
+                                   self.sandbox_cxt,
+                                   self.db_store)
             task = asyncio.create_task(bot_runner.run(),
                                        name=f'Task-{bot.tag}')
             self.bot_runners[task] = bot_runner

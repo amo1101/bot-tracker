@@ -1,13 +1,12 @@
 import os
 import sys
 import asyncio
-import datetime
+from datetime import datetime
 import logging
 import shutil
 import configparser
 from bazaar import Bazaar
 from elftools.elf.elffile import ELFFile
-from datetime import datetime
 from db_store import *
 
 CUR_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -21,7 +20,7 @@ l = logging.getLogger(name=__name__)
 valid_tags = ['mirai']
 valid_file_type = ['elf']
 valid_arch = {'MIPS': {32: ['B', 'L']}, 'ARM': {32: ['L']}}
-download_period = 10  # download hourly
+download_period = 3600  # download hourly
 
 def get_arch_info(bot_file, bot_info):
     # unzipped file name should be sha256
@@ -156,11 +155,13 @@ async def async_main():
     config.read(ini_file)
 
     valid_tags = config['downloader']['tags'].split(',')
+    l.debug(f'valid tags: {valid_tags}')
 
     local_repo = config['downloader']['local_repo']
     base_time = config['downloader']['base_time']
+    l.debug(f'local_repo: {local_repo}, base_time: {base_time}')
     if local_repo is None or not is_valid_datetime_format(base_time):
-        print('Bad arguments')
+        l.error('Bad arguments')
         return
 
     time_threshold = datetime.strptime(base_time, '%Y-%m-%d %H:%M:%S')
@@ -181,7 +182,7 @@ async def async_main():
     l.debug('connecting to db done')
 
     # get the base
-    await download_base(remote_repo, local_repo, db_store, base_time)
+    await download_base(remote_repo, local_repo, db_store, time_threshold)
 
     # get bots incrementally
     try:

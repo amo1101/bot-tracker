@@ -10,7 +10,7 @@ import configparser
 from sandbox_context import SandboxContext
 from sandbox_context import SandboxNWFilter
 from sandbox import Sandbox
-from scheduler import SchedulerMode, Scheduler
+from scheduler import Scheduler
 import cmd_handler
 from db_store import *
 from cnc_analyzer import *
@@ -37,18 +37,20 @@ async def async_main(arguments=None):
                                  config['rate_limit']['port_average'],
                                  config['rate_limit']['port_burst'],
                                  config['network_control']['max_conn'],
-                                 config['network_control']['scan_ports'].split(','),
-                                 config['local_bot_repo']['ip'],
-                                 config['local_bot_repo']['user'],
-                                 config['local_bot_repo']['path'])
+                                 config['network_control']['scan_ports'].split(','))
     sandbox_ctx.start()
+
     db_store = DBStore(config['database']['host'],
                        config['database']['port'],
                        config['database']['dbname'],
                        config['database']['user'],
                        config['database']['password'])
     await db_store.open()
+
     scheduler = Scheduler(config['tracker']['id'],
+                          config['local_bot_repo']['ip'],
+                          config['local_bot_repo']['user'],
+                          config['local_bot_repo']['path'],
                           config['scheduler']['mode'],
                           int(config['scheduler']['checkpoint_interval']),
                           int(config['scheduler']['max_sandbox_num']),
@@ -57,6 +59,7 @@ async def async_main(arguments=None):
                           int(config['scheduler']['cnc_probing_duration']),
                           sandbox_ctx,
                           db_store)
+
     cmd_handler.start_cmd_handler(scheduler, db_store)
     await scheduler.checkpoint()
     await db_store.close()
