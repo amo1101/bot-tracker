@@ -165,7 +165,8 @@ class CnCAnalyzer:
                     if pkt.tcp.flags_ack != "1":
                         state = "SYN"
                     else:
-                        pass
+                        l.debug(f'report 1:\n{repr(self.report)}')
+                        return self.report
                         #  return self.report # don't need to take into account SYN ACK
                 else:
                     if self.own_ip and pkt.ip.dst == self.own_ip or "192.168" not in pkt.ip.src:  # it's a server response

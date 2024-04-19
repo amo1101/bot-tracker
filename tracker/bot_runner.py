@@ -203,11 +203,15 @@ class BotRunner:
                 if self.cnc_analyzer.report.is_ready():
                     cnc_info = self.cnc_analyzer.report.get()
                     ip_port = cnc_info[0].split(':')
+                    domain = ''
+                    if 'DNS_Name' in cnc_info[1]:
+                        domain = cnc_info[1]['DNS_Name']
+
                     # TODO: skip asn and location here
                     # TODO: we can support multiple CnCs, but now only use 1
                     # TODO: domain should be fetched from cnc_info
                     self.cnc_info.append(CnCInfo(ip_port[0], int(ip_port[1]),
-                                                 self.bot_info.bot_id, '', 0, ''))
+                                                 self.bot_info.bot_id, domain, 0, ''))
                     l.debug(f"Find CnC:{ip_port[0]}:{ip_port[1]}")
 
                     # Check if CnC already existed

@@ -42,16 +42,18 @@ class AttackAnalyzer:
         if 'tcp' in dir(pkt):
             # we only monitor sync_ack or fin_ack from server -> client
             if pkt.ip.src == self.cnc_ip and pkt.ip.dst == self.own_ip:
-                if pkt.tcp.flags_syn == '1' and pkt.tcp.flags_ack == '1':
-                    # server ACK the SYN, connection established
-                    self.report.cnc_status = CnCStatus.ALIVE.value
-                    self.report.cnc_ready = True
-                elif pkt.tcp.flags_fin == '1':
+                if pkt.tcp.flags_fin == '1':
                     # server initiate FIN, connection broken
-                    self.report.cnc_status = CnCStatus.DISCONNECTED.value
-                    self.report.cnc_ready = True
+                    if self.report.cnc_status != CnCStatus.DISCONNECTED.value:
+                        self.report.cnc_status = CnCStatus.DISCONNECTED.value
+                        self.report.cnc_ready = True
                 else:
-                    pass
+                    # if sync ack from server, or data exchange from server
+                    if (pkt.tcp.flags_syn == '1' and pkt.tcp.flags_ack == '1') \
+                       or (pkt.tcp.len != '0'):
+                        if self.report.cnc_status != CnCStatus.ALIVE.value:
+                            self.report.cnc_status = CnCStatus.ALIVE.value
+                            self.report.cnc_ready = True
 
     def _analyze_attack(self, pkt):
         pass
