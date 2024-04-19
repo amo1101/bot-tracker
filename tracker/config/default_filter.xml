@@ -4,26 +4,30 @@
   <filterref filter='allow-arp'/>
 
   <!-- allow scp to malware repo vm -->
-  <rule action='accept' direction='out' priority='300'>
+  <rule action='accept' direction='out' priority='600'>
     <tcp dstportstart='22' dstipaddr='$MAL_REPO_IP'/>
   </rule>
 
   <!-- enable outgoing DNS lookups using UDP -->
-  <rule action='accept' direction='out' priority='300'>
+  <rule action='accept' direction='out' priority='600'>
     <udp dstportstart='53'/>
   </rule>
+  <rule action='accept' direction='out' priority='600'>
+    <tcp dstportstart='53'/>
+  </rule>
 
-  <rule action='drop' direction='out' priority='300'>
+  <!-- disable all scan traffic -->
+  <rule action='drop' direction='out' priority='700'>
     <tcp dstportstart='$SCAN_PORT'/>
   </rule>
   
   <!-- allow connection limit -->
-  <rule action='drop' direction='out' priority='400'>
+  <rule action='drop' direction='out' priority='800'>
     <tcp connlimit-above='$CONN_LIMIT'/>
   </rule>
   
   <!-- allow outbound tcp connections, possible L7 attacks -->
-  <rule action='accept' direction='out' priority='500'>
+  <rule action='accept' direction='out' priority='900'>
     <tcp/>
   </rule>
 

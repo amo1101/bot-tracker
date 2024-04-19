@@ -113,6 +113,7 @@ class BotRunner:
         loop = asyncio.get_running_loop()
         try:
             async for packet in self.live_capture.sniff_continuously():
+                l.debug(f'{packet}')
                 self.attack_analyzer.report = await loop.run_in_executor(BotRunner.analyzer_executor,
                                                                          self.attack_analyzer.analyze,
                                                                          packet)
