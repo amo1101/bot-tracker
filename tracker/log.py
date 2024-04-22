@@ -4,7 +4,7 @@ import logging
 import time
 import sys
 
-log_format = '%(asctime)s-%(name)s-%(levelname)s-%(message)s'
+log_format = '%(asctime)s-%(process)d-%(name)s-%(levelname)s-%(message)s'
 
 
 class TaskStreamHandler(logging.StreamHandler):

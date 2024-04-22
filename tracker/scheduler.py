@@ -47,7 +47,7 @@ class Scheduler:
         # {running_task: bot-runner obj}
         self.bot_runners = {}
 
-    async def destroy(self):
+    def destroy(self):
         for t, o in self.bot_runners.items():
             if not t.cancelled():
                 o = self.bot_runners[t]
@@ -56,7 +56,7 @@ class Scheduler:
                 l.debug(f'task {t.get_name()} has been cancelled')
         BotRunner.analyzer_executor.shutdown()
 
-    async def _unstage_bots(self):
+    def _unstage_bots(self):
         for t, o in self.bot_runners.items():
             dd = o.dormant_duration()
             od = o.observe_duration()
@@ -106,9 +106,9 @@ class Scheduler:
             while True:
                 #  l.debug('Scheduler checkpoint...')
                 if self.mode == SCHEDULER_MODE_AUTO:
-                    await self._unstage_bots()
+                    self._unstage_bots()
                     await self._stage_bots()
-                await self._update_bot_info()
+                    await self._update_bot_info()
                 await asyncio.sleep(self.checkpoint_interval)
         except asyncio.CancelledError:
             l.warning("Scheduler cancelled")
@@ -118,11 +118,24 @@ class Scheduler:
             #  self.destroy()
             pass
 
+    # following APIs are for manual scheduling
     async def start_bot(self, bot_id):
+        if self.mode == SCHEDULER_MODE_AUTO:
+            l.debug('start_bot command not supported in auto mode')
+            return
         await self._schedule_bots(None, bot_id)
 
-    async def stop_bot(self, bot_id):
+    def stop_bot(self, bot_id):
+        if self.mode == SCHEDULER_MODE_AUTO:
+            l.debug('stop_bot command not supported in auto mode')
+            return
         for t, o in self.bot_runners.items():
             if o.bot_info.bot_id == bot_id:
                 t.cancel()
                 break
+
+    # this API is for seperate auto and manual schedule to avoid conflict
+    async def manual_update_bot_info(self):
+        if self.mode == SCHEDULER_MODE_MANNUAL:
+            await self._update_bot_info()
+

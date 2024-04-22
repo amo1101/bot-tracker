@@ -37,6 +37,8 @@ async def handle_list_bot(args):
             status = None
         else:
             bot_id = args[1]
+
+    await bot_scheduler.manual_update_bot_info()
     bots = await bot_db_store.load_bot_info(status, bot_id)
     resp = 'List of bots:\n------------------------------------\n\n'
     for b in bots:
@@ -68,7 +70,7 @@ async def handle_stop_bot(args):
     else:
         status = None
         bot_id = args[1]
-        await bot_scheduler.stop_bot(bot_id)
+        bot_scheduler.stop_bot(bot_id)
         resp = "Bot stopped"
     return resp
 

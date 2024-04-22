@@ -113,7 +113,7 @@ class BotRunner:
         loop = asyncio.get_running_loop()
         try:
             async for packet in self.live_capture.sniff_continuously():
-                l.debug(f'{packet}')
+                #  l.debug(f'{packet}')
                 self.attack_analyzer.report = await loop.run_in_executor(BotRunner.analyzer_executor,
                                                                          self.attack_analyzer.analyze,
                                                                          packet)
@@ -176,6 +176,7 @@ class BotRunner:
 
     async def run(self):
         try:
+            l.debug(f'bot runner start, packet_analyzer_workers = {BotRunner.max_analyzing_workers}')
             self._create_log_dir()
             self.sandbox = Sandbox(self.sandbox_ctx,
                                    self.bot_info.tag,
@@ -216,11 +217,11 @@ class BotRunner:
                     l.debug(f"Find CnC:{ip_port[0]}:{ip_port[1]}")
 
                     # Check if CnC already existed
-                    exists = await self.db_store.cnc_exists(ip_port[0])
-                    if exists:
-                        self.notify_dup = True
-                        await self.destroy()
-                        return
+                    #  exists = await self.db_store.cnc_exists(ip_port[0])
+                    #  if exists:
+                        #  self.notify_dup = True
+                        #  await self.destroy()
+                        #  return
 
                     await self.db_store.add_cnc_info(self.cnc_info[0])
                 else:
