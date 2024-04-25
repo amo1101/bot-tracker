@@ -7,4 +7,16 @@
   <rule action='accept' direction='in' priority='700'>
     <tcp srcipaddr='$CNC_IP'/>
   </rule>
+  
+  <!-- allow connection limit -->
+  <rule action='drop' direction='out' priority='800'>
+    <tcp connlimit-above='$CONN_LIMIT'/>
+  </rule>
+  
+  <!-- allow outbound tcp connection for specific ports -->
+  <rule action='accept' direction='out' priority='900'>
+    <tcp dstportstart='$TCP_PORT'/>
+  </rule>
+
+
 </filter>

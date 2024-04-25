@@ -22,6 +22,7 @@ class Scheduler:
                  bot_repo_path,
                  mode,
                  checkpoint_interval,
+                 sandbox_vcpu_share,
                  max_sandbox_num,
                  max_dormant_duration,
                  max_packet_analyzing_workers,
@@ -34,6 +35,7 @@ class Scheduler:
         self.bot_repo_path = bot_repo_path
         self.mode = mode  # 0 mean manual mode, 1 means auto mode
         self.checkpoint_interval = checkpoint_interval
+        self.sandbox_vcpu_share = sandbox_vcpu_share
         self.max_sandbox_num = max_sandbox_num
         self.max_dormant_duration = timedelta(days=0, hours=max_dormant_duration, minutes=0,
                                               seconds=0)
@@ -78,6 +80,7 @@ class Scheduler:
                                    self.bot_repo_ip,
                                    self.bot_repo_user,
                                    self.bot_repo_path,
+                                   self.sandbox_vcpu_share,
                                    self.cnc_probing_duration,
                                    self.sandbox_cxt,
                                    self.db_store)

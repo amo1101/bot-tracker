@@ -1,10 +1,7 @@
 import sys
 import os
-from log import TaskLogger
 import re
 import pyshark
-
-l = TaskLogger(__name__)
 
 
 def validate_ip_format(ip_str):
@@ -58,8 +55,6 @@ class CnCReport:
 
         ports_added = []
         dict_all = {}
-        l.debug("Total: " + str(self.count))
-        l.debug("****Candidates****")
 
         for ip in self.ip_dict:
             should_be_added = False
@@ -92,15 +87,12 @@ class CnCReport:
                         should_be_added = False
                 if should_be_added:
                     dict_all[ip] = self.ip_dict[ip]
-                    l.debug(str(ip) + "=" + str(self.ip_dict[ip]))
 
-        l.debug("***********")
         self.cnc_info = sorted(dict_all.items(), key=lambda kv: kv[1]['Score'], reverse=True)
-        l.debug(f'cnc_info: {self.cnc_info}')
         if len(self.cnc_info) > 0:
             return self.cnc_info[0]
 
-
+# avoiding logging here cuz this will run in another python intepretor
 class CnCAnalyzer:
     def __init__(self, own_ip, excluded_ips=None, excluded_ports=None):
         self.report = CnCReport()
@@ -131,8 +123,6 @@ class CnCAnalyzer:
         return None
 
     def analyze(self, pkt):
-        l.debug(f'report 0:\n{repr(self.report)}')
-        #  print(f'pkt: {pkt}')
         self.report.count += 1
         not_found_dns_addr = self.check_dns_address(pkt)
         if not_found_dns_addr:
@@ -154,7 +144,6 @@ class CnCAnalyzer:
                 dst_ip = target.split(":")[0]
                 if (self.excluded_ports and port_num in self.excluded_ports) or \
                         (self.excluded_ips and dst_ip in self.excluded_ips):
-                    l.debug(f'report 1:\n{repr(self.report)}')
                     return self.report
                 if target not in self.report.ip_dict:  # this is a new IP address contacted by port port_num
                     if port_num in self.report.port_dict:
@@ -165,7 +154,6 @@ class CnCAnalyzer:
                     if pkt.tcp.flags_ack != "1":
                         state = "SYN"
                     else:
-                        l.debug(f'report 1:\n{repr(self.report)}')
                         return self.report
                         #  return self.report # don't need to take into account SYN ACK
                 else:
@@ -181,7 +169,8 @@ class CnCAnalyzer:
                             state = "OTHER"
                     else:  # otherwise, we don't care about the client behaviors
                         if not self.own_ip:
-                            l.debug("Determining state is not accurate, own_ip is missing")
+                            pass
+                            #  print("Determining state is not accurate, own_ip is missing")
                         state = "OTHER"
 
                 if target in self.report.ip_dict:
@@ -192,7 +181,6 @@ class CnCAnalyzer:
                         self.report.ip_dict[target][state] = 1
                 else:
                     self.report.ip_dict[target] = {"Total": 1, state: 1}
-        l.debug(f'report 1:\n{repr(self.report)}')
         return self.report
 
 

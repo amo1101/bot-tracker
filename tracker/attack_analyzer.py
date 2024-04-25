@@ -1,12 +1,7 @@
 import sys
 import os
 import pyshark
-from log import TaskLogger
 from db_store import CnCStatus
-
-CUR_DIR = os.path.dirname(os.path.abspath(__file__))
-
-l = TaskLogger(__name__)
 
 
 class AttackReport:
@@ -59,10 +54,8 @@ class AttackAnalyzer:
         pass
 
     def analyze(self, pkt):
-        l.debug(f'report 0: {self.report}')
         self._analyze_cnc_status(pkt)
         self._analyze_attack(pkt)
-        l.debug(f'report 1: {self.report}')
         return self.report
 
 

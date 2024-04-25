@@ -16,21 +16,6 @@
     <tcp dstportstart='53'/>
   </rule>
 
-  <!-- disable all scan traffic -->
-  <rule action='drop' direction='out' priority='700'>
-    <tcp dstportstart='$SCAN_PORT'/>
-  </rule>
-  
-  <!-- allow connection limit -->
-  <rule action='drop' direction='out' priority='800'>
-    <tcp connlimit-above='$CONN_LIMIT'/>
-  </rule>
-  
-  <!-- allow outbound tcp connections, possible L7 attacks -->
-  <rule action='accept' direction='out' priority='900'>
-    <tcp/>
-  </rule>
-
   <!-- drop all other traffic -->
   <rule action='drop' direction='inout' priority='1000'>
     <all/>

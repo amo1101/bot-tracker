@@ -32,12 +32,15 @@ class BotRunner:
     analyzer_executor = ProcessPoolExecutor(max_workers=max_analyzing_workers,
                                             initializer=init_worker)
 
-    def __init__(self, bot_info, bot_repo_ip, bot_repo_user, bot_repo_path,
+    def __init__(self, bot_info,
+                 bot_repo_ip, bot_repo_user, bot_repo_path,
+                 sandbox_vcpu_quota,
                  cnc_probing_duration, sandbox_ctx, db_store):
         self.bot_info = bot_info
         self.bot_repo_ip = bot_repo_ip
         self.bot_repo_user = bot_repo_user
         self.bot_repo_path = bot_repo_path
+        self.sandbox_vcpu_quota = sandbox_vcpu_quota
         self.sandbox_ctx = sandbox_ctx
         self.db_store = db_store
         self.sandbox = None
@@ -85,9 +88,12 @@ class BotRunner:
         loop = asyncio.get_running_loop()
         try:
             async for packet in self.live_capture.sniff_continuously():
+                #  l.debug(f'packet arrives:\n{packet}')
+                l.debug(f'cnc report before:\n{repr(self.cnc_analyzer.report)}')
                 self.cnc_analyzer.report = await loop.run_in_executor(BotRunner.analyzer_executor,
                                                                       self.cnc_analyzer.analyze,
                                                                       packet)
+                l.debug(f'cnc report after:\n{repr(self.cnc_analyzer.report)}')
         # let the caller handle all the exceptions
         finally:
             l.debug('_find_cnc finalized')
@@ -113,14 +119,15 @@ class BotRunner:
         loop = asyncio.get_running_loop()
         try:
             async for packet in self.live_capture.sniff_continuously():
-                #  l.debug(f'{packet}')
+                #  l.debug(f'packet arrives:\n{packet}')
+                l.debug(f'attack report before:\n{repr(self.attack_analyzer.report)}')
                 self.attack_analyzer.report = await loop.run_in_executor(BotRunner.analyzer_executor,
                                                                          self.attack_analyzer.analyze,
                                                                          packet)
                 if self.attack_analyzer.report.is_ready():
                     await self._handle_attack_report(self.attack_analyzer.report.get())
                 else:
-                    l.debug('attack report is not ready')
+                    l.debug(f'attack report after:\n{repr(self.attack_analyzer.report)}')
         finally:
             l.debug('_observe_attack finalized')
             #  pass
@@ -179,13 +186,14 @@ class BotRunner:
             l.debug(f'bot runner start, packet_analyzer_workers = {BotRunner.max_analyzing_workers}')
             self._create_log_dir()
             self.sandbox = Sandbox(self.sandbox_ctx,
+                                   self.sandbox_vcpu_quota,
                                    self.bot_info.tag,
                                    self.bot_info.file_name,
                                    self.bot_info.arch,
                                    self.bot_repo_ip,
                                    self.bot_repo_user,
                                    self.bot_repo_path)  # TODO: map arch
-            self.sandbox.start()
+            await self.sandbox.start()
 
             # transit status to staged
             await self.update_bot_info(BotStatus.STAGED)
@@ -202,6 +210,7 @@ class BotRunner:
                                        timeout=self.cnc_probing_time)
             except asyncio.TimeoutError:
                 l.warning("Cnc probing timeout...")
+
                 if self.cnc_analyzer.report.is_ready():
                     cnc_info = self.cnc_analyzer.report.get()
                     ip_port = cnc_info[0].split(':')

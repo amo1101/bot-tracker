@@ -37,7 +37,7 @@ async def async_main(arguments=None):
                                  config['rate_limit']['port_average'],
                                  config['rate_limit']['port_burst'],
                                  config['network_control']['max_conn'],
-                                 config['network_control']['scan_ports'].split(','))
+                                 config['network_control']['allowed_tcp_ports'].split(','))
     sandbox_ctx.start()
 
     db_store = DBStore(config['database']['host'],
@@ -53,6 +53,7 @@ async def async_main(arguments=None):
                           config['local_bot_repo']['path'],
                           config['scheduler']['mode'],
                           int(config['scheduler']['checkpoint_interval']),
+                          int(config['scheduler']['sandbox_vcpu_quota']),
                           int(config['scheduler']['max_sandbox_num']),
                           int(config['scheduler']['max_dormant_duration']),
                           int(config['scheduler']['max_packet_analyzing_workers']),

@@ -16,11 +16,13 @@ l = TaskLogger(__name__)
 
 class Sandbox:
     def __init__(self, context, name, bot_file, arch,
+                 sandbox_vcpu_quota,
                  bot_repo_ip, bot_repo_user, bot_repo_path):
         self.context = context
         self.name = name
         self.bot_file = bot_file
         self.arch = arch
+        self.sandbox_vcpu_quota = sandbox_vcpu_quota
         self.bot_repo_ip = bot_repo_ip
         self.bot_repo_user = bot_repo_user
         self.bot_repo_path = bot_repo_path
@@ -92,7 +94,7 @@ class Sandbox:
         s = SandboxScript.FETCH_LOG
         self._run_script(s, self.fs, dst)
 
-    def start(self):
+    async def start(self):
         self._prepare_kernel()
         self._prepare_fs()
         sandbox_xml = self._get_config()
@@ -108,33 +110,52 @@ class Sandbox:
             if self.dom.state()[0] != libvirt.VIR_DOMAIN_RUNNING:
                 l.debug("domain state %d, reason %d...", self.dom.state()[0],
                         self.dom.state()[1])
-                time.sleep(5)
+                await asyncio.sleep(5)
             else:
                 break
 
-        l.debug("domain state %d, reason %d...", self.dom.state()[0],
-                self.dom.state()[1])
+        l.debug("domain is running")
+
+        # set schduler info
+        if self.sandbox_vcpu_quota > 100:
+            self.sandbox_vcpu_quota = 100
+        period = 1000000
+        quota = int(period * (self.sandbox_vcpu_quota / 100.0))
+
+        params = {
+            libvirt.VIR_DOMAIN_SCHEDULER_VCPU_PERIOD: period,
+            libvirt.VIR_DOMAIN_SCHEDULER_VCPU_QUOTA: quota
+        }
+
+        l.debug(f'domain scheduler params: {params}')
+        self.dom.setSchedulerParametersFlags(params, libvirt.VIR_DOMAIN_AFFECT_LIVE)
+        l.debug(f'domain scheduler params set')
+
+        # wait for interface info
+        ifaces = self.dom.interfaceAddresses(libvirt.VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_LEASE)
+        while len(ifaces) == 0:
+            l.debug("sleep 2 secs for interface info...")
+            await asyncio.sleep(2)
+            ifaces = self.dom.interfaceAddresses(libvirt.VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_LEASE)
+
+        l.debug("interfaces are ....")
+        for k, v in ifaces.items():
+            l.debug(f"{k}:{v}")
+
+        self.port_dev = list(ifaces.keys())[0]
+        self.mac_address = ifaces[self.port_dev]['hwaddr']
+        self.ip = ifaces[self.port_dev]['addrs'][0]['addr']
+        l.debug("get port_dev %s, mac_address: %s, ip: %s", self.port_dev,
+                self.mac_address, self.ip)
+
+        l.debug(f"domain started {self.name}")
+
 
     # TODO: replace with asyncio
     def get_ifinfo(self):
-        if self.port_dev is None:
-            ifaces = self.dom.interfaceAddresses(libvirt.VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_LEASE)
-            while len(ifaces) == 0:
-                print("sleep 2 secs...")
-                time.sleep(2)
-                ifaces = self.dom.interfaceAddresses(libvirt.VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_LEASE)
-            print("ifaces are ....")
-            for k, v in ifaces.items():
-                print(f"{k}:{v}")
-            self.port_dev = list(ifaces.keys())[0]
-            self.mac_address = ifaces[self.port_dev]['hwaddr']
-            self.ip = ifaces[self.port_dev]['addrs'][0]['addr']
-            l.debug("get port_dev %s, mac_address: %s, ip: %s", self.port_dev,
-                    self.mac_address, self.ip)
-        return (self.port_dev, self.mac_address, self.ip)
+       return (self.port_dev, self.mac_address, self.ip)
 
     def apply_nwfilter(self, filter_name, **kwargs):
-        self.get_ifinfo()
         if self.filter_binding:
             self.filter_binding.delete()
             self.filter_binding = None

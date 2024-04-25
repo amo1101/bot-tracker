@@ -40,7 +40,7 @@ class SandboxContext:
                  port_average,
                  port_burst,
                  port_max_conn,
-                 scan_ports):
+                 allowed_tcp_ports):
         #  self.loop = loop
         self.event_imp = None
         self.conn = None
@@ -58,7 +58,7 @@ class SandboxContext:
         self.port_average = port_average
         self.port_burst = port_burst
         self.port_max_conn = port_max_conn
-        self.scan_ports = scan_ports
+        self.allowed_tcp_ports = allowed_tcp_ports
         self.sandbox_registry = \
             {
                 "ARM": [
@@ -187,12 +187,14 @@ class SandboxContext:
             {
                 "mal_repo_ip": ["//filterref/parameter[@name='MAL_REPO_IP']", "value"],
                 "cnc_ip": ["//filterref/parameter[@name='CNC_IP']", "value"],
-                "scan_ports": ["//filterref/parameter[@name='SCAN_PORT']", "value"],
+                "allowed_tcp_ports": ["//filterref/parameter[@name='TCP_PORT']", "value"],
                 "conn_limit": ["//filterref/parameter[@name='CONN_LIMIT']", "value"]
             }
 
         if filter_name == SandboxNWFilter.DEFAULT:
             del para_to_check["cnc_ip"]
+            del para_to_check["allowed_tcp_ports"]
+            del para_to_check["conn_limit"]
         elif filter_name == SandboxNWFilter.CNC:
             pass
 
@@ -235,7 +237,7 @@ class SandboxContext:
 
     def apply_nwfilter(self, filter_name, **kwargs):
         binding_xml = self._get_nwfilter_binding(filter_name,
-                                                 scan_ports=self.scan_ports,
+                                                 allowed_tcp_ports=self.allowed_tcp_ports,
                                                  conn_limit=self.port_max_conn,
                                                  **kwargs)
         if binding_xml == "":
