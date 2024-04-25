@@ -5,7 +5,8 @@ import time
 import sys
 from datetime import datetime
 
-log_format = '%(asctime)s-%(process)d-%(name)s-%(levelname)s: %(message)s'
+CUR_DIR = os.path.dirname(os.path.abspath(__file__))
+log_format = '%(asctime)s-%(levelname)s-%(process)d-%(name)s: %(message)s'
 
 
 class TaskStreamHandler(logging.StreamHandler):
@@ -40,17 +41,20 @@ class TaskFileHandler(logging.FileHandler):
 
 
 class TaskLogger:
-    _log_root = 'bot-tracker'
+    _log_root = ''
     _logger = logging.getLogger(_log_root)
     #  _handler = TaskStreamHandler()
-    _handler = TaskFileHandler('bot-tracker-' +\
-                               datetime.now().strftime('%m-%d-%Y-%H_%M_%S') +\
-                               '.log')
+    _log_file = CUR_DIR + os.sep + 'log' + os.sep +\
+                'bot-tracker-' +\
+                datetime.now().strftime('%Y-%m-%d-%H-%M-%S') +\
+                '.log'
+    _handler = TaskFileHandler(_log_file)
+    _handler.setFormatter(logging.Formatter(fmt=log_format))
     _logger.addHandler(_handler)
     _logger.setLevel(logging.DEBUG)
 
     def __init__(self, name):
-        self._logger = logging.getLogger(TaskLogger.log_root + '.' + name)
+        self._logger = logging.getLogger(name)
 
     def debug(self, *args, **kwargs):
         self._logger.debug(*args, **kwargs)

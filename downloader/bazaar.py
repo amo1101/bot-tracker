@@ -3,6 +3,9 @@ import json
 import pyzipper
 import hashlib
 import os
+import logging
+
+l = logging.getLogger(name=__name__)
 
 class Bazaar:
     """Malware Bazaar class wrapper for methods and shared values
@@ -46,12 +49,12 @@ class Bazaar:
             'json_data': (None, json.dumps(data), 'application/json'),
             'file': (open(myfile,'rb'))
         }
-        print(f"Uploading file {myfile}")
+        l.debug(f"Uploading file {myfile}")
         response = self.session.post(self.url, files=files)
         json_data = response.json()
         status = json_data['query_status']
 
-        print("Upload status: " + status)
+        l.debug("Upload status: " + status)
         if(status == "file_already_known"):
             with open(myfile,"rb") as f:
                 file_bytes = f.read()
@@ -115,18 +118,18 @@ class Bazaar:
                 with pyzipper.AESZipFile(hash+".zip") as zf:
                     zf.pwd = ZIP_PASSWORD.encode()
                     _ = zf.extractall(".")
-                    print("Sample \""+hash+"\" downloaded and unpacked.")
+                    l.debug("Sample \""+hash+"\" downloaded and unpacked.")
                     os.remove(hash+".zip")
                     return zf.namelist()
             else:
-                print("Sample \""+hash+"\" downloaded.")
+                l.debug("Sample \""+hash+"\" downloaded.")
                 return hash + '.zip'
         else:
             data = {
                 'query': 'get_info',
                 'hash': hash,
             }
-            print(data)
+            l.debug(data)
             response = self.session.post(self.url, data=data, timeout=15)
             return response.json()
 
@@ -142,7 +145,7 @@ class Bazaar:
         json_response = json.loads(json_response)
 
         if(json_response["query_status"] == 'no_results'):
-            print(f"No samples found, terminating.")
+            l.debug(f"No samples found, terminating.")
             return
 
         for entry in json_response['data']:
@@ -269,7 +272,7 @@ class Bazaar:
             raise ValueError(f"Error, not a valid directory {directory}")
 
 
-        print("Folder: " + directory)
+        l.debug("Folder: " + directory)
         with os.scandir(directory) as root_dir:
             for path in root_dir:
                 if path.is_file():
@@ -317,11 +320,11 @@ class Bazaar:
         json_data = response.json()
         status = json_data['query_status']
 
-        print("Upload status: " + status)
+        l.debug("Upload status: " + status)
         if(status == "file_already_known"):
             with open(file,"rb") as f:
                 file_bytes = f.read()
                 hash_sha256 = hashlib.sha256(file_bytes).hexdigest()
                 return "https://bazaar.abuse.ch/sample/" + hash_sha256 + "/"
-            
+
         return json_data

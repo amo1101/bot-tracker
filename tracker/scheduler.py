@@ -85,7 +85,7 @@ class Scheduler:
                                    self.sandbox_cxt,
                                    self.db_store)
             task = asyncio.create_task(bot_runner.run(),
-                                       name=f'Task-{bot.tag}')
+                                       name=f't_{bot.tag}')
             self.bot_runners[task] = bot_runner
             task.add_done_callback(task_done_cb)
             l.debug(f"bot [{bot.tag}] scheduled")

@@ -117,10 +117,13 @@ async def handle_client(reader, writer):
     writer.close()
     await writer.wait_closed()
 
+async def handle_client_task(reader, writer):
+    task = asyncio.create_task(handle_client(reader, writer), name="t_handle_client")
+    await task
 
 async def start_server():
     server = await asyncio.start_server(
-        handle_client, '127.0.0.1', 8888)
+        handle_client_task, '127.0.0.1', 8888)
 
     addr = server.sockets[0].getsockname()
     l.debug(f'Command server on {addr}...')
@@ -133,4 +136,4 @@ def start_cmd_handler(scheduler, db_store):
     global bot_db_store, bot_scheduler
     bot_db_store = db_store
     bot_scheduler = scheduler
-    asyncio.create_task(start_server(), name='cmd_handler')
+    asyncio.create_task(start_server(), name='t_cmd_handler')

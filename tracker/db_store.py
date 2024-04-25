@@ -4,6 +4,9 @@ import psycopg
 from enum import Enum
 from datetime import datetime, timezone, timedelta
 from dataclasses import dataclass, is_dataclass, fields, astuple
+from log import TaskLogger
+
+l = TaskLogger(__name__)
 
 INIT_TIME_STAMP = datetime(1970, 1, 1, 0, 0, 0)
 INIT_INTERVAL = timedelta(seconds=0)
@@ -88,7 +91,7 @@ class BotInfo:
 
     @property
     def tag(self):
-        return self.first_seen.strftime('%Y-%m-%d-%H-%M-%S') + '-' + self.family + '-' + self.bot_id[:8]
+        return self.first_seen.strftime('%Y_%m_%d_%H_%M_%S') + '_' + self.family + '_' + self.bot_id[:8]
 
     def __repr__(self):
         return f'bot_id: {self.bot_id}\n' + \
@@ -158,8 +161,8 @@ class DBStore:
                     field_formats = ','.join(self._place_holder(f) for f in fields(data_obj.__class__))
                     field_values = astuple(data_obj)
                     sql = f"INSERT INTO {tbl} ({field_names}) VALUES ({field_formats})"
-                    print(f"sql: {sql}")
-                    print(f"para: {field_values}")
+                    l.debug(f"sql: {sql}")
+                    l.debug(f"para: {field_values}")
                     await cur.execute(sql, field_values)
                     await self.conn.commit()
 
@@ -202,8 +205,8 @@ class DBStore:
             para += (count,)
             sql += ' LIMIT %s'
 
-        print(f"sql: {sql}")
-        print(f"para: {para}")
+        l.debug(f"sql: {sql}")
+        l.debug(f"para: {para}")
 
         if self.conn is not None:
             async with self.conn.cursor() as cur:
@@ -219,8 +222,8 @@ class DBStore:
                 field_values = astuple(bot)
                 sql = f"UPDATE bot_info SET {field_updates} WHERE bot_info.bot_id = %s"
                 para = field_values + (bot.bot_id,)
-                print(f"sql: {sql}")
-                print(f"para: {para}")
+                l.debug(f"sql: {sql}")
+                l.debug(f"para: {para}")
                 await cur.execute(sql, para)
                 await self.conn.commit()
 
@@ -249,8 +252,8 @@ class DBStore:
             sql += ' WHERE '
             sql += filter_str
 
-        print(f"sql: {sql}")
-        print(f"para: {para}")
+        l.debug(f"sql: {sql}")
+        l.debug(f"para: {para}")
 
         if self.conn is not None:
             async with self.conn.cursor() as cur:

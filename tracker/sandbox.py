@@ -15,14 +15,16 @@ l = TaskLogger(__name__)
 
 
 class Sandbox:
-    def __init__(self, context, name, bot_file, arch,
+    def __init__(self,
+                 context,
                  sandbox_vcpu_quota,
+                 name, bot_file, arch,
                  bot_repo_ip, bot_repo_user, bot_repo_path):
         self.context = context
+        self.sandbox_vcpu_quota = sandbox_vcpu_quota
         self.name = name
         self.bot_file = bot_file
         self.arch = arch
-        self.sandbox_vcpu_quota = sandbox_vcpu_quota
         self.bot_repo_ip = bot_repo_ip
         self.bot_repo_user = bot_repo_user
         self.bot_repo_path = bot_repo_path
@@ -34,14 +36,6 @@ class Sandbox:
         self.ip = ''
         self.fs = None
         self.filter_binding = None
-
-    @staticmethod
-    def _life_cycle_cb(conn, dom, event, detail, dom_changed_event):
-        if event == libvirt.VIR_DOMAIN_EVENT_STARTED or event == \
-                libvirt.VIR_DOMAIN_EVENT_STOPPED:
-            l.debug("domain lifecycle event occured, event: %d, detail: %d",
-                    event, detail)
-            dom_changed_event.set()
 
     def _prepare_kernel(self):
         src, dst = self.context.get_sandbox_kernel(self.arch)
@@ -98,8 +92,7 @@ class Sandbox:
         self._prepare_kernel()
         self._prepare_fs()
         sandbox_xml = self._get_config()
-        l.debug("dom config:")
-        l.debug("%s", sandbox_xml)
+        l.debug("domain config:\n%s", sandbox_xml)
 
         self.dom = self.context.create_sandbox(sandbox_xml)
         if self.dom is None:
@@ -127,7 +120,7 @@ class Sandbox:
             libvirt.VIR_DOMAIN_SCHEDULER_VCPU_QUOTA: quota
         }
 
-        l.debug(f'domain scheduler params: {params}')
+        l.debug(f'domain scheduler params:\n{params}')
         self.dom.setSchedulerParametersFlags(params, libvirt.VIR_DOMAIN_AFFECT_LIVE)
         l.debug(f'domain scheduler params set')
 
@@ -138,9 +131,9 @@ class Sandbox:
             await asyncio.sleep(2)
             ifaces = self.dom.interfaceAddresses(libvirt.VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_LEASE)
 
-        l.debug("interfaces are ....")
+        l.debug("interfaces are:")
         for k, v in ifaces.items():
-            l.debug(f"{k}:{v}")
+            l.debug(f"{k}: {v}")
 
         self.port_dev = list(ifaces.keys())[0]
         self.mac_address = ifaces[self.port_dev]['hwaddr']

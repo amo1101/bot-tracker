@@ -11,10 +11,13 @@ from db_store import *
 
 CUR_DIR = os.path.dirname(os.path.abspath(__file__))
 
-#  now = datetime.now()
-#  current_time = now.strftime("%m-%d-%Y-%H_%M_%S")
-#  logging.basicConfig(filename='bot-downloader' + current_time + '.log', filemode='w', format='%(asctime)s-%(levelname)s-%(message)s',datefmt='%d-%b-%y %H:%M:%S')
-logging.basicConfig(format='%(asctime)s-%(levelname)s-%(message)s', datefmt='%d-%b-%y %H:%M:%S', level=logging.DEBUG)
+now = datetime.now()
+current_time = now.strftime("%Y-%m-%d-%H-%M-%S")
+logging.basicConfig(filename='bot-downloader-' + current_time + '.log',
+                    filemode='w',
+                    format='%(asctime)s-%(levelname)s-%(name)s: %(message)s',datefmt='%y-%m-%d %H:%M:%S',
+                    level=logging.DEBUG)
+#  logging.basicConfig(format='%(asctime)s-%(levelname)s-%(message)s', datefmt='%d-%b-%y %H:%M:%S', level=logging.DEBUG)
 l = logging.getLogger(name=__name__)
 
 valid_tags = ['mirai']

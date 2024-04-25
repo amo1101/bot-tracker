@@ -93,6 +93,7 @@ class CnCReport:
             return self.cnc_info[0]
 
 # avoiding logging here cuz this will run in another python intepretor
+# don't wanna bother logging to the same file, just use print for debugging
 class CnCAnalyzer:
     def __init__(self, own_ip, excluded_ips=None, excluded_ports=None):
         self.report = CnCReport()

@@ -63,6 +63,7 @@ async def async_main(arguments=None):
 
     cmd_handler.start_cmd_handler(scheduler, db_store)
     await scheduler.checkpoint()
+    scheduler.destroy()
     await db_store.close()
     sandbox_ctx.destroy()
 
@@ -76,10 +77,13 @@ def test():
     test_cnc_analyzer(pcap, own_ip)
     test_att_analyzer(pcap, cnc_ip, cnc_port, own_ip)
 
+async def main_task():
+    task = asyncio.create_task(async_main(), name="t_async_main")
+    await task
 
 if __name__ == "__main__":
     try:
-        asyncio.run(async_main(), debug=True)
+        asyncio.run(main_task(), debug=True)
     except KeyboardInterrupt:
         l.debug('Interrupted by user')
     #  test()

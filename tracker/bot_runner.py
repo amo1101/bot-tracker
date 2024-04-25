@@ -99,6 +99,11 @@ class BotRunner:
             l.debug('_find_cnc finalized')
             pass
 
+    async def _find_cnc_task(self, own_ip, excluded_ips):
+        task = asyncio.create_task(self._find_cnc(own_ip, excluded_ips),
+                                   name="t_find_cnc")
+        await task
+
     # TODO: now only monitor cnc status
     async def _handle_attack_report(self, report):
         cnc_status = report['cnc_status']
@@ -206,7 +211,7 @@ class BotRunner:
 
             # find cnc server
             try:
-                await asyncio.wait_for(self._find_cnc(own_ip, [self.bot_repo_ip]),
+                await asyncio.wait_for(self._find_cnc_task(own_ip, [self.bot_repo_ip]),
                                        timeout=self.cnc_probing_time)
             except asyncio.TimeoutError:
                 l.warning("Cnc probing timeout...")

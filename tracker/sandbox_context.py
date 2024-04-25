@@ -160,7 +160,7 @@ class SandboxContext:
             obj = self.conn.nwfilterDefineXML(xml_desc)
             if obj:
                 self.nwfilter_objs.append(obj)
-                l.debug(f'nwfilter defined: {xml_desc}')
+                l.debug(f'nwfilter defined:\n{xml_desc}')
             else:
                 l.error("Failed to define nwfilter %s", k)
                 return False
@@ -243,7 +243,7 @@ class SandboxContext:
         if binding_xml == "":
             return None
 
-        l.debug("binding xml: %s", binding_xml)
+        l.debug("binding xml:\n%s", binding_xml)
 
         # have to delete existing binding firstly
         #  bo = self.conn.nwfilterBindingLookupByPortDev(\
@@ -268,7 +268,7 @@ class SandboxContext:
         #  async with aiofiles.open(self.net_conf, mode='r') as file:
         #  net_xml = await file.read()
         net_xml = self._get_net_config()
-        l.debug(f'net_xml: {net_xml}')
+        l.debug(f'net_xml:\n{net_xml}')
         self.net = self.conn.networkCreateXMLFlags(net_xml)
 
         #  self.conn.networkEventRegisterAny(self.net,

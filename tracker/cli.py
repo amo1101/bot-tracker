@@ -50,6 +50,6 @@ async def start_cli():
 
 if __name__ == "__main__":
     try:
-        asyncio.run(start_cli(), debug=True)
+        asyncio.run(start_cli(), debug=False)
     except KeyboardInterrupt:
         print('Interrupted by user')
