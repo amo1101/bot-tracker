@@ -22,7 +22,7 @@ class Scheduler:
                  bot_repo_path,
                  mode,
                  checkpoint_interval,
-                 sandbox_vcpu_share,
+                 sandbox_vcpu_quota,
                  max_sandbox_num,
                  max_dormant_duration,
                  max_packet_analyzing_workers,
@@ -35,9 +35,11 @@ class Scheduler:
         self.bot_repo_path = bot_repo_path
         self.mode = mode  # 0 mean manual mode, 1 means auto mode
         self.checkpoint_interval = checkpoint_interval
-        self.sandbox_vcpu_share = sandbox_vcpu_share
+        self.sandbox_vcpu_quota = sandbox_vcpu_quota
         self.max_sandbox_num = max_sandbox_num
-        self.max_dormant_duration = timedelta(days=0, hours=max_dormant_duration, minutes=0,
+        self.max_dormant_hours = max_dormant_duration
+        # TODO
+        self.max_dormant_duration = timedelta(days=0, hours=self.max_dormant_hours, minutes=0,
                                               seconds=0)
         self.max_observe_duration = timedelta(days=7, hours=0, minutes=0,
                                               seconds=0)
@@ -80,7 +82,7 @@ class Scheduler:
                                    self.bot_repo_ip,
                                    self.bot_repo_user,
                                    self.bot_repo_path,
-                                   self.sandbox_vcpu_share,
+                                   self.sandbox_vcpu_quota,
                                    self.cnc_probing_duration,
                                    self.sandbox_cxt,
                                    self.db_store)
@@ -125,20 +127,47 @@ class Scheduler:
     async def start_bot(self, bot_id):
         if self.mode == SCHEDULER_MODE_AUTO:
             l.debug('start_bot command not supported in auto mode')
-            return
+            return False
         await self._schedule_bots(None, bot_id)
+        return True
 
     def stop_bot(self, bot_id):
         if self.mode == SCHEDULER_MODE_AUTO:
             l.debug('stop_bot command not supported in auto mode')
-            return
+            return False
         for t, o in self.bot_runners.items():
             if o.bot_info.bot_id == bot_id:
                 t.cancel()
                 break
+        return True
 
     # this API is for seperate auto and manual schedule to avoid conflict
     async def manual_update_bot_info(self):
         if self.mode == SCHEDULER_MODE_MANNUAL:
             await self._update_bot_info()
+
+    def get_scheduler_info(self):
+        return (self.mode,
+            self.sandbox_vcpu_quota,
+            self.max_sandbox_num,
+            self.max_dormant_hours,
+            self.cnc_probing_duration)
+
+    def set_scheduler_info(self, **kwargs):
+        l.debug(f'{kwargs}')
+        if 'mode' in kwargs:
+            mode = kwargs['mode']
+            if mode == 'auto':
+                self.mode = SCHEDULER_MODE_AUTO
+            else:
+                self.mode = SCHEDULER_MODE_MANNUAL
+        if 'sandbox_vcpu_quota' in kwargs:
+            self.sandbox_vcpu_quota = int(kwargs['sandbox_vcpu_quota'])
+        if 'max_sandbox_num' in kwargs:
+            self.max_sandbox_num = int(kwargs['max_sandbox_num'])
+        if 'max_dormant_hours' in kwargs:
+            self.max_dormant_hours = int(kwargs['max_dormant_hours'])
+            # TODO update dormant duration
+        if 'cnc_probing_duration' in kwargs:
+            self.cnc_probing_duration = int(kwargs['cnc_probing_duration'])
 

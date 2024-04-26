@@ -53,12 +53,12 @@ class CnCInfo:
     location: str = ''
 
     def __repr__(self):
-        return f'ip: {self.ip}\n' + \
-            f'port: {self.port}\n' + \
-            f'bot_id: {self.bot_id}\n' + \
-            f'domain: {self.domain}\n' + \
-            f'asn: {self.asn}\n' + \
-            f'location: {self.location}'
+        return f'{"IP":<12}:    {self.ip}\n' + \
+               f'{"port":<12}:    {self.port}\n' + \
+               f'{"bot_id":<12}:    {self.bot_id}\n' + \
+               f'{"domain":<12}:    {self.domain}\n' + \
+               f'{"asn":<12}:    {self.asn}\n' + \
+               f'{"location":<12}:    {self.location}'
 
 
 # dormant_at:
@@ -94,29 +94,38 @@ class BotInfo:
         return self.first_seen.strftime('%Y_%m_%d_%H_%M_%S') + '_' + self.family + '_' + self.bot_id[:8]
 
     def __repr__(self):
-        return f'bot_id: {self.bot_id}\n' + \
-            f'family: {self.family}\n' + \
-            f'first_seen: {self.first_seen.strftime("%Y-%m-%d %H-%M-%S")}\n' + \
-            f'last_seen: {self.last_seen.strftime("%Y-%m-%d %H-%M-%S")}\n' + \
-            f'file_type: {self.file_type}\n' + \
-            f'file_size: {self.file_size}\n' + \
-            f'arch: {self.arch}\n' + \
-            f'endianness: {self.endianness}\n' + \
-            f'bitness: {self.bitness}\n' + \
-            f'status: {self.status}\n' + \
-            f'dormant_at: {self.dormant_at.strftime("%Y-%m-%d %H-%M-%S")}\n' + \
-            f'dormant_duration: {self.dormant_duration}\n' + \
-            f'observe_at: {self.observe_at.strftime("%Y-%m-%d %H-%M-%S")}\n' + \
-            f'observe_duration: {self.observe_duration}\n' + \
-            f'tracker: {self.tracker}'
+        return f'{"bot_id":<20}:    {self.bot_id}\n' +\
+                f'{"family":<20}:    {self.family}\n' +\
+                f'{"first_seen":<20}:    {self.first_seen.strftime("%Y-%m-%d %H:%M:%S")}\n' +\
+                f'{"last_seen":<20}:    {self.last_seen.strftime("%Y-%m-%d %H:%M:%S")}\n' +\
+                f'{"file_type":<20}:    {self.file_type}\n' +\
+                f'{"file_size":<20}:    {self.file_size}\n' +\
+                f'{"arch":<20}:    {self.arch}\n' +\
+                f'{"endianness":<20}:    {self.endianness}\n' +\
+                f'{"bitness":<20}:    {self.bitness}\n' +\
+                f'{"status":<20}:    {self.status}\n' +\
+                f'{"dormant_at":<20}:    {self.dormant_at.strftime("%Y-%m-%d %H:%M:%S")}\n' +\
+                f'{"dormant_duration":<20}:    {self.dormant_duration}\n' + \
+                f'{"observe_at":<20}:    {self.observe_at.strftime("%Y-%m-%d %H:%M:%S")}\n' +\
+                f'{"observe_duration":<20}:    {self.observe_duration}\n' +\
+                f'{"tracker":<20}:    {self.tracker}'
 
 
 @dataclass
 class CnCStat:
     ip: str
+    port: int
+    bot_id: str
     # could be: alive/disconnected
     status: str
     update_at: datetime
+
+    def __repr__(self):
+        return f'{"IP":<12}:    {self.ip}\n' + \
+                f'{"port":<12}:    {self.port}\n' + \
+                f'{"bot_id":<12}:    {self.bot_id}\n' + \
+                f'{"status":12}:    {self.status}\n' + \
+                f'{"update_at":12}:    {self.update_at.strftime("%Y-%m-%d %H:%M:%S")}'
 
 
 # TODO
@@ -269,6 +278,35 @@ class DBStore:
     async def add_cnc_stat(self, cnc_stat):
         await self._insert('cnc_stat', cnc_stat)
 
+    async def load_cnc_stat(self, bot_id=None, ip=None):
+        cnc_stat = []
+        para = ()
+
+        sql = "SELECT * FROM cnc_stat"
+        filters = []
+        if bot_id is not None:
+            para += (bot_id,)
+            filters.append('bot_id = %s')
+        if ip is not None:
+            para += (ip,)
+            filters.append('ip = %s')
+
+        filter_str = ' AND '.join(f for f in filters)
+        if len(filters) > 0:
+            sql += ' WHERE '
+            sql += filter_str
+
+        l.debug(f"sql: {sql}")
+        l.debug(f"para: {para}")
+
+        if self.conn is not None:
+            async with self.conn.cursor() as cur:
+                await cur.execute(sql, para)
+                async for record in cur:
+                    cnc_stat.append(CnCStat(*record))
+        return cnc_stat
+
+
     async def add_attack_stat(self, attack):
         await self._insert('attack_stat', attack)
 
@@ -364,7 +402,7 @@ async def test_db_4():
 async def test_db_5():
     db_store = DBStore()
     await db_store.open()
-    c = CnCStat('109.123.1.1', 'alive', TEST_TS4)
+    c = CnCStat('109.123.1.1',123, '00000051', 'alive', TEST_TS4)
     print(f'add cncstat:\n{repr(c)}\n')
     await db_store.add_cnc_stat(c)
     await db_store.close()

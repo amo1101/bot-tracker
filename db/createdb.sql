@@ -27,6 +27,8 @@ CREATE TABLE IF NOT EXISTS cnc_info (
 
 CREATE TABLE IF NOT EXISTS cnc_stat (
     ip VARCHAR (32),
+    port INT,
+    bot_id VARCHAR (128),
     status VARCHAR (16),
     update_at TIMESTAMPTZ
 );

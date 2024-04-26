@@ -114,7 +114,8 @@ class BotRunner:
         elif cnc_status == CnCStatus.DISCONNECTED.value:
             await self.update_bot_info(BotStatus.DORMANT)
 
-        cnc_stat = CnCStat(report['cnc_ip'], cnc_status, attack_time)
+        cnc_stat = CnCStat(report['cnc_ip'], report['cnc_port'],
+                           self.bot_info.bot_id, cnc_status, attack_time)
         await self.db_store.add_cnc_stat(cnc_stat)
 
     async def _observe_attack(self, cnc_ip, cnc_port, own_ip):

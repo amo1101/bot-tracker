@@ -5,11 +5,12 @@ from db_store import CnCStatus
 
 
 class AttackReport:
-    def __init__(self, cnc_ip):
+    def __init__(self, cnc_ip, cnc_port):
         self.cnc_status = CnCStatus.UNKNOWN.value
         self.cnc_ready = False
         self.attack_ready = False
         self.cnc_ip = cnc_ip
+        self.cnc_port = cnc_port
 
     def is_ready(self):
         return self.cnc_ready
@@ -17,6 +18,7 @@ class AttackReport:
     def get(self):
         self.cnc_ready = False
         return {'cnc_ip': self.cnc_ip,
+                'cnc_port': self.cnc_port,
                 'cnc_status': self.cnc_status}
 
     def __repr__(self):
@@ -33,7 +35,7 @@ class AttackAnalyzer:
         self.cnc_ip = cnc_ip
         self.cnc_port = cnc_port
         self.own_ip = own_ip
-        self.report = AttackReport(cnc_ip)
+        self.report = AttackReport(cnc_ip, cnc_port)
 
     def _analyze_cnc_status(self, pkt):
         if 'tcp' in dir(pkt):
