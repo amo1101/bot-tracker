@@ -139,6 +139,7 @@ class Scheduler:
             if o.bot_info.bot_id == bot_id:
                 t.cancel()
                 break
+
         return True
 
     # this API is for seperate auto and manual schedule to avoid conflict

@@ -10,7 +10,7 @@ async def start_bot():
     while True:
         command = input("Enter command: ")
         writer.write(command.encode())
-        data = await reader.read(100)
+        data = await reader.read(1024)
         if not data:
             break
         message = data.decode()

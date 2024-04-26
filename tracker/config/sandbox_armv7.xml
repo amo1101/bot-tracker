@@ -1,6 +1,6 @@
 <domain type='qemu'>
   <name>openwrt-vm-arm</name>
-  <memory unit='KiB'>1048576</memory>
+  <memory unit='KiB'>524288</memory>
   <vcpu placement='static'>1</vcpu>
   <os>
     <type arch='armv7l' machine='virt'>hvm</type>
@@ -14,7 +14,9 @@
       <target dev='vda' bus='virtio'/>
     </disk>
     <interface type='network'>
-      <source network='mynet' portgroup='sandbox'/>
+      <!-- disable port level bandwidth -->
+      <!-- source network='mynet' portgroup='sandbox'/-->
+      <source network='mynet'/>
     </interface>
     <console type='pty'>
       <target type='serial' port='0'/>

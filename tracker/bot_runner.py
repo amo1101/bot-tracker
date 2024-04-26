@@ -260,9 +260,7 @@ class BotRunner:
 
         except asyncio.CancelledError:
             l.debug("Bot runner cancelled")
-            #  raise asyncio.CancelledError
             await self.destroy()
-            #  await self.destroy()
 
     async def destroy(self):
         try:
@@ -270,7 +268,8 @@ class BotRunner:
             await self.update_bot_info(BotStatus.INTERRUPTED)
             self.sandbox.fetch_log(self.log_dir)
             self.sandbox.destroy()
-            await self.live_capture.close_async()
+            if self.live_capture is not None:
+                await self.live_capture.close_async()
         except RuntimeError:
             l.debug('runtime error occurred')
         except asyncio.CancelledError:

@@ -53,12 +53,12 @@ class CnCInfo:
     location: str = ''
 
     def __repr__(self):
-        return f'{"IP":<12}:    {self.ip}\n' + \
-               f'{"port":<12}:    {self.port}\n' + \
-               f'{"bot_id":<12}:    {self.bot_id}\n' + \
-               f'{"domain":<12}:    {self.domain}\n' + \
-               f'{"asn":<12}:    {self.asn}\n' + \
-               f'{"location":<12}:    {self.location}'
+        return f'{"ip":<8}: {self.ip}\n' + \
+               f'{"port":<8}: {self.port}\n' + \
+               f'{"bot_id":<8}: {self.bot_id}\n' + \
+               f'{"domain":<8}: {self.domain}\n' + \
+               f'{"asn":<8}: {self.asn}\n' + \
+               f'{"location":<8}: {self.location}'
 
 
 # dormant_at:
@@ -94,21 +94,21 @@ class BotInfo:
         return self.first_seen.strftime('%Y_%m_%d_%H_%M_%S') + '_' + self.family + '_' + self.bot_id[:8]
 
     def __repr__(self):
-        return f'{"bot_id":<20}:    {self.bot_id}\n' +\
-                f'{"family":<20}:    {self.family}\n' +\
-                f'{"first_seen":<20}:    {self.first_seen.strftime("%Y-%m-%d %H:%M:%S")}\n' +\
-                f'{"last_seen":<20}:    {self.last_seen.strftime("%Y-%m-%d %H:%M:%S")}\n' +\
-                f'{"file_type":<20}:    {self.file_type}\n' +\
-                f'{"file_size":<20}:    {self.file_size}\n' +\
-                f'{"arch":<20}:    {self.arch}\n' +\
-                f'{"endianness":<20}:    {self.endianness}\n' +\
-                f'{"bitness":<20}:    {self.bitness}\n' +\
-                f'{"status":<20}:    {self.status}\n' +\
-                f'{"dormant_at":<20}:    {self.dormant_at.strftime("%Y-%m-%d %H:%M:%S")}\n' +\
-                f'{"dormant_duration":<20}:    {self.dormant_duration}\n' + \
-                f'{"observe_at":<20}:    {self.observe_at.strftime("%Y-%m-%d %H:%M:%S")}\n' +\
-                f'{"observe_duration":<20}:    {self.observe_duration}\n' +\
-                f'{"tracker":<20}:    {self.tracker}'
+        return f'{"bot_id":<16}: {self.bot_id}\n' +\
+                f'{"family":<16}: {self.family}\n' +\
+                f'{"first_seen":<16}: {self.first_seen.strftime("%Y-%m-%d %H:%M:%S")}\n' +\
+                f'{"last_seen":<16}: {self.last_seen.strftime("%Y-%m-%d %H:%M:%S")}\n' +\
+                f'{"file_type":<16}: {self.file_type}\n' +\
+                f'{"file_size":<16}: {self.file_size}\n' +\
+                f'{"arch":<16}: {self.arch}\n' +\
+                f'{"endianness":<16}: {self.endianness}\n' +\
+                f'{"bitness":<16}: {self.bitness}\n' +\
+                f'{"status":<16}: {self.status}\n' +\
+                f'{"dormant_at":<16}: {self.dormant_at.strftime("%Y-%m-%d %H:%M:%S")}\n' +\
+                f'{"dormant_duration":<16}: {self.dormant_duration}\n' + \
+                f'{"observe_at":<16}: {self.observe_at.strftime("%Y-%m-%d %H:%M:%S")}\n' +\
+                f'{"observe_duration":<16}: {self.observe_duration}\n' +\
+                f'{"tracker":<16}: {self.tracker}'
 
 
 @dataclass
@@ -121,11 +121,11 @@ class CnCStat:
     update_at: datetime
 
     def __repr__(self):
-        return f'{"IP":<12}:    {self.ip}\n' + \
-                f'{"port":<12}:    {self.port}\n' + \
-                f'{"bot_id":<12}:    {self.bot_id}\n' + \
-                f'{"status":12}:    {self.status}\n' + \
-                f'{"update_at":12}:    {self.update_at.strftime("%Y-%m-%d %H:%M:%S")}'
+        return f'{"ip":<9}: {self.ip}\n' + \
+                f'{"port":<9}: {self.port}\n' + \
+                f'{"bot_id":<9}: {self.bot_id}\n' + \
+                f'{"status":<9}: {self.status}\n' + \
+                f'{"update_at":<9}: {self.update_at.strftime("%Y-%m-%d %H:%M:%S")}'
 
 
 # TODO

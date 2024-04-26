@@ -41,21 +41,22 @@ async def handle_list_bot(args):
         resp = repr(bots[0])
         return resp
 
-    head = f"{'bot_id':<68}{'family':<16}{'status':<16}\n"
-    body = len(head) *'-' + '\n'
+    head = f"{'bot_id':<68}{'family':<16}{'status':<12}"
+    body = '\n' + len(head) * '-'
     if len(bots) == 0:
         return head + body
 
-    foot = f"{'count:':>{len(head) - 10}} {len(bots)}\n"
+    foot = f"\n{'count:':>{len(head) - 10}} {len(bots)}"
     for b in bots:
-        body += f"{b.bot_id:<68}{b.family:<16}{b.status:<16}\n"
-    body += len(head) *'-' + '\n'
+        body += f"\n{b.bot_id:<68}{b.family:<16}{b.status:<12}"
+    body += '\n' + len(head) * '-'
     resp = head + body + foot
     return resp
 
 
 async def handle_start_bot(args):
     l.debug(f'handle_start_bot: {args}')
+    resp = ""
     bot_id = args['_']
     ret = await bot_scheduler.start_bot(bot_id)
     if ret:
@@ -67,8 +68,9 @@ async def handle_start_bot(args):
 
 async def handle_stop_bot(args):
     l.debug(f'handle_stop_bot: {args}')
+    resp = ""
     bot_id = args['_']
-    ret = await bot_scheduler.stop_bot(bot_id)
+    ret = bot_scheduler.stop_bot(bot_id)
     if ret:
         resp = "Bot stopped"
     else:
@@ -94,17 +96,17 @@ async def handle_list_cnc(args):
         resp = repr(cncs[0])
         return resp
 
-    head = f"{'IP':<20}{'port':<12}{'bot_id':<68}\n"
-    body = len(head) *'-' + '\n'
+    head = f"{'ip':<20}{'port':<12}{'bot_id':<64}"
+    body = '\n' + len(head) * '-'
     if len(cncs) == 0:
         return head + body
 
-    foot = f"{'count:':>{len(head) - 10}} {len(cncs)}\n"
+    foot = f"\n{'count:':>{len(head) - 10}} {len(cncs)}"
     for c in cncs:
-        body += f"{c.ip:<20}" +\
+        body += f"\n{c.ip:<20}" +\
                 f"{c.port:<12}" +\
-                f"{c.bot_id:<68}\n"
-    body += len(head) *'-' + '\n'
+                f"{c.bot_id:<64}"
+    body += '\n' + len(head) * '-'
     resp = head + body + foot
     return resp
 
@@ -127,29 +129,30 @@ async def handle_list_cnc_stat(args):
         resp = repr(cnc_stats[0])
         return resp
 
-    head = f"{'IP':<25}{'port':<25}{'status':<25}{'update_at':<25}\n"
-    body = len(head) *'-' + '\n'
+    head = f"{'ip':<20}{'port':<12}{'bot_id':<24}{'status':<20}{'update_at':<20}"
+    body = '\n' + len(head) * '-'
     if len(cnc_stats) == 0:
         return head + body
 
-    foot = f"{'count:':>{len(head) - 10}} {len(cnc_stats)}\n"
+    foot = f"\n{'count:':>{len(head) - 10}} {len(cnc_stats)}\n"
     for c in cnc_stats:
-        body += f"{c.ip:<25}" +\
-                f"{c.port:<25}" +\
-                f"{c.status:<25}" +\
-                f"{c.update_at.strftime('%Y-%m-%d %H:%M:%S'):<25}\n"
-    body += len(head) *'-' + '\n'
+        body += f"\n{c.ip:<20}" +\
+                f"{c.port:<12}" +\
+                f"{c.bot_id[:16] + '...':<24}" +\
+                f"{c.status:<20}" +\
+                f"{c.update_at.strftime('%Y-%m-%d %H:%M:%S'):<20}"
+    body += '\n' + len(head) * '-'
     resp = head + body + foot
     return resp
 
 async def handle_schedinfo(args):
     l.debug(f'handle_schedinfo: {args}')
     schedinfo = bot_scheduler.get_scheduler_info()
-    resp = f'{"mode":<24}:    {schedinfo[0]}\n' +\
-            f'{"sandbox_vcpu_quota":<24}:    {schedinfo[1]}\n' +\
-            f'{"max_sandbox_num":<24}:    {schedinfo[2]}\n' +\
-            f'{"max_dormant_duration":<24}:    {schedinfo[3]}\n' +\
-            f'{"cnc_probing_duration":<24}:    {schedinfo[4]}\n'
+    resp = f'{"mode":<20}: {schedinfo[0]}\n' +\
+            f'{"sandbox_vcpu_quota":<20}: {schedinfo[1]}\n' +\
+            f'{"max_sandbox_num":<20}: {schedinfo[2]}\n' +\
+            f'{"max_dormant_duration":<20}: {schedinfo[3]}\n' +\
+            f'{"cnc_probing_duration":<20}: {schedinfo[4]}'
     return resp
 
 async def handle_set_sched(args):

