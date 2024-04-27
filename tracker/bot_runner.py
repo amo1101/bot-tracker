@@ -28,14 +28,21 @@ def init_worker():
 
 class BotRunner:
     # use process pool for packet analyzing
-    max_analyzing_workers = 1
-    analyzer_executor = ProcessPoolExecutor(max_workers=max_analyzing_workers,
-                                            initializer=init_worker)
+    analyzer_executor = None
 
     def __init__(self, bot_info,
                  bot_repo_ip, bot_repo_user, bot_repo_path,
                  sandbox_vcpu_quota,
-                 cnc_probing_duration, sandbox_ctx, db_store):
+                 cnc_probing_duration, sandbox_ctx, db_store,
+                 max_analyzing_workers):
+
+        if BotRunner.analyzer_executor == None:
+            BotRunner.analyzer_executor = \
+                ProcessPoolExecutor(max_workers=max_analyzing_workers,
+                                    initializer=init_worker)
+            l.debug('Initialized analyzer executor with %d workers',
+                    max_analyzing_workers)
+
         self.bot_info = bot_info
         self.bot_repo_ip = bot_repo_ip
         self.bot_repo_user = bot_repo_user
@@ -189,7 +196,7 @@ class BotRunner:
 
     async def run(self):
         try:
-            l.debug(f'bot runner start, packet_analyzer_workers = {BotRunner.max_analyzing_workers}')
+            l.info('Starting bot runner...')
             self._create_log_dir()
             self.sandbox = Sandbox(self.sandbox_ctx,
                                    self.sandbox_vcpu_quota,

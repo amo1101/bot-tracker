@@ -12,7 +12,7 @@ import logging
 #  logging.basicConfig(format='%(asctime)s-%(task_name)s-%(name)s-%(levelname)s-%(message)s',
 #  datefmt='%d-%b-%y %H:%M:%S', level = logging.DEBUG)
 
-log_format = '%(asctime)s-%(name)s-%(levelname)s-%(message)s'
+log_format = '%(asctime)s-%(process)d-%(name)s-%(levelname)s-%(message)s'
 
 
 class MyStreamHandler(logging.StreamHandler):
@@ -110,14 +110,15 @@ class analyzer:
 
 
 class test:
-    executor = ProcessPoolExecutor(max_workers=2,
-                                   initializer=init_worker)
+    executor = None
 
     def __init__(self, name):
         self.name = name
         self.tasks = set()
         self.gen = capture()
         self.analyzer = analyzer()
+        if test.executor == None:
+            test.executor = ProcessPoolExecutor(max_workers=3,initializer=init_worker)
 
     async def find_cnc(self):
         res = None
@@ -163,7 +164,7 @@ class test:
         try:
             #  await self.find_cnc()
             try:
-                await asyncio.wait_for(self.find_cnc(), timeout=5)
+                await asyncio.wait_for(self.find_cnc(), timeout=30)
             except asyncio.TimeoutError:
                 l.debug('timeout error')
             await self.find_attack()
@@ -177,6 +178,7 @@ class test_sche:
     def __init__(self):
         self.count = 0
         self.tasks = {}
+        test.max_workers_num = 6
 
     async def sched(self):
         try:
@@ -280,6 +282,6 @@ async def async_task():
 if __name__ == '__main__':
     #  test_dict()
     try:
-        asyncio.run(async_task())
+        asyncio.run(async_main())
     except KeyboardInterrupt:
         print('Main Interrupted')

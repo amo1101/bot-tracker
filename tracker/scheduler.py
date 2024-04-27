@@ -43,7 +43,7 @@ class Scheduler:
                                               seconds=0)
         self.max_observe_duration = timedelta(days=7, hours=0, minutes=0,
                                               seconds=0)
-        BotRunner.max_analyzing_workers = max_packet_analyzing_workers
+        self.max_analyzing_workers = max_packet_analyzing_workers
         self.cnc_probing_duration = cnc_probing_duration
         self.sandbox_cxt = sandbox_ctx
         self.db_store = db_store
@@ -57,7 +57,8 @@ class Scheduler:
                 t.cancel()
             else:
                 l.debug(f'task {t.get_name()} has been cancelled')
-        BotRunner.analyzer_executor.shutdown()
+        if BotRunner.analyzer_executor is not None:
+            BotRunner.analyzer_executor.shutdown()
 
     def _unstage_bots(self):
         for t, r in self.bot_runners.items():
@@ -92,6 +93,7 @@ class Scheduler:
                     break
 
             if already_running:
+                l.warning('bot %s already running.', bot.bot_id)
                 continue
 
             if curr_runners_num >= self.max_sandbox_num:
@@ -105,7 +107,8 @@ class Scheduler:
                                    self.sandbox_vcpu_quota,
                                    self.cnc_probing_duration,
                                    self.sandbox_cxt,
-                                   self.db_store)
+                                   self.db_store,
+                                   self.max_analyzing_workers)
             task = asyncio.create_task(bot_runner.run(),
                                        name=f't_{bot.tag}')
             self.bot_runners[task] = bot_runner
