@@ -26,9 +26,9 @@ async def handle_list_bot(args):
     if '_' in args:
         bot_id = args['_']
     elif 'status' in args:
-        s = args['status']
-        if s != 'all':
-            status = [s]
+        status = [args['status']]
+    elif 'all' in args:
+        status = None
     else:
         status = [BotStatus.STAGED.value,
                   BotStatus.ACTIVE.value,
@@ -57,7 +57,12 @@ async def handle_list_bot(args):
 async def handle_start_bot(args):
     l.debug(f'handle_start_bot: {args}')
     resp = ""
-    bot_id = args['_']
+    bot_id = None
+    if '_' in args:
+        bot_id = args['_']
+    elif 'all' in args:
+        bot_id = None
+
     ret = await bot_scheduler.start_bot(bot_id)
     if ret:
         resp = "Bot started"
@@ -69,7 +74,12 @@ async def handle_start_bot(args):
 async def handle_stop_bot(args):
     l.debug(f'handle_stop_bot: {args}')
     resp = ""
-    bot_id = args['_']
+    bot_id = None
+    if '_' in args:
+        bot_id = args['_']
+    elif 'all' in args:
+        bot_id = None
+
     ret = bot_scheduler.stop_bot(bot_id)
     if ret:
         resp = "Bot stopped"
@@ -136,11 +146,12 @@ async def handle_list_cnc_stat(args):
 
     foot = f"\n{'count:':>{len(head) - 10}} {len(cnc_stats)}\n"
     for c in cnc_stats:
-        body += f"\n{c.ip:<20}" +\
-                f"{c.port:<12}" +\
-                f"{c.bot_id[:16] + '...':<24}" +\
-                f"{c.status:<20}" +\
-                f"{c.update_at.strftime('%Y-%m-%d %H:%M:%S'):<20}"
+        body += f"\n{c.ip:<20}{c.port:<12}"
+        if len(c.bot_id) <= 16:
+            body += f"{c.bot_id[:16]:<24}"
+        else:
+            body += f"{c.bot_id[:16] + '...':<24}"
+        body += f"{c.status:<20}{c.update_at.strftime('%Y-%m-%d %H:%M:%S'):<20}"
     body += '\n' + len(head) * '-'
     resp = head + body + foot
     return resp

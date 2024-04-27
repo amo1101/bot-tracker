@@ -33,6 +33,14 @@ async def handle_client(reader, writer):
         else:
             print(f"message received from: {client_name}:{message}")
             if client_name == 'botmaster':
+                # clean closed clients
+                to_clean = []
+                for c, w in clients.items():
+                    if w.is_closing():
+                        to_clean.append(c)
+                for k in to_clean:
+                    del clients[k]
+
                 botmaster_writer = clients[client_name]
                 res = None
                 if cmd == 'list':

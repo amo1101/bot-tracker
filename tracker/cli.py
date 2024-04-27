@@ -18,28 +18,33 @@ help_outline = "Bot management commands:\n" +\
 help_list_bot = "NAME\n" +\
     "  list-bot - list bot information.\n" +\
     "\nSYNOPSIS\n" +\
-    "  list-bot [bot_id] [--status]\n" +\
+    "  list-bot [bot_id] [--all] [--status]\n" +\
     "\nDESCRIPTION\n" +\
     "  List bot information with specified bot_id or bot status.\n" +\
     "  If no option specified, list all 'staged','active' and 'dormant' bots.\n" +\
     "\nOPTIONS\n" +\
     "  [bot_id]: bot id\n" +\
-    "  [--status]=<status>: bot status, could be 'all' or one of 'unknown','staged','dormant',\n" +\
+    "  [--all]: list all bots\n" +\
+    "  [--status]=<status>: bot status, could be one of 'unknown','staged','dormant',\n" +\
     "             'active','interrupted','unstaged','error', or 'duplicate'"
 
 help_start_bot = "NAME\n" +\
     "  start-bot - start running bot.\n" +\
     "\nSYNOPSIS\n" +\
-    "  start-bot <bot_id>\n" +\
+    "  start-bot <bot_id> [--all]\n" +\
     "\nDESCRIPTION\n" +\
-    "  Start running bot with specified bot_id in sandbox, supported in manual scheduler mode."
+    "  Start running bot with specified bot_id or all bots, supported in manual scheduler mode." +\
+    "\nOPTIONS\n" +\
+    "  [--all]: start all bots which are not currently running"
 
 help_stop_bot = "NAME\n" +\
     "  stop-bot - stop running bot.\n" +\
     "\nSYNOPSIS\n" +\
-    "  stop-bot <bot_id>\n" +\
+    "  stop-bot <bot_id> [--all]\n" +\
     "\nDESCRIPTION\n" +\
-    "  Stop running bot with specified bot_id in sandbox, supported in manual scheduler mode."
+    "  Stop running bot with specified bot_id or all bots, supported in manual scheduler mode." +\
+    "\nOPTIONS\n" +\
+    "  [--all]: stop all bots which are currently running"
 
 help_list_cnc = "NAME\n" +\
     "  list-cnc - list CnC information.\n" +\
@@ -105,6 +110,7 @@ cmd_config = {
 
     'list-bot': ([0, 1], {
         '_': lambda v: True,
+        'all': lambda v: True,
         'status': lambda v: v in ['unknown',
             'staged',
             'dormant',
@@ -112,11 +118,10 @@ cmd_config = {
             'interrupted',
             'unstaged',
             'error',
-            'duplicate',
-            'all']}),
+            'duplicate']}),
 
-    'start-bot': ([1, 1], {'_': lambda v: True}),
-    'stop-bot': ([1, 1], {'_': lambda v: True}),
+    'start-bot': ([1, 1], {'_': lambda v: True, 'all': lambda v: True}),
+    'stop-bot': ([1, 1], {'_': lambda v: True, 'all': lambda v: True}),
 
     'list-cnc': ([0, 1], {
         'ip': lambda v: True,
@@ -143,10 +148,13 @@ def parse_cmd(command):
 
     if len(cmd_split) > 1:
         for p in cmd_split[1:]:
-            if p.find('--') == 0 and p.find('=') != -1:
-                kv = p.split('=')
-                k = kv[0][2:]
-                params[k] = kv[1]
+            if p.find('--') == 0:
+                if p.find('=') != -1:
+                    kv = p.split('=')
+                    k = kv[0][2:]
+                    params[k] = kv[1]
+                else:
+                    params[p[2:]] = ''
             else:
                 params['_'] = p
 

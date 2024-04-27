@@ -52,25 +52,31 @@ class Scheduler:
         self.bot_runners = {}
 
     def destroy(self):
-        for t, o in self.bot_runners.items():
+        for t, r in self.bot_runners.items():
             if not t.cancelled():
-                o = self.bot_runners[t]
                 t.cancel()
             else:
                 l.debug(f'task {t.get_name()} has been cancelled')
         BotRunner.analyzer_executor.shutdown()
 
     def _unstage_bots(self):
-        for t, o in self.bot_runners.items():
-            dd = o.dormant_duration()
-            od = o.observe_duration()
-            l.debug(f"bot [{o.bot_info.tag}]: \ndormant_duration:{dd}\nobserve_duration:{od}")
-            if dd > self.max_dormant_duration or od > self.max_observe_duration:
-                l.debug(f"Cancelling running bot [{o.bot_info.tag}]")
-                o.notify_unstage = True
+        for t, r in self.bot_runners.items():
+            dd = r.dormant_duration()
+            od = r.observe_duration()
+            l.debug(f"bot [{r.bot_info.tag}]: \ndormant_duration:{dd}\nobserve_duration:{od}")
+            if dd > self.max_dormant_duration:
+                l.debug(f"Cancelling running bot [{r.bot_info.tag}]")
+                r.notify_unstage = True
                 t.cancel()
 
     async def _schedule_bots(self, status_list=None, bot_id=None, count=None):
+        curr_runners_num = len(self.bot_runners)
+        l.debug("Num of running bots: %d", curr_runners_num)
+
+        if curr_runners_num >= self.max_sandbox_num:
+            l.warning('No avaiable slot for new bot.')
+            return
+
         def task_done_cb(t):
             if t in self.bot_runners:
                 del self.bot_runners[t]
@@ -78,6 +84,20 @@ class Scheduler:
 
         bots = await self.db_store.load_bot_info(status_list, bot_id, count)
         for bot in bots:
+            # skip bot which is already running
+            already_running = False
+            for _, r in self.bot_runners.items():
+                if r.bot_info.bot_id  == bot.bot_id:
+                    already_running = True
+                    break
+
+            if already_running:
+                continue
+
+            if curr_runners_num >= self.max_sandbox_num:
+                l.warning('No avaiable slot for new bot.')
+                break
+
             bot_runner = BotRunner(bot,
                                    self.bot_repo_ip,
                                    self.bot_repo_user,
@@ -91,20 +111,15 @@ class Scheduler:
             self.bot_runners[task] = bot_runner
             task.add_done_callback(task_done_cb)
             l.debug(f"bot [{bot.tag}] scheduled")
+            curr_runners_num += 1
 
     async def _stage_bots(self):
-        l.debug("Num of running bots: %d", len(self.bot_runners))
-        slots = self.max_sandbox_num - len(self.bot_runners)
-        if slots <= 0:
-            l.warning('no sandbox available for bots')
-            return
-
         await self._schedule_bots([BotStatus.UNKNOWN.value,
                                    BotStatus.INTERRUPTED.value], None, slots)
 
     async def _update_bot_info(self):
-        for _, o in self.bot_runners.items():
-            await o.update_bot_info()
+        for _, r in self.bot_runners.items():
+            await r.update_bot_info()
 
     async def checkpoint(self):
         try:
@@ -128,6 +143,7 @@ class Scheduler:
         if self.mode == SCHEDULER_MODE_AUTO:
             l.debug('start_bot command not supported in auto mode')
             return False
+
         await self._schedule_bots(None, bot_id)
         return True
 
@@ -135,10 +151,12 @@ class Scheduler:
         if self.mode == SCHEDULER_MODE_AUTO:
             l.debug('stop_bot command not supported in auto mode')
             return False
-        for t, o in self.bot_runners.items():
-            if o.bot_info.bot_id == bot_id:
+
+        for t, r in self.bot_runners.items():
+            if r.bot_info.bot_id == bot_id or bot_id == None:
                 t.cancel()
-                break
+                if bot_id is not None:
+                    break
 
         return True
 
