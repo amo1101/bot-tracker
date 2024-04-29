@@ -64,6 +64,7 @@ class BotRunner:
         self.notify_dup = False
         self.dormant_time = INIT_TIME_STAMP
         self.staged_time = INIT_TIME_STAMP
+        self.destroyed = False
 
     def _create_log_dir(self):
         if not os.path.exists(self.log_base):
@@ -271,12 +272,16 @@ class BotRunner:
 
     async def destroy(self):
         try:
+            if self.destroyed:
+                l.debug("Bot runner has been destroyed")
+                return
             l.debug("Bot runner destroyed")
             await self.update_bot_info(BotStatus.INTERRUPTED)
             self.sandbox.fetch_log(self.log_dir)
             self.sandbox.destroy()
             if self.live_capture is not None:
                 await self.live_capture.close_async()
+            self.destroyed = True
         except RuntimeError:
             l.debug('runtime error occurred')
         except asyncio.CancelledError:
