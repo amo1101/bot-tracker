@@ -8,7 +8,7 @@ async def handle_client(reader, writer):
     client_host, client_port = writer.get_extra_info('peername')
     print(f'bot connected from {client_host}:{client_port}')
     while True:
-        data = await reader.read(1024)
+        data = await reader.read(4096)
         if not data:
             print(f'data is None, disconnect the client {client_name}')
             if client_name in clients:
