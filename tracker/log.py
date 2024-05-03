@@ -44,7 +44,7 @@ class TaskLogger:
     _log_root = ''
     _logger = logging.getLogger(_log_root)
     #  _handler = TaskStreamHandler()
-    _log_file = CUR_DIR + os.sep + 'log' + os.sep +\
+    _log_file = CUR_DIR + os.sep +\
                 'bot-tracker-' +\
                 datetime.now().strftime('%Y-%m-%d-%H-%M-%S') +\
                 '.log'

@@ -15,4 +15,4 @@ iptables -I INPUT 1 -i lo -j ACCEPT
 iptables -P INPUT DROP
 iptables -P OUTPUT DROP
 
-/sbin/iptables-save
+# /sbin/iptables-save
