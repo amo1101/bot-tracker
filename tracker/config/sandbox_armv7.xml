@@ -14,9 +14,7 @@
       <target dev='vda' bus='virtio'/>
     </disk>
     <interface type='network'>
-      <!-- disable port level bandwidth -->
-      <!-- source network='mynet' portgroup='sandbox'/-->
-      <source network='mynet'/>
+      <source network='mynet' portgroup='sandbox'/>
     </interface>
     <console type='pty'>
       <target type='serial' port='0'/>

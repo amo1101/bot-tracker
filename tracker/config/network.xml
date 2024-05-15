@@ -1,4 +1,3 @@
-<!-- dns might be added later -->
 <network>
   <name>mynet</name>
   <forward mode='nat'/>
@@ -9,11 +8,11 @@
     </dhcp>
   </ip>
   <bandwidth>
-    <outbound average='128' peak='256' burst='256'/>
+    <outbound average='134217728' peak='134217728' burst='134217728'/>
   </bandwidth>
   <portgroup name='sandbox' trustGuestRxFilters='no'>
     <bandwidth>
-      <outbound average='128' peak='256' burst='256'/>
+      <outbound average='134217728' peak='134217728' burst='134217728'/>
     </bandwidth>
   </portgroup>
 </network>

@@ -72,10 +72,10 @@ class BotRunner:
         if not os.path.exists(self.log_dir):
             os.makedirs(self.log_dir)
 
-    def _init_capture(self, mac_addr):
+    def _init_capture(self, port_dev):
         if self.live_capture is None:
-            iface = "virbr1"  # TODO: should be fetched from context
-            bpf_filter = f"ether src {mac_addr} or ether dst {mac_addr}"
+            iface = port_dev
+            bpf_filter = None #f"ether src {mac_addr} or ether dst {mac_addr}"
             output_file = self.log_dir + os.sep + "capture.pcap"
             self.live_capture = AsyncLiveCapture(interface=iface,
                                                  bpf_filter=bpf_filter,
@@ -212,11 +212,11 @@ class BotRunner:
             # transit status to staged
             await self.update_bot_info(BotStatus.STAGED)
 
-            _, mac_addr, own_ip = self.sandbox.get_ifinfo()
+            port_dev, _, own_ip = self.sandbox.get_ifinfo()
 
             # set default nwfiter
             self.sandbox.apply_nwfilter(SandboxNWFilter.DEFAULT)
-            self._init_capture(mac_addr)
+            self._init_capture(port_dev)
 
             # find cnc server
             try:
