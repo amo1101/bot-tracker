@@ -2,7 +2,7 @@
   <filterref filter='sandbox-default-filter'/>
   <!-- give high priority so is not blocked by connection limitation -->
   <rule action='accept' direction='out' priority='700'>
-    <tcp srcipaddr='$IP' dstipaddr='$CNC_IP'/>
+    <tcp srcipaddr='$SANDBOX_IP' dstipaddr='$CNC_IP'/>
   </rule>
   <rule action='accept' direction='in' priority='700'>
     <tcp srcipaddr='$CNC_IP'/>
@@ -11,5 +11,10 @@
   <!-- allow connection limit -->
   <rule action='drop' direction='out' priority='800'>
     <tcp connlimit-above='$CONN_LIMIT'/>
+  </rule>
+
+  <!-- allow or drop on tcp ports -->
+  <rule action='accept' direction='out' priority='900'>
+    <tcp dstportstart='$TCP_PORT'/>
   </rule>
 </filter>

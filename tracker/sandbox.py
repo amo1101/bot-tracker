@@ -84,6 +84,9 @@ class Sandbox:
         if os.path.exists(self.fs):
             os.remove(self.fs)
 
+    def redirect_traffic(self):
+        pass
+
     def fetch_log(self, dst):
         s = SandboxScript.FETCH_LOG
         self._run_script(s, self.fs, dst)
@@ -158,6 +161,7 @@ class Sandbox:
                                                           port_dev=self.port_dev,
                                                           mac_addr=self.mac_address,
                                                           mal_repo_ip=self.bot_repo_ip,
+                                                          sandbox_ip=self.ip,
                                                           **kwargs)
         if not self.filter_binding:
             l.error("failed to apply nw filter")

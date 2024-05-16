@@ -258,6 +258,9 @@ class BotRunner:
             args = {"cnc_ip": self.cnc_info[0].ip}
             self.sandbox.apply_nwfilter(nwfilter_type, **args)
 
+            # redirect traffic to simulated server if needed
+            self.sandbox.redirect_traffic()
+
             # Set bot status to dormant before we observe CnC communication
             await self.update_bot_info(BotStatus.DORMANT)
 

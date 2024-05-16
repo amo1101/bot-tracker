@@ -11,10 +11,10 @@
   <!-- enable outgoing DNS lookups using UDP -->
   <!-- only allowing to 8.8.8.8, with legitimate source IP-->
   <rule action='accept' direction='out' priority='600'>
-    <udp dstportstart='53' srcipaddr='$IP' dstipaddr='8.8.8.8'/>
+    <udp dstportstart='53' srcipaddr='$SANDBOX_IP' dstipaddr='8.8.8.8'/>
   </rule>
   <rule action='accept' direction='out' priority='600'>
-    <tcp dstportstart='53' srcipaddr='$IP' dstipaddr='8.8.8.8'/>
+    <tcp dstportstart='53' srcipaddr='$SANDBOX_IP' dstipaddr='8.8.8.8'/>
   </rule>
 
   <!-- drop all other traffic -->

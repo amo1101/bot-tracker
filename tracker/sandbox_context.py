@@ -20,6 +20,7 @@ class SandboxNWFilter(Enum):
 
 class SandboxScript(Enum):
     PREPARE_FS = "prepare_fs.sh"
+    REDIRECT = "redirect.sh"
     FETCH_LOG = "fetch_log.sh"
 
 
@@ -40,7 +41,8 @@ class SandboxContext:
                  port_average,
                  port_burst,
                  port_max_conn,
-                 allowed_tcp_ports):
+                 allowed_tcp_ports,
+                 simulated_server):
         #  self.loop = loop
         self.event_imp = None
         self.conn = None
@@ -59,6 +61,7 @@ class SandboxContext:
         self.port_burst = port_burst
         self.port_max_conn = port_max_conn
         self.allowed_tcp_ports = allowed_tcp_ports
+        self.simulated_server = simulated_server
         self.sandbox_registry = \
             {
                 "ARM": [
@@ -142,9 +145,14 @@ class SandboxContext:
         return (self.image_base + os.sep + fs_src,
                 self.image_dir + os.sep + fs_dst)
 
+    def get_simulated_server(self):
+        return self.simulated_server
+
     def get_script(self, name):
         if name == SandboxScript.PREPARE_FS:
             return self.scripts_base + os.sep + SandboxScript.PREPARE_FS.value
+        elif name == SandboxScript.REDIRECT:
+            return self.scripts_base + os.sep + SandboxScript.REDIRECT.value
         elif name == SandboxScript.FETCH_LOG:
             return self.scripts_base + os.sep + SandboxScript.FETCH_LOG.value
         else:
@@ -186,6 +194,7 @@ class SandboxContext:
         para_to_check = \
             {
                 "mal_repo_ip": ["//filterref/parameter[@name='MAL_REPO_IP']", "value"],
+                "sandbox_ip": ["//filterref/parameter[@name='SANDBOX_IP']", "value"],
                 "cnc_ip": ["//filterref/parameter[@name='CNC_IP']", "value"],
                 "allowed_tcp_ports": ["//filterref/parameter[@name='TCP_PORT']", "value"],
                 "conn_limit": ["//filterref/parameter[@name='CONN_LIMIT']", "value"]

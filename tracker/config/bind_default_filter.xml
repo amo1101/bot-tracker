@@ -7,6 +7,7 @@
   <mac address='52:54:00:29:c5:04'/>
   <filterref filter='sandbox-default-filter'>
     <parameter name='MAL_REPO_IP' value='192.168.100.4'/>
+    <parameter name='SANDBOX_IP' value='192.168.100.5'/>
   </filterref>
 </filterbinding>
 

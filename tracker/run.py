@@ -36,8 +36,9 @@ async def async_main(arguments=None):
                                  config['rate_limit']['port_peak'],
                                  config['rate_limit']['port_average'],
                                  config['rate_limit']['port_burst'],
-                                 config['network_control']['max_conn'],
-                                 config['network_control']['allowed_tcp_ports'].split(','))
+                                 config['network_control']['max_external_conn'],
+                                 config['network_control']['allowed_tcp_ports'].split(','),
+                                 config['network_control']['simulated_server'])
     sandbox_ctx.start()
 
     db_store = DBStore(config['database']['host'],
