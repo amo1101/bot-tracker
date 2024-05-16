@@ -4,35 +4,36 @@ enp0s3: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
         inet 192.168.100.5  netmask 255.255.255.0  broadcast 192.168.100.255
         inet6 fe80::cb10:d50f:35e2:815  prefixlen 64  scopeid 0x20<link>
         ether 08:00:27:b4:c7:6f  txqueuelen 1000  (Ethernet)
-        RX packets 170711  bytes 179012355 (179.0 MB)
+        RX packets 171691  bytes 179093277 (179.0 MB)
         RX errors 0  dropped 0  overruns 0  frame 0
-        TX packets 79648  bytes 32419164 (32.4 MB)
+        TX packets 80668  bytes 32651038 (32.6 MB)
         TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
 
 lo: flags=73<UP,LOOPBACK,RUNNING>  mtu 65536
         inet 127.0.0.1  netmask 255.0.0.0
         inet6 ::1  prefixlen 128  scopeid 0x10<host>
         loop  txqueuelen 1000  (Local Loopback)
-        RX packets 92853  bytes 41139786 (41.1 MB)
+        RX packets 93873  bytes 41275976 (41.2 MB)
         RX errors 0  dropped 0  overruns 0  frame 0
-        TX packets 92853  bytes 41139786 (41.1 MB)
+        TX packets 93873  bytes 41275976 (41.2 MB)
         TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
 
 virbr1: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
         inet 192.168.122.1  netmask 255.255.255.0  broadcast 192.168.122.255
-        ether 52:54:00:f2:64:0a  txqueuelen 1000  (Ethernet)
-        RX packets 84  bytes 9668 (9.6 KB)
+        ether 52:54:00:2b:41:29  txqueuelen 1000  (Ethernet)
+        RX packets 58  bytes 7864 (7.8 KB)
         RX errors 0  dropped 0  overruns 0  frame 0
-        TX packets 47  bytes 9087 (9.0 KB)
+        TX packets 39  bytes 8658 (8.6 KB)
         TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
 
-vnet0: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
-        inet6 fe80::fc54:ff:fec5:d703  prefixlen 64  scopeid 0x20<link>
-        ether 5e:45:a9:7f:d5:0e  txqueuelen 1000  (Ethernet)
-        RX packets 84  bytes 10844 (10.8 KB)
+vnet1: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
+        inet6 fe80::fc54:ff:fe62:a1cf  prefixlen 64  scopeid 0x20<link>
+        ether 0e:43:7a:5f:8a:92  txqueuelen 1000  (Ethernet)
+        RX packets 58  bytes 8676 (8.6 KB)
         RX errors 0  dropped 0  overruns 0  frame 0
-        TX packets 218  bytes 19818 (19.8 KB)
+        TX packets 126  bytes 14875 (14.8 KB)
         TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+
 
 #2 ip route
 default via 192.168.100.1 dev enp0s3 proto dhcp metric 100
@@ -60,35 +61,35 @@ Chain OUTPUT (policy ACCEPT)
 target     prot opt source               destination
 LIBVIRT_OUT  all  --  0.0.0.0/0            0.0.0.0/0
 
-Chain FI-vnet0 (1 references)
+Chain FI-vnet1 (1 references)
 target     prot opt source               destination
-RETURN     tcp  --  0.0.0.0/0            192.168.100.4        tcp dpt:22 ctstate NEW,ESTABLISHED ctdir ORIGINAL
-RETURN     udp  --  192.168.122.198      8.8.8.8              udp dpt:53 ctstate NEW,ESTABLISHED ctdir ORIGINAL
-RETURN     tcp  --  192.168.122.198      8.8.8.8              tcp dpt:53 ctstate NEW,ESTABLISHED ctdir ORIGINAL
-RETURN     tcp  --  192.168.122.198      10.11.45.53          ctstate NEW,ESTABLISHED ctdir ORIGINAL
+RETURN     tcp  --  192.168.122.100      192.168.100.4        tcp dpt:22 ctstate NEW,ESTABLISHED ctdir ORIGINAL
+RETURN     udp  --  192.168.122.100      8.8.8.8              udp dpt:53 ctstate NEW,ESTABLISHED ctdir ORIGINAL
+RETURN     tcp  --  192.168.122.100      8.8.8.8              tcp dpt:53 ctstate NEW,ESTABLISHED ctdir ORIGINAL
+RETURN     tcp  --  192.168.122.100      10.11.45.53          ctstate NEW,ESTABLISHED ctdir ORIGINAL
 RETURN     tcp  --  0.0.0.0/0            10.11.45.53          ctstate ESTABLISHED ctdir REPLY
 DROP       tcp  --  0.0.0.0/0            0.0.0.0/0            #conn src/32 > 0
 RETURN     tcp  --  0.0.0.0/0            0.0.0.0/0            tcp dpt:80 ctstate NEW,ESTABLISHED ctdir ORIGINAL
 RETURN     tcp  --  0.0.0.0/0            0.0.0.0/0            tcp dpt:443 ctstate NEW,ESTABLISHED ctdir ORIGINAL
 DROP       all  --  0.0.0.0/0            0.0.0.0/0
 
-Chain FO-vnet0 (1 references)
+Chain FO-vnet1 (1 references)
 target     prot opt source               destination
-ACCEPT     tcp  --  192.168.100.4        0.0.0.0/0            tcp spt:22 ctstate ESTABLISHED ctdir REPLY
-ACCEPT     udp  --  8.8.8.8              192.168.122.198      udp spt:53 ctstate ESTABLISHED ctdir REPLY
-ACCEPT     tcp  --  8.8.8.8              192.168.122.198      tcp spt:53 ctstate ESTABLISHED ctdir REPLY
-ACCEPT     tcp  --  10.11.45.53          192.168.122.198      ctstate ESTABLISHED ctdir REPLY
+ACCEPT     tcp  --  192.168.100.4        192.168.122.100      tcp spt:22 ctstate ESTABLISHED ctdir REPLY
+ACCEPT     udp  --  8.8.8.8              192.168.122.100      udp spt:53 ctstate ESTABLISHED ctdir REPLY
+ACCEPT     tcp  --  8.8.8.8              192.168.122.100      tcp spt:53 ctstate ESTABLISHED ctdir REPLY
+ACCEPT     tcp  --  10.11.45.53          192.168.122.100      ctstate ESTABLISHED ctdir REPLY
 ACCEPT     tcp  --  10.11.45.53          0.0.0.0/0            ctstate NEW,ESTABLISHED ctdir ORIGINAL
 ACCEPT     tcp  --  0.0.0.0/0            0.0.0.0/0            tcp spt:80 ctstate ESTABLISHED ctdir REPLY
 ACCEPT     tcp  --  0.0.0.0/0            0.0.0.0/0            tcp spt:443 ctstate ESTABLISHED ctdir REPLY
 DROP       all  --  0.0.0.0/0            0.0.0.0/0
 
-Chain HI-vnet0 (1 references)
+Chain HI-vnet1 (1 references)
 target     prot opt source               destination
-RETURN     tcp  --  0.0.0.0/0            192.168.100.4        tcp dpt:22 ctstate NEW,ESTABLISHED ctdir ORIGINAL
-RETURN     udp  --  192.168.122.198      8.8.8.8              udp dpt:53 ctstate NEW,ESTABLISHED ctdir ORIGINAL
-RETURN     tcp  --  192.168.122.198      8.8.8.8              tcp dpt:53 ctstate NEW,ESTABLISHED ctdir ORIGINAL
-RETURN     tcp  --  192.168.122.198      10.11.45.53          ctstate NEW,ESTABLISHED ctdir ORIGINAL
+RETURN     tcp  --  192.168.122.100      192.168.100.4        tcp dpt:22 ctstate NEW,ESTABLISHED ctdir ORIGINAL
+RETURN     udp  --  192.168.122.100      8.8.8.8              udp dpt:53 ctstate NEW,ESTABLISHED ctdir ORIGINAL
+RETURN     tcp  --  192.168.122.100      8.8.8.8              tcp dpt:53 ctstate NEW,ESTABLISHED ctdir ORIGINAL
+RETURN     tcp  --  192.168.122.100      10.11.45.53          ctstate NEW,ESTABLISHED ctdir ORIGINAL
 RETURN     tcp  --  0.0.0.0/0            10.11.45.53          ctstate ESTABLISHED ctdir REPLY
 DROP       tcp  --  0.0.0.0/0            0.0.0.0/0            #conn src/32 > 0
 RETURN     tcp  --  0.0.0.0/0            0.0.0.0/0            tcp dpt:80 ctstate NEW,ESTABLISHED ctdir ORIGINAL
@@ -125,28 +126,29 @@ ACCEPT     tcp  --  0.0.0.0/0            0.0.0.0/0            tcp dpt:68
 
 Chain libvirt-host-in (1 references)
 target     prot opt source               destination
-HI-vnet0   all  --  0.0.0.0/0            0.0.0.0/0           [goto]  PHYSDEV match --physdev-in vnet0
+HI-vnet1   all  --  0.0.0.0/0            0.0.0.0/0           [goto]  PHYSDEV match --physdev-in vnet1
 
 Chain libvirt-in (1 references)
 target     prot opt source               destination
-FI-vnet0   all  --  0.0.0.0/0            0.0.0.0/0           [goto]  PHYSDEV match --physdev-in vnet0
+FI-vnet1   all  --  0.0.0.0/0            0.0.0.0/0           [goto]  PHYSDEV match --physdev-in vnet1
 
 Chain libvirt-in-post (1 references)
 target     prot opt source               destination
-ACCEPT     all  --  0.0.0.0/0            0.0.0.0/0            PHYSDEV match --physdev-in vnet0
+ACCEPT     all  --  0.0.0.0/0            0.0.0.0/0            PHYSDEV match --physdev-in vnet1
 
 Chain libvirt-out (1 references)
 target     prot opt source               destination
-FO-vnet0   all  --  0.0.0.0/0            0.0.0.0/0           [goto]  PHYSDEV match --physdev-out vnet0 --physdev-is-bridged
+FO-vnet1   all  --  0.0.0.0/0            0.0.0.0/0           [goto]  PHYSDEV match --physdev-out vnet1 --physdev-is-bridged
 
-# iptable rules:
+
+#4 iptables rules
 
 -P INPUT ACCEPT
 -P FORWARD ACCEPT
 -P OUTPUT ACCEPT
--N FI-vnet0
--N FO-vnet0
--N HI-vnet0
+-N FI-vnet1
+-N FO-vnet1
+-N HI-vnet1
 -N LIBVIRT_FWI
 -N LIBVIRT_FWO
 -N LIBVIRT_FWX
@@ -165,32 +167,32 @@ FO-vnet0   all  --  0.0.0.0/0            0.0.0.0/0           [goto]  PHYSDEV mat
 -A FORWARD -j LIBVIRT_FWI
 -A FORWARD -j LIBVIRT_FWO
 -A OUTPUT -j LIBVIRT_OUT
--A FI-vnet0 -d 192.168.100.4/32 -p tcp -m tcp --dport 22 -m conntrack --ctstate NEW,ESTABLISHED -m conntrack --ctdir ORIGINAL -j RETURN
--A FI-vnet0 -s 192.168.122.198/32 -d 8.8.8.8/32 -p udp -m udp --dport 53 -m conntrack --ctstate NEW,ESTABLISHED -m conntrack --ctdir ORIGINAL -j RETURN
--A FI-vnet0 -s 192.168.122.198/32 -d 8.8.8.8/32 -p tcp -m tcp --dport 53 -m conntrack --ctstate NEW,ESTABLISHED -m conntrack --ctdir ORIGINAL -j RETURN
--A FI-vnet0 -s 192.168.122.198/32 -d 10.11.45.53/32 -p tcp -m conntrack --ctstate NEW,ESTABLISHED -m conntrack --ctdir ORIGINAL -j RETURN
--A FI-vnet0 -d 10.11.45.53/32 -p tcp -m conntrack --ctstate ESTABLISHED -m conntrack --ctdir REPLY -j RETURN
--A FI-vnet0 -p tcp -m connlimit --connlimit-above 0 --connlimit-mask 32 --connlimit-saddr -j DROP
--A FI-vnet0 -p tcp -m tcp --dport 80 -m conntrack --ctstate NEW,ESTABLISHED -m conntrack --ctdir ORIGINAL -j RETURN
--A FI-vnet0 -p tcp -m tcp --dport 443 -m conntrack --ctstate NEW,ESTABLISHED -m conntrack --ctdir ORIGINAL -j RETURN
--A FI-vnet0 -j DROP
--A FO-vnet0 -s 192.168.100.4/32 -p tcp -m tcp --sport 22 -m conntrack --ctstate ESTABLISHED -m conntrack --ctdir REPLY -j ACCEPT
--A FO-vnet0 -s 8.8.8.8/32 -d 192.168.122.198/32 -p udp -m udp --sport 53 -m conntrack --ctstate ESTABLISHED -m conntrack --ctdir REPLY -j ACCEPT
--A FO-vnet0 -s 8.8.8.8/32 -d 192.168.122.198/32 -p tcp -m tcp --sport 53 -m conntrack --ctstate ESTABLISHED -m conntrack --ctdir REPLY -j ACCEPT
--A FO-vnet0 -s 10.11.45.53/32 -d 192.168.122.198/32 -p tcp -m conntrack --ctstate ESTABLISHED -m conntrack --ctdir REPLY -j ACCEPT
--A FO-vnet0 -s 10.11.45.53/32 -p tcp -m conntrack --ctstate NEW,ESTABLISHED -m conntrack --ctdir ORIGINAL -j ACCEPT
--A FO-vnet0 -p tcp -m tcp --sport 80 -m conntrack --ctstate ESTABLISHED -m conntrack --ctdir REPLY -j ACCEPT
--A FO-vnet0 -p tcp -m tcp --sport 443 -m conntrack --ctstate ESTABLISHED -m conntrack --ctdir REPLY -j ACCEPT
--A FO-vnet0 -j DROP
--A HI-vnet0 -d 192.168.100.4/32 -p tcp -m tcp --dport 22 -m conntrack --ctstate NEW,ESTABLISHED -m conntrack --ctdir ORIGINAL -j RETURN
--A HI-vnet0 -s 192.168.122.198/32 -d 8.8.8.8/32 -p udp -m udp --dport 53 -m conntrack --ctstate NEW,ESTABLISHED -m conntrack --ctdir ORIGINAL -j RETURN
--A HI-vnet0 -s 192.168.122.198/32 -d 8.8.8.8/32 -p tcp -m tcp --dport 53 -m conntrack --ctstate NEW,ESTABLISHED -m conntrack --ctdir ORIGINAL -j RETURN
--A HI-vnet0 -s 192.168.122.198/32 -d 10.11.45.53/32 -p tcp -m conntrack --ctstate NEW,ESTABLISHED -m conntrack --ctdir ORIGINAL -j RETURN
--A HI-vnet0 -d 10.11.45.53/32 -p tcp -m conntrack --ctstate ESTABLISHED -m conntrack --ctdir REPLY -j RETURN
--A HI-vnet0 -p tcp -m connlimit --connlimit-above 0 --connlimit-mask 32 --connlimit-saddr -j DROP
--A HI-vnet0 -p tcp -m tcp --dport 80 -m conntrack --ctstate NEW,ESTABLISHED -m conntrack --ctdir ORIGINAL -j RETURN
--A HI-vnet0 -p tcp -m tcp --dport 443 -m conntrack --ctstate NEW,ESTABLISHED -m conntrack --ctdir ORIGINAL -j RETURN
--A HI-vnet0 -j DROP
+-A FI-vnet1 -s 192.168.122.100/32 -d 192.168.100.4/32 -p tcp -m tcp --dport 22 -m conntrack --ctstate NEW,ESTABLISHED -m conntrack --ctdir ORIGINAL -j RETURN
+-A FI-vnet1 -s 192.168.122.100/32 -d 8.8.8.8/32 -p udp -m udp --dport 53 -m conntrack --ctstate NEW,ESTABLISHED -m conntrack --ctdir ORIGINAL -j RETURN
+-A FI-vnet1 -s 192.168.122.100/32 -d 8.8.8.8/32 -p tcp -m tcp --dport 53 -m conntrack --ctstate NEW,ESTABLISHED -m conntrack --ctdir ORIGINAL -j RETURN
+-A FI-vnet1 -s 192.168.122.100/32 -d 10.11.45.53/32 -p tcp -m conntrack --ctstate NEW,ESTABLISHED -m conntrack --ctdir ORIGINAL -j RETURN
+-A FI-vnet1 -d 10.11.45.53/32 -p tcp -m conntrack --ctstate ESTABLISHED -m conntrack --ctdir REPLY -j RETURN
+-A FI-vnet1 -p tcp -m connlimit --connlimit-above 0 --connlimit-mask 32 --connlimit-saddr -j DROP
+-A FI-vnet1 -p tcp -m tcp --dport 80 -m conntrack --ctstate NEW,ESTABLISHED -m conntrack --ctdir ORIGINAL -j RETURN
+-A FI-vnet1 -p tcp -m tcp --dport 443 -m conntrack --ctstate NEW,ESTABLISHED -m conntrack --ctdir ORIGINAL -j RETURN
+-A FI-vnet1 -j DROP
+-A FO-vnet1 -s 192.168.100.4/32 -d 192.168.122.100/32 -p tcp -m tcp --sport 22 -m conntrack --ctstate ESTABLISHED -m conntrack --ctdir REPLY -j ACCEPT
+-A FO-vnet1 -s 8.8.8.8/32 -d 192.168.122.100/32 -p udp -m udp --sport 53 -m conntrack --ctstate ESTABLISHED -m conntrack --ctdir REPLY -j ACCEPT
+-A FO-vnet1 -s 8.8.8.8/32 -d 192.168.122.100/32 -p tcp -m tcp --sport 53 -m conntrack --ctstate ESTABLISHED -m conntrack --ctdir REPLY -j ACCEPT
+-A FO-vnet1 -s 10.11.45.53/32 -d 192.168.122.100/32 -p tcp -m conntrack --ctstate ESTABLISHED -m conntrack --ctdir REPLY -j ACCEPT
+-A FO-vnet1 -s 10.11.45.53/32 -p tcp -m conntrack --ctstate NEW,ESTABLISHED -m conntrack --ctdir ORIGINAL -j ACCEPT
+-A FO-vnet1 -p tcp -m tcp --sport 80 -m conntrack --ctstate ESTABLISHED -m conntrack --ctdir REPLY -j ACCEPT
+-A FO-vnet1 -p tcp -m tcp --sport 443 -m conntrack --ctstate ESTABLISHED -m conntrack --ctdir REPLY -j ACCEPT
+-A FO-vnet1 -j DROP
+-A HI-vnet1 -s 192.168.122.100/32 -d 192.168.100.4/32 -p tcp -m tcp --dport 22 -m conntrack --ctstate NEW,ESTABLISHED -m conntrack --ctdir ORIGINAL -j RETURN
+-A HI-vnet1 -s 192.168.122.100/32 -d 8.8.8.8/32 -p udp -m udp --dport 53 -m conntrack --ctstate NEW,ESTABLISHED -m conntrack --ctdir ORIGINAL -j RETURN
+-A HI-vnet1 -s 192.168.122.100/32 -d 8.8.8.8/32 -p tcp -m tcp --dport 53 -m conntrack --ctstate NEW,ESTABLISHED -m conntrack --ctdir ORIGINAL -j RETURN
+-A HI-vnet1 -s 192.168.122.100/32 -d 10.11.45.53/32 -p tcp -m conntrack --ctstate NEW,ESTABLISHED -m conntrack --ctdir ORIGINAL -j RETURN
+-A HI-vnet1 -d 10.11.45.53/32 -p tcp -m conntrack --ctstate ESTABLISHED -m conntrack --ctdir REPLY -j RETURN
+-A HI-vnet1 -p tcp -m connlimit --connlimit-above 0 --connlimit-mask 32 --connlimit-saddr -j DROP
+-A HI-vnet1 -p tcp -m tcp --dport 80 -m conntrack --ctstate NEW,ESTABLISHED -m conntrack --ctdir ORIGINAL -j RETURN
+-A HI-vnet1 -p tcp -m tcp --dport 443 -m conntrack --ctstate NEW,ESTABLISHED -m conntrack --ctdir ORIGINAL -j RETURN
+-A HI-vnet1 -j DROP
 -A LIBVIRT_FWI -d 192.168.122.0/24 -o virbr1 -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
 -A LIBVIRT_FWI -o virbr1 -j REJECT --reject-with icmp-port-unreachable
 -A LIBVIRT_FWO -s 192.168.122.0/24 -i virbr1 -j ACCEPT
@@ -204,7 +206,7 @@ FO-vnet0   all  --  0.0.0.0/0            0.0.0.0/0           [goto]  PHYSDEV mat
 -A LIBVIRT_OUT -o virbr1 -p tcp -m tcp --dport 53 -j ACCEPT
 -A LIBVIRT_OUT -o virbr1 -p udp -m udp --dport 68 -j ACCEPT
 -A LIBVIRT_OUT -o virbr1 -p tcp -m tcp --dport 68 -j ACCEPT
--A libvirt-host-in -m physdev --physdev-in vnet0 -g HI-vnet0
--A libvirt-in -m physdev --physdev-in vnet0 -g FI-vnet0
--A libvirt-in-post -m physdev --physdev-in vnet0 -j ACCEPT
--A libvirt-out -m physdev --physdev-out vnet0 --physdev-is-bridged -g FO-vnet0
+-A libvirt-host-in -m physdev --physdev-in vnet1 -g HI-vnet1
+-A libvirt-in -m physdev --physdev-in vnet1 -g FI-vnet1
+-A libvirt-in-post -m physdev --physdev-in vnet1 -j ACCEPT
+-A libvirt-out -m physdev --physdev-out vnet1 --physdev-is-bridged -g FO-vnet1
