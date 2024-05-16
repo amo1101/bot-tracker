@@ -1,96 +1,210 @@
-Chain INPUT (policy ACCEPT 0 packets, 0 bytes)
- pkts bytes target     prot opt in     out     source               destination         
- 1162 72681 libvirt-host-in  all  --  *      *       0.0.0.0/0            0.0.0.0/0           
- 162K  210M LIBVIRT_INP  all  --  *      *       0.0.0.0/0            0.0.0.0/0           
+#1 ifconfig
 
-Chain FORWARD (policy ACCEPT 0 packets, 0 bytes)
- pkts bytes target     prot opt in     out     source               destination         
-  122 17276 libvirt-in  all  --  *      *       0.0.0.0/0            0.0.0.0/0           
-   86 14564 libvirt-out  all  --  *      *       0.0.0.0/0            0.0.0.0/0           
-   86 14564 libvirt-in-post  all  --  *      *       0.0.0.0/0            0.0.0.0/0           
-  269 43272 LIBVIRT_FWX  all  --  *      *       0.0.0.0/0            0.0.0.0/0           
-  269 43272 LIBVIRT_FWI  all  --  *      *       0.0.0.0/0            0.0.0.0/0           
-  105  9516 LIBVIRT_FWO  all  --  *      *       0.0.0.0/0            0.0.0.0/0           
+enp0s3: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
+        inet 192.168.100.5  netmask 255.255.255.0  broadcast 192.168.100.255
+        inet6 fe80::cb10:d50f:35e2:815  prefixlen 64  scopeid 0x20<link>
+        ether 08:00:27:b4:c7:6f  txqueuelen 1000  (Ethernet)
+        RX packets 170711  bytes 179012355 (179.0 MB)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 79648  bytes 32419164 (32.4 MB)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
 
-Chain OUTPUT (policy ACCEPT 0 packets, 0 bytes)
- pkts bytes target     prot opt in     out     source               destination         
- 153K   71M LIBVIRT_OUT  all  --  *      *       0.0.0.0/0            0.0.0.0/0           
+lo: flags=73<UP,LOOPBACK,RUNNING>  mtu 65536
+        inet 127.0.0.1  netmask 255.0.0.0
+        inet6 ::1  prefixlen 128  scopeid 0x10<host>
+        loop  txqueuelen 1000  (Local Loopback)
+        RX packets 92853  bytes 41139786 (41.1 MB)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 92853  bytes 41139786 (41.1 MB)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+
+virbr1: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
+        inet 192.168.122.1  netmask 255.255.255.0  broadcast 192.168.122.255
+        ether 52:54:00:f2:64:0a  txqueuelen 1000  (Ethernet)
+        RX packets 84  bytes 9668 (9.6 KB)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 47  bytes 9087 (9.0 KB)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+
+vnet0: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
+        inet6 fe80::fc54:ff:fec5:d703  prefixlen 64  scopeid 0x20<link>
+        ether 5e:45:a9:7f:d5:0e  txqueuelen 1000  (Ethernet)
+        RX packets 84  bytes 10844 (10.8 KB)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 218  bytes 19818 (19.8 KB)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+
+#2 ip route
+default via 192.168.100.1 dev enp0s3 proto dhcp metric 100
+169.254.0.0/16 dev enp0s3 scope link metric 1000
+192.168.100.0/24 dev enp0s3 proto kernel scope link src 192.168.100.5 metric 100
+192.168.122.0/24 dev virbr1 proto kernel scope link src 192.168.122.1
+
+
+#3 iptables:
+Chain INPUT (policy ACCEPT)
+target     prot opt source               destination
+libvirt-host-in  all  --  0.0.0.0/0            0.0.0.0/0
+LIBVIRT_INP  all  --  0.0.0.0/0            0.0.0.0/0
+
+Chain FORWARD (policy ACCEPT)
+target     prot opt source               destination
+libvirt-in  all  --  0.0.0.0/0            0.0.0.0/0
+libvirt-out  all  --  0.0.0.0/0            0.0.0.0/0
+libvirt-in-post  all  --  0.0.0.0/0            0.0.0.0/0
+LIBVIRT_FWX  all  --  0.0.0.0/0            0.0.0.0/0
+LIBVIRT_FWI  all  --  0.0.0.0/0            0.0.0.0/0
+LIBVIRT_FWO  all  --  0.0.0.0/0            0.0.0.0/0
+
+Chain OUTPUT (policy ACCEPT)
+target     prot opt source               destination
+LIBVIRT_OUT  all  --  0.0.0.0/0            0.0.0.0/0
 
 Chain FI-vnet0 (1 references)
- pkts bytes target     prot opt in     out     source               destination         
-   26  2726 RETURN     tcp  --  *      *       0.0.0.0/0            192.168.100.4        tcp dpt:22 ctstate NEW,ESTABLISHED ctdir ORIGINAL
-   18  1224 RETURN     udp  --  *      *       192.168.122.63       8.8.8.8              udp dpt:53 ctstate NEW,ESTABLISHED ctdir ORIGINAL
-    0     0 RETURN     tcp  --  *      *       192.168.122.63       8.8.8.8              tcp dpt:53 ctstate NEW,ESTABLISHED ctdir ORIGINAL
-    1    60 RETURN     tcp  --  *      *       192.168.122.63       10.11.45.53          ctstate NEW,ESTABLISHED ctdir ORIGINAL
-    0     0 RETURN     tcp  --  *      *       0.0.0.0/0            10.11.45.53          ctstate ESTABLISHED ctdir REPLY
-    0     0 DROP       tcp  --  *      *       0.0.0.0/0            0.0.0.0/0            #conn src/32 > 0
-    0     0 RETURN     tcp  --  *      *       0.0.0.0/0            0.0.0.0/0            tcp dpt:80 ctstate NEW,ESTABLISHED ctdir ORIGINAL
-    0     0 RETURN     tcp  --  *      *       0.0.0.0/0            0.0.0.0/0            tcp dpt:443 ctstate NEW,ESTABLISHED ctdir ORIGINAL
-   36  2712 DROP       all  --  *      *       0.0.0.0/0            0.0.0.0/0           
+target     prot opt source               destination
+RETURN     tcp  --  0.0.0.0/0            192.168.100.4        tcp dpt:22 ctstate NEW,ESTABLISHED ctdir ORIGINAL
+RETURN     udp  --  192.168.122.198      8.8.8.8              udp dpt:53 ctstate NEW,ESTABLISHED ctdir ORIGINAL
+RETURN     tcp  --  192.168.122.198      8.8.8.8              tcp dpt:53 ctstate NEW,ESTABLISHED ctdir ORIGINAL
+RETURN     tcp  --  192.168.122.198      10.11.45.53          ctstate NEW,ESTABLISHED ctdir ORIGINAL
+RETURN     tcp  --  0.0.0.0/0            10.11.45.53          ctstate ESTABLISHED ctdir REPLY
+DROP       tcp  --  0.0.0.0/0            0.0.0.0/0            #conn src/32 > 0
+RETURN     tcp  --  0.0.0.0/0            0.0.0.0/0            tcp dpt:80 ctstate NEW,ESTABLISHED ctdir ORIGINAL
+RETURN     tcp  --  0.0.0.0/0            0.0.0.0/0            tcp dpt:443 ctstate NEW,ESTABLISHED ctdir ORIGINAL
+DROP       all  --  0.0.0.0/0            0.0.0.0/0
 
 Chain FO-vnet0 (1 references)
- pkts bytes target     prot opt in     out     source               destination         
-    0     0 ACCEPT     tcp  --  *      *       192.168.100.4        0.0.0.0/0            tcp spt:22 ctstate ESTABLISHED ctdir REPLY
-    0     0 ACCEPT     udp  --  *      *       8.8.8.8              192.168.122.63       udp spt:53 ctstate ESTABLISHED ctdir REPLY
-    0     0 ACCEPT     tcp  --  *      *       8.8.8.8              192.168.122.63       tcp spt:53 ctstate ESTABLISHED ctdir REPLY
-    0     0 ACCEPT     tcp  --  *      *       10.11.45.53          192.168.122.63       ctstate ESTABLISHED ctdir REPLY
-    0     0 ACCEPT     tcp  --  *      *       10.11.45.53          0.0.0.0/0            ctstate NEW,ESTABLISHED ctdir ORIGINAL
-    0     0 ACCEPT     tcp  --  *      *       0.0.0.0/0            0.0.0.0/0            tcp spt:80 ctstate ESTABLISHED ctdir REPLY
-    0     0 ACCEPT     tcp  --  *      *       0.0.0.0/0            0.0.0.0/0            tcp spt:443 ctstate ESTABLISHED ctdir REPLY
-    0     0 DROP       all  --  *      *       0.0.0.0/0            0.0.0.0/0           
+target     prot opt source               destination
+ACCEPT     tcp  --  192.168.100.4        0.0.0.0/0            tcp spt:22 ctstate ESTABLISHED ctdir REPLY
+ACCEPT     udp  --  8.8.8.8              192.168.122.198      udp spt:53 ctstate ESTABLISHED ctdir REPLY
+ACCEPT     tcp  --  8.8.8.8              192.168.122.198      tcp spt:53 ctstate ESTABLISHED ctdir REPLY
+ACCEPT     tcp  --  10.11.45.53          192.168.122.198      ctstate ESTABLISHED ctdir REPLY
+ACCEPT     tcp  --  10.11.45.53          0.0.0.0/0            ctstate NEW,ESTABLISHED ctdir ORIGINAL
+ACCEPT     tcp  --  0.0.0.0/0            0.0.0.0/0            tcp spt:80 ctstate ESTABLISHED ctdir REPLY
+ACCEPT     tcp  --  0.0.0.0/0            0.0.0.0/0            tcp spt:443 ctstate ESTABLISHED ctdir REPLY
+DROP       all  --  0.0.0.0/0            0.0.0.0/0
 
 Chain HI-vnet0 (1 references)
- pkts bytes target     prot opt in     out     source               destination         
-    0     0 RETURN     tcp  --  *      *       0.0.0.0/0            192.168.100.4        tcp dpt:22 ctstate NEW,ESTABLISHED ctdir ORIGINAL
-    0     0 RETURN     udp  --  *      *       192.168.122.63       8.8.8.8              udp dpt:53 ctstate NEW,ESTABLISHED ctdir ORIGINAL
-    0     0 RETURN     tcp  --  *      *       192.168.122.63       8.8.8.8              tcp dpt:53 ctstate NEW,ESTABLISHED ctdir ORIGINAL
-    0     0 RETURN     tcp  --  *      *       192.168.122.63       10.11.45.53          ctstate NEW,ESTABLISHED ctdir ORIGINAL
-    0     0 RETURN     tcp  --  *      *       0.0.0.0/0            10.11.45.53          ctstate ESTABLISHED ctdir REPLY
-    0     0 DROP       tcp  --  *      *       0.0.0.0/0            0.0.0.0/0            #conn src/32 > 0
-    0     0 RETURN     tcp  --  *      *       0.0.0.0/0            0.0.0.0/0            tcp dpt:80 ctstate NEW,ESTABLISHED ctdir ORIGINAL
-    0     0 RETURN     tcp  --  *      *       0.0.0.0/0            0.0.0.0/0            tcp dpt:443 ctstate NEW,ESTABLISHED ctdir ORIGINAL
-    3   204 DROP       all  --  *      *       0.0.0.0/0            0.0.0.0/0           
+target     prot opt source               destination
+RETURN     tcp  --  0.0.0.0/0            192.168.100.4        tcp dpt:22 ctstate NEW,ESTABLISHED ctdir ORIGINAL
+RETURN     udp  --  192.168.122.198      8.8.8.8              udp dpt:53 ctstate NEW,ESTABLISHED ctdir ORIGINAL
+RETURN     tcp  --  192.168.122.198      8.8.8.8              tcp dpt:53 ctstate NEW,ESTABLISHED ctdir ORIGINAL
+RETURN     tcp  --  192.168.122.198      10.11.45.53          ctstate NEW,ESTABLISHED ctdir ORIGINAL
+RETURN     tcp  --  0.0.0.0/0            10.11.45.53          ctstate ESTABLISHED ctdir REPLY
+DROP       tcp  --  0.0.0.0/0            0.0.0.0/0            #conn src/32 > 0
+RETURN     tcp  --  0.0.0.0/0            0.0.0.0/0            tcp dpt:80 ctstate NEW,ESTABLISHED ctdir ORIGINAL
+RETURN     tcp  --  0.0.0.0/0            0.0.0.0/0            tcp dpt:443 ctstate NEW,ESTABLISHED ctdir ORIGINAL
+DROP       all  --  0.0.0.0/0            0.0.0.0/0
 
 Chain LIBVIRT_FWI (1 references)
- pkts bytes target     prot opt in     out     source               destination         
-   41 10554 ACCEPT     all  --  *      virbr1  0.0.0.0/0            192.168.122.0/24     ctstate RELATED,ESTABLISHED
-    0     0 REJECT     all  --  *      virbr1  0.0.0.0/0            0.0.0.0/0            reject-with icmp-port-unreachable
+target     prot opt source               destination
+ACCEPT     all  --  0.0.0.0/0            192.168.122.0/24     ctstate RELATED,ESTABLISHED
+REJECT     all  --  0.0.0.0/0            0.0.0.0/0            reject-with icmp-port-unreachable
 
 Chain LIBVIRT_FWO (1 references)
- pkts bytes target     prot opt in     out     source               destination         
-    0     0 ACCEPT     all  --  virbr1 *       192.168.122.0/24     0.0.0.0/0           
-    0     0 REJECT     all  --  virbr1 *       0.0.0.0/0            0.0.0.0/0            reject-with icmp-port-unreachable
+target     prot opt source               destination
+ACCEPT     all  --  192.168.122.0/24     0.0.0.0/0
+REJECT     all  --  0.0.0.0/0            0.0.0.0/0            reject-with icmp-port-unreachable
 
 Chain LIBVIRT_FWX (1 references)
- pkts bytes target     prot opt in     out     source               destination         
-    0     0 ACCEPT     all  --  virbr1 virbr1  0.0.0.0/0            0.0.0.0/0           
+target     prot opt source               destination
+ACCEPT     all  --  0.0.0.0/0            0.0.0.0/0
 
 Chain LIBVIRT_INP (1 references)
- pkts bytes target     prot opt in     out     source               destination         
-    0     0 ACCEPT     udp  --  virbr1 *       0.0.0.0/0            0.0.0.0/0            udp dpt:53
-    0     0 ACCEPT     tcp  --  virbr1 *       0.0.0.0/0            0.0.0.0/0            tcp dpt:53
-    3   984 ACCEPT     udp  --  virbr1 *       0.0.0.0/0            0.0.0.0/0            udp dpt:67
-    0     0 ACCEPT     tcp  --  virbr1 *       0.0.0.0/0            0.0.0.0/0            tcp dpt:67
+target     prot opt source               destination
+ACCEPT     udp  --  0.0.0.0/0            0.0.0.0/0            udp dpt:53
+ACCEPT     tcp  --  0.0.0.0/0            0.0.0.0/0            tcp dpt:53
+ACCEPT     udp  --  0.0.0.0/0            0.0.0.0/0            udp dpt:67
+ACCEPT     tcp  --  0.0.0.0/0            0.0.0.0/0            tcp dpt:67
 
 Chain LIBVIRT_OUT (1 references)
- pkts bytes target     prot opt in     out     source               destination         
-    0     0 ACCEPT     udp  --  *      virbr1  0.0.0.0/0            0.0.0.0/0            udp dpt:53
-    0     0 ACCEPT     tcp  --  *      virbr1  0.0.0.0/0            0.0.0.0/0            tcp dpt:53
-    3   985 ACCEPT     udp  --  *      virbr1  0.0.0.0/0            0.0.0.0/0            udp dpt:68
-    0     0 ACCEPT     tcp  --  *      virbr1  0.0.0.0/0            0.0.0.0/0            tcp dpt:68
+target     prot opt source               destination
+ACCEPT     udp  --  0.0.0.0/0            0.0.0.0/0            udp dpt:53
+ACCEPT     tcp  --  0.0.0.0/0            0.0.0.0/0            tcp dpt:53
+ACCEPT     udp  --  0.0.0.0/0            0.0.0.0/0            udp dpt:68
+ACCEPT     tcp  --  0.0.0.0/0            0.0.0.0/0            tcp dpt:68
 
 Chain libvirt-host-in (1 references)
- pkts bytes target     prot opt in     out     source               destination         
-    3   204 HI-vnet0   all  --  *      *       0.0.0.0/0            0.0.0.0/0           [goto]  PHYSDEV match --physdev-in vnet0
+target     prot opt source               destination
+HI-vnet0   all  --  0.0.0.0/0            0.0.0.0/0           [goto]  PHYSDEV match --physdev-in vnet0
 
 Chain libvirt-in (1 references)
- pkts bytes target     prot opt in     out     source               destination         
-   81  6722 FI-vnet0   all  --  *      *       0.0.0.0/0            0.0.0.0/0           [goto]  PHYSDEV match --physdev-in vnet0
+target     prot opt source               destination
+FI-vnet0   all  --  0.0.0.0/0            0.0.0.0/0           [goto]  PHYSDEV match --physdev-in vnet0
 
 Chain libvirt-in-post (1 references)
- pkts bytes target     prot opt in     out     source               destination         
-   45  4010 ACCEPT     all  --  *      *       0.0.0.0/0            0.0.0.0/0            PHYSDEV match --physdev-in vnet0
+target     prot opt source               destination
+ACCEPT     all  --  0.0.0.0/0            0.0.0.0/0            PHYSDEV match --physdev-in vnet0
 
 Chain libvirt-out (1 references)
- pkts bytes target     prot opt in     out     source               destination         
-    0     0 FO-vnet0   all  --  *      *       0.0.0.0/0            0.0.0.0/0           [goto]  PHYSDEV match --physdev-out vnet0 --physdev-is-bridged
+target     prot opt source               destination
+FO-vnet0   all  --  0.0.0.0/0            0.0.0.0/0           [goto]  PHYSDEV match --physdev-out vnet0 --physdev-is-bridged
+
+# iptable rules:
+
+-P INPUT ACCEPT
+-P FORWARD ACCEPT
+-P OUTPUT ACCEPT
+-N FI-vnet0
+-N FO-vnet0
+-N HI-vnet0
+-N LIBVIRT_FWI
+-N LIBVIRT_FWO
+-N LIBVIRT_FWX
+-N LIBVIRT_INP
+-N LIBVIRT_OUT
+-N libvirt-host-in
+-N libvirt-in
+-N libvirt-in-post
+-N libvirt-out
+-A INPUT -j libvirt-host-in
+-A INPUT -j LIBVIRT_INP
+-A FORWARD -j libvirt-in
+-A FORWARD -j libvirt-out
+-A FORWARD -j libvirt-in-post
+-A FORWARD -j LIBVIRT_FWX
+-A FORWARD -j LIBVIRT_FWI
+-A FORWARD -j LIBVIRT_FWO
+-A OUTPUT -j LIBVIRT_OUT
+-A FI-vnet0 -d 192.168.100.4/32 -p tcp -m tcp --dport 22 -m conntrack --ctstate NEW,ESTABLISHED -m conntrack --ctdir ORIGINAL -j RETURN
+-A FI-vnet0 -s 192.168.122.198/32 -d 8.8.8.8/32 -p udp -m udp --dport 53 -m conntrack --ctstate NEW,ESTABLISHED -m conntrack --ctdir ORIGINAL -j RETURN
+-A FI-vnet0 -s 192.168.122.198/32 -d 8.8.8.8/32 -p tcp -m tcp --dport 53 -m conntrack --ctstate NEW,ESTABLISHED -m conntrack --ctdir ORIGINAL -j RETURN
+-A FI-vnet0 -s 192.168.122.198/32 -d 10.11.45.53/32 -p tcp -m conntrack --ctstate NEW,ESTABLISHED -m conntrack --ctdir ORIGINAL -j RETURN
+-A FI-vnet0 -d 10.11.45.53/32 -p tcp -m conntrack --ctstate ESTABLISHED -m conntrack --ctdir REPLY -j RETURN
+-A FI-vnet0 -p tcp -m connlimit --connlimit-above 0 --connlimit-mask 32 --connlimit-saddr -j DROP
+-A FI-vnet0 -p tcp -m tcp --dport 80 -m conntrack --ctstate NEW,ESTABLISHED -m conntrack --ctdir ORIGINAL -j RETURN
+-A FI-vnet0 -p tcp -m tcp --dport 443 -m conntrack --ctstate NEW,ESTABLISHED -m conntrack --ctdir ORIGINAL -j RETURN
+-A FI-vnet0 -j DROP
+-A FO-vnet0 -s 192.168.100.4/32 -p tcp -m tcp --sport 22 -m conntrack --ctstate ESTABLISHED -m conntrack --ctdir REPLY -j ACCEPT
+-A FO-vnet0 -s 8.8.8.8/32 -d 192.168.122.198/32 -p udp -m udp --sport 53 -m conntrack --ctstate ESTABLISHED -m conntrack --ctdir REPLY -j ACCEPT
+-A FO-vnet0 -s 8.8.8.8/32 -d 192.168.122.198/32 -p tcp -m tcp --sport 53 -m conntrack --ctstate ESTABLISHED -m conntrack --ctdir REPLY -j ACCEPT
+-A FO-vnet0 -s 10.11.45.53/32 -d 192.168.122.198/32 -p tcp -m conntrack --ctstate ESTABLISHED -m conntrack --ctdir REPLY -j ACCEPT
+-A FO-vnet0 -s 10.11.45.53/32 -p tcp -m conntrack --ctstate NEW,ESTABLISHED -m conntrack --ctdir ORIGINAL -j ACCEPT
+-A FO-vnet0 -p tcp -m tcp --sport 80 -m conntrack --ctstate ESTABLISHED -m conntrack --ctdir REPLY -j ACCEPT
+-A FO-vnet0 -p tcp -m tcp --sport 443 -m conntrack --ctstate ESTABLISHED -m conntrack --ctdir REPLY -j ACCEPT
+-A FO-vnet0 -j DROP
+-A HI-vnet0 -d 192.168.100.4/32 -p tcp -m tcp --dport 22 -m conntrack --ctstate NEW,ESTABLISHED -m conntrack --ctdir ORIGINAL -j RETURN
+-A HI-vnet0 -s 192.168.122.198/32 -d 8.8.8.8/32 -p udp -m udp --dport 53 -m conntrack --ctstate NEW,ESTABLISHED -m conntrack --ctdir ORIGINAL -j RETURN
+-A HI-vnet0 -s 192.168.122.198/32 -d 8.8.8.8/32 -p tcp -m tcp --dport 53 -m conntrack --ctstate NEW,ESTABLISHED -m conntrack --ctdir ORIGINAL -j RETURN
+-A HI-vnet0 -s 192.168.122.198/32 -d 10.11.45.53/32 -p tcp -m conntrack --ctstate NEW,ESTABLISHED -m conntrack --ctdir ORIGINAL -j RETURN
+-A HI-vnet0 -d 10.11.45.53/32 -p tcp -m conntrack --ctstate ESTABLISHED -m conntrack --ctdir REPLY -j RETURN
+-A HI-vnet0 -p tcp -m connlimit --connlimit-above 0 --connlimit-mask 32 --connlimit-saddr -j DROP
+-A HI-vnet0 -p tcp -m tcp --dport 80 -m conntrack --ctstate NEW,ESTABLISHED -m conntrack --ctdir ORIGINAL -j RETURN
+-A HI-vnet0 -p tcp -m tcp --dport 443 -m conntrack --ctstate NEW,ESTABLISHED -m conntrack --ctdir ORIGINAL -j RETURN
+-A HI-vnet0 -j DROP
+-A LIBVIRT_FWI -d 192.168.122.0/24 -o virbr1 -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+-A LIBVIRT_FWI -o virbr1 -j REJECT --reject-with icmp-port-unreachable
+-A LIBVIRT_FWO -s 192.168.122.0/24 -i virbr1 -j ACCEPT
+-A LIBVIRT_FWO -i virbr1 -j REJECT --reject-with icmp-port-unreachable
+-A LIBVIRT_FWX -i virbr1 -o virbr1 -j ACCEPT
+-A LIBVIRT_INP -i virbr1 -p udp -m udp --dport 53 -j ACCEPT
+-A LIBVIRT_INP -i virbr1 -p tcp -m tcp --dport 53 -j ACCEPT
+-A LIBVIRT_INP -i virbr1 -p udp -m udp --dport 67 -j ACCEPT
+-A LIBVIRT_INP -i virbr1 -p tcp -m tcp --dport 67 -j ACCEPT
+-A LIBVIRT_OUT -o virbr1 -p udp -m udp --dport 53 -j ACCEPT
+-A LIBVIRT_OUT -o virbr1 -p tcp -m tcp --dport 53 -j ACCEPT
+-A LIBVIRT_OUT -o virbr1 -p udp -m udp --dport 68 -j ACCEPT
+-A LIBVIRT_OUT -o virbr1 -p tcp -m tcp --dport 68 -j ACCEPT
+-A libvirt-host-in -m physdev --physdev-in vnet0 -g HI-vnet0
+-A libvirt-in -m physdev --physdev-in vnet0 -g FI-vnet0
+-A libvirt-in-post -m physdev --physdev-in vnet0 -j ACCEPT
+-A libvirt-out -m physdev --physdev-out vnet0 --physdev-is-bridged -g FO-vnet0
