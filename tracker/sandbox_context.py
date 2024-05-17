@@ -42,7 +42,7 @@ class SandboxContext:
                  port_burst,
                  port_max_conn,
                  allowed_tcp_ports,
-                 simulated_server):
+                 allowed_server_ip):
         #  self.loop = loop
         self.event_imp = None
         self.conn = None
@@ -61,7 +61,9 @@ class SandboxContext:
         self.port_burst = port_burst
         self.port_max_conn = port_max_conn
         self.allowed_tcp_ports = allowed_tcp_ports
-        self.simulated_server = simulated_server
+        # rate-limiting mode: 0.0.0.0 means external server
+        # block mode: configure it to simulated server
+        self.allowed_server_ip = allowed_server_ip
         self.sandbox_registry = \
             {
                 "ARM": [
@@ -145,8 +147,11 @@ class SandboxContext:
         return (self.image_base + os.sep + fs_src,
                 self.image_dir + os.sep + fs_dst)
 
-    def get_simulated_server(self):
-        return self.simulated_server
+    def get_redirect_server(self):
+        return self.allowed_server_ip
+
+    def get_allowed_tcp_ports(self):
+        return self.allowed_tcp_ports
 
     def get_script(self, name):
         if name == SandboxScript.PREPARE_FS:
@@ -197,12 +202,14 @@ class SandboxContext:
                 "sandbox_ip": ["//filterref/parameter[@name='SANDBOX_IP']", "value"],
                 "cnc_ip": ["//filterref/parameter[@name='CNC_IP']", "value"],
                 "allowed_tcp_ports": ["//filterref/parameter[@name='TCP_PORT']", "value"],
+                "allowed_server_ip": ["//filterref/parameter[@name='SERVER_IP']", "value"],
                 "conn_limit": ["//filterref/parameter[@name='CONN_LIMIT']", "value"]
             }
 
         if filter_name == SandboxNWFilter.DEFAULT:
             del para_to_check["cnc_ip"]
             del para_to_check["allowed_tcp_ports"]
+            del para_to_check["allowed_server_ip"]
             del para_to_check["conn_limit"]
         elif filter_name == SandboxNWFilter.CNC:
             pass
@@ -246,7 +253,8 @@ class SandboxContext:
 
     def apply_nwfilter(self, filter_name, **kwargs):
         binding_xml = self._get_nwfilter_binding(filter_name,
-                                                 allowed_tcp_ports=self.allowed_tcp_ports,
+                                                 allowed_tcp_ports=self.allowed_tcp_ports.split(','),
+                                                 allowed_server_ip=self.allowed_server_ip,
                                                  conn_limit=self.port_max_conn,
                                                  **kwargs)
         if binding_xml == "":

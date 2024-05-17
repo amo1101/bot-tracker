@@ -15,6 +15,6 @@
 
   <!-- allow or drop on tcp ports -->
   <rule action='accept' direction='out' priority='900'>
-    <tcp dstportstart='$TCP_PORT'/>
+    <tcp dstportstart='$TCP_PORT' dstipaddr='$SERVER_IP'/>
   </rule>
 </filter>

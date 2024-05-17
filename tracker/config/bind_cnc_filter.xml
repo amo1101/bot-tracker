@@ -11,6 +11,7 @@
     <parameter name='CNC_IP' value='192.168.122.2'/>
     <parameter name='CONN_LIMIT' value='0'/>
     <parameter name='TCP_PORT' value='0'/>
+    <parameter name='SERVER_IP' value='0'/>
   </filterref>
 </filterbinding>
 

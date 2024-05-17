@@ -11,3 +11,9 @@ done
 virsh nwfilter-undefine sandbox-default-filter
 virsh nwfilter-undefine sandbox-cnc-filter
 virsh net-destroy mynet
+
+progs=$(ps -ef | grep 'python3 run.py' | awk '{print $2}' | head -n 3)
+for prog in $progs; do
+    kill -9 $prog
+done
+

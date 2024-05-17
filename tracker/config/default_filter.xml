@@ -5,7 +5,7 @@
 
   <!-- allow scp to malware repo vm -->
   <rule action='accept' direction='out' priority='600'>
-    <tcp dstportstart='22' dstipaddr='$MAL_REPO_IP'/>
+    <tcp dstportstart='22' srcipaddr='$SANDBOX_IP' dstipaddr='$MAL_REPO_IP'/>
   </rule>
 
   <!-- enable outgoing DNS lookups using UDP -->
