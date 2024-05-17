@@ -202,14 +202,16 @@ class SandboxContext:
                 "sandbox_ip": ["//filterref/parameter[@name='SANDBOX_IP']", "value"],
                 "cnc_ip": ["//filterref/parameter[@name='CNC_IP']", "value"],
                 "allowed_tcp_ports": ["//filterref/parameter[@name='TCP_PORT']", "value"],
-                "allowed_server_ip": ["//filterref/parameter[@name='SERVER_IP']", "value"],
+                "allowed_server_ip_s": ["//filterref/parameter[@name='SERVER_IP_S']", "value"],
+                "allowed_server_ip_e": ["//filterref/parameter[@name='SERVER_IP_E']", "value"],
                 "conn_limit": ["//filterref/parameter[@name='CONN_LIMIT']", "value"]
             }
 
         if filter_name == SandboxNWFilter.DEFAULT:
             del para_to_check["cnc_ip"]
             del para_to_check["allowed_tcp_ports"]
-            del para_to_check["allowed_server_ip"]
+            del para_to_check["allowed_server_ip_s"]
+            del para_to_check["allowed_server_ip_e"]
             del para_to_check["conn_limit"]
         elif filter_name == SandboxNWFilter.CNC:
             pass
@@ -252,9 +254,16 @@ class SandboxContext:
         return self.conn.createXML(sandbox_xml, libvirt.VIR_DOMAIN_START_VALIDATE)
 
     def apply_nwfilter(self, filter_name, **kwargs):
+        tcp_ports = self.allowed_tcp_ports.split(',')
+        server_ip_s = ['0.0.0.0'] * len(tcp_ports)
+        server_ip_e = ['255.255.255.255'] * len(tcp_ports)
+        if self.allowed_server_ip != '0.0.0.0':
+            server_ip_s[:] = [self.allowed_server_ip] * len(tcp_ports)
+            server_ip_e[:] = [self.allowed_server_ip] * len(tcp_ports)
         binding_xml = self._get_nwfilter_binding(filter_name,
-                                                 allowed_tcp_ports=self.allowed_tcp_ports.split(','),
-                                                 allowed_server_ip=self.allowed_server_ip,
+                                                 allowed_tcp_ports=tcp_ports,
+                                                 allowed_server_ip_s=server_ip_s,
+                                                 allowed_server_ip_e=server_ip_e,
                                                  conn_limit=self.port_max_conn,
                                                  **kwargs)
         if binding_xml == "":
