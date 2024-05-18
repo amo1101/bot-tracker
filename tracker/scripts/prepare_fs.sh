@@ -11,6 +11,12 @@ MOUNT_FOLDER=`mktemp -d`
 chmod 755 $FS_PATH
 mount $FS_PATH $MOUNT_FOLDER
 
+#install simulated server ca cert
+cp -rf $BOT_DIR/polarproxy-pem.crt $MOUNT_FOLDER/etc/ssl/certs/
+HASH=`openssl x509 -hash -noout -in $BOT_DIR/polarproxy-pem.crt`.0
+ln -s $MOUNT_FOLDER/etc/ssl/certs/polarproxy-pem.crt $MOUNT_FOLDER/etc/ssl/certs/$HASH
+echo 'export SSL_CERT_DIR=/etc/ssl/certs' > $MOUNT_FOLDER/root/.profile
+
 cat > $MOUNT_FOLDER/etc/run_bot.sh << EOF
 #!/bin/sh
 sleep 30
