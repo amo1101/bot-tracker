@@ -1,14 +1,12 @@
 import asyncio
 import libvirt
 import libvirtaio
-import libxml2
 import os
 from log import TaskLogger
 import time
 import sys
 import configparser
 from sandbox_context import SandboxContext
-from sandbox_context import SandboxNWFilter
 from sandbox import Sandbox
 from scheduler import Scheduler
 import cmd_handler
@@ -69,15 +67,6 @@ async def async_main(arguments=None):
     sandbox_ctx.destroy()
 
 
-def test():
-    #  pcap = CUR_DIR + os.sep + '../test/capture.pcap'
-    pcap = CUR_DIR + os.sep + 'log/2024-04-01-00-00-00-test-bot/capture.pcap'
-    own_ip = '192.168.122.82'
-    cnc_ip = '10.11.45.60'
-    cnc_port = '22'
-    test_cnc_analyzer(pcap, own_ip)
-    test_att_analyzer(pcap, cnc_ip, cnc_port, own_ip)
-
 async def main_task():
     task = asyncio.create_task(async_main(), name="t_async_main")
     await task
@@ -86,5 +75,4 @@ if __name__ == "__main__":
     try:
         asyncio.run(main_task(), debug=True)
     except KeyboardInterrupt:
-        l.debug('Interrupted by user')
-    #  test()
+        l.info('Interrupted by user')

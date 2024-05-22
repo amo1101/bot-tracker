@@ -1,16 +1,12 @@
 import asyncio
 from enum import Enum
-import uuid
 from datetime import datetime, timedelta
 from bot_runner import *
 from log import TaskLogger
-
-CUR_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_MODULE_DIR = os.path.dirname(CUR_DIR) + os.sep + 'db'
-sys.path.append(DB_MODULE_DIR)
 from db_store import *
 
 l = TaskLogger(__name__)
+
 SCHEDULER_MODE_MANNUAL = 0
 SCHEDULER_MODE_AUTO = 1
 
@@ -29,20 +25,16 @@ class Scheduler:
                  cnc_probing_duration,
                  sandbox_ctx,
                  db_store):
-        self.tracker_id = tracker_id  # TODO: bot migration will be done via CLI
+        self.tracker_id = tracker_id  # left for supporting multiple trackers.
         self.bot_repo_ip = bot_repo_ip
         self.bot_repo_user = bot_repo_user
         self.bot_repo_path = bot_repo_path
-        self.mode = mode  # 0 mean manual mode, 1 means auto mode
+        self.mode = mode
         self.checkpoint_interval = checkpoint_interval
         self.sandbox_vcpu_quota = sandbox_vcpu_quota
         self.max_sandbox_num = max_sandbox_num
         self.max_dormant_hours = max_dormant_duration
-        # TODO
-        self.max_dormant_duration = timedelta(days=0, hours=self.max_dormant_hours, minutes=0,
-                                              seconds=0)
-        self.max_observe_duration = timedelta(days=7, hours=0, minutes=0,
-                                              seconds=0)
+        self.max_dormant_duration = timedelta(hours=self.max_dormant_hours)
         self.max_analyzing_workers = max_packet_analyzing_workers
         self.cnc_probing_duration = cnc_probing_duration
         self.sandbox_cxt = sandbox_ctx
@@ -56,7 +48,7 @@ class Scheduler:
             if not t.cancelled():
                 t.cancel()
             else:
-                l.debug(f'task {t.get_name()} has been cancelled')
+                l.debug(f'Task {t.get_name()} has been cancelled')
         if BotRunner.analyzer_executor is not None:
             BotRunner.analyzer_executor.shutdown()
 
@@ -64,15 +56,15 @@ class Scheduler:
         for t, r in self.bot_runners.items():
             dd = r.dormant_duration()
             od = r.observe_duration()
-            l.debug(f"bot [{r.bot_info.tag}]: \ndormant_duration:{dd}\nobserve_duration:{od}")
+            l.info(f"Bot [{r.bot_info.tag}]: \ndormant_duration:{dd}\nobserve_duration:{od}")
             if dd > self.max_dormant_duration:
-                l.debug(f"Cancelling running bot [{r.bot_info.tag}]")
+                l.info(f"Cancelling running bot [{r.bot_info.tag}]")
                 r.notify_unstage = True
                 t.cancel()
 
     async def _schedule_bots(self, status_list=None, bot_id=None, count=None):
         curr_runners_num = len(self.bot_runners)
-        l.debug("Num of running bots: %d", curr_runners_num)
+        l.info("Num of running bots: %d", curr_runners_num)
 
         if curr_runners_num >= self.max_sandbox_num:
             l.warning('No avaiable slot for new bot.')
@@ -81,7 +73,7 @@ class Scheduler:
         def task_done_cb(t):
             if t in self.bot_runners:
                 del self.bot_runners[t]
-                l.debug('task done removed')
+                l.debug('Task done removed')
 
         bots = await self.db_store.load_bot_info(status_list, bot_id, count)
         for bot in bots:
@@ -93,7 +85,7 @@ class Scheduler:
                     break
 
             if already_running:
-                l.warning('bot %s already running.', bot.bot_id)
+                l.warning('Bot %s already running.', bot.bot_id)
                 continue
 
             if curr_runners_num >= self.max_sandbox_num:
@@ -113,12 +105,12 @@ class Scheduler:
                                        name=f't_{bot.tag}')
             self.bot_runners[task] = bot_runner
             task.add_done_callback(task_done_cb)
-            l.debug(f"bot [{bot.tag}] scheduled")
+            l.info(f"Bot [{bot.tag}] scheduled")
             curr_runners_num += 1
 
     async def _stage_bots(self):
         await self._schedule_bots([BotStatus.UNKNOWN.value,
-                                   BotStatus.INTERRUPTED.value], None, slots)
+                                   BotStatus.INTERRUPTED.value])
 
     async def _update_bot_info(self):
         for _, r in self.bot_runners.items():
@@ -127,7 +119,6 @@ class Scheduler:
     async def checkpoint(self):
         try:
             while True:
-                #  l.debug('Scheduler checkpoint...')
                 if self.mode == SCHEDULER_MODE_AUTO:
                     self._unstage_bots()
                     await self._stage_bots()
@@ -136,15 +127,12 @@ class Scheduler:
         except asyncio.CancelledError:
             l.warning("Scheduler cancelled")
         finally:
-            # TODO: we do not need to cancel tasks when interrupted, asyncio
-            # handle it
-            #  self.destroy()
             pass
 
     # following APIs are for manual scheduling
     async def start_bot(self, bot_id):
         if self.mode == SCHEDULER_MODE_AUTO:
-            l.debug('start_bot command not supported in auto mode')
+            l.warning('start_bot command not supported in auto mode')
             return False
 
         await self._schedule_bots(None, bot_id)
@@ -152,10 +140,11 @@ class Scheduler:
 
     def stop_bot(self, bot_id):
         if self.mode == SCHEDULER_MODE_AUTO:
-            l.debug('stop_bot command not supported in auto mode')
+            l.warning('stop_bot command not supported in auto mode')
             return False
 
         for t, r in self.bot_runners.items():
+            # bot_id is None means stop all bots
             if r.bot_info.bot_id == bot_id or bot_id == None:
                 t.cancel()
                 if bot_id is not None:
@@ -189,7 +178,7 @@ class Scheduler:
             self.max_sandbox_num = int(kwargs['max_sandbox_num'])
         if 'max_dormant_hours' in kwargs:
             self.max_dormant_hours = int(kwargs['max_dormant_hours'])
-            # TODO update dormant duration
+            self.max_dormant_duration = timedelta(hours=self.max_dormant_hours)
         if 'cnc_probing_duration' in kwargs:
             self.cnc_probing_duration = int(kwargs['cnc_probing_duration'])
 

@@ -1,12 +1,10 @@
 import asyncio
 import libvirt
-import libvirtaio
 import os
 import sys
 import signal
 from log import TaskLogger
 from datetime import datetime, timedelta
-#  from aiomultiprocess import Pool
 from concurrent.futures import ProcessPoolExecutor
 from cnc_analyzer import *
 from attack_analyzer import *
@@ -84,10 +82,9 @@ class BotRunner:
 
     async def _find_cnc(self, own_ip, excluded_ips):
         # check if cnc already exist
-        # TODO: maybe we should use (ip: port) to identify a unique CnC?
         self.cnc_info = await self.db_store.load_cnc_info(self.bot_info.bot_id)
         if len(self.cnc_info) > 0:
-            l.debug('CnC already exist.')
+            l.info('CnC already exist.')
             return
 
         if self.cnc_analyzer is None:
@@ -112,10 +109,10 @@ class BotRunner:
                                    name="t_find_cnc")
         await task
 
-    # TODO: now only monitor cnc status
+    # TODO: now only monitor cnc status, will add online attack monitoring
     async def _handle_attack_report(self, report):
         cnc_status = report['cnc_status']
-        l.debug(f"get cnc status report: {report}")
+        l.debug(f"Get cnc status report: {report}")
         attack_time = datetime.now()
         if cnc_status == CnCStatus.ALIVE.value:
             await self.update_bot_info(BotStatus.ACTIVE)
@@ -159,9 +156,9 @@ class BotRunner:
     async def update_bot_info(self, status=None):
         if status is None:
             # merely update timing info
-            self.bot_info.observe_duration += self.observe_duration()
+            self.bot_info.observe_duration = self.observe_duration()
             if self.bot_info.status == BotStatus.DORMANT.value:
-                self.bot_info.dormant_duration += self.dormant_duration()
+                self.bot_info.dormant_duration = self.dormant_duration()
 
         if status == BotStatus.STAGED:
             self.bot_info.status = BotStatus.STAGED.value
@@ -233,14 +230,13 @@ class BotRunner:
                         domain = cnc_info[1]['DNS_Name']
 
                     # TODO: skip asn and location here
-                    # TODO: we can support multiple CnCs, but now only use 1
-                    # TODO: domain should be fetched from cnc_info
+                    # we can support multiple CnCs, but now only use 1
                     self.cnc_info.append(CnCInfo(ip_port[0], int(ip_port[1]),
                                                  self.bot_info.bot_id, domain, 0, ''))
                     l.debug(f"Find CnC:{ip_port[0]}:{ip_port[1]}")
 
                     # Check if CnC already existed
-                    #  exists = await self.db_store.cnc_exists(ip_port[0])
+                    #  exists = await self.db_store.cnc_exists(ip_port[0], int(ip_port[1]))
                     #  if exists:
                         #  self.notify_dup = True
                         #  await self.destroy()
@@ -270,7 +266,7 @@ class BotRunner:
                                        own_ip)
 
         except asyncio.CancelledError:
-            l.debug("Bot runner cancelled")
+            l.info("Bot runner cancelled")
             await self.destroy()
 
     async def destroy(self):
@@ -278,7 +274,7 @@ class BotRunner:
             if self.destroyed:
                 l.debug("Bot runner has been destroyed")
                 return
-            l.debug("Bot runner destroyed")
+            l.info("Bot runner destroyed")
             await self.update_bot_info(BotStatus.INTERRUPTED)
             self.sandbox.fetch_log(self.log_dir)
 
@@ -290,8 +286,8 @@ class BotRunner:
                 await self.live_capture.close_async()
             self.destroyed = True
         except RuntimeError:
-            l.debug('runtime error occurred')
+            l.debug('Runtime error occurred')
         except asyncio.CancelledError:
-            l.debug('cancelled error occurred')
+            l.debug('Cancelled error occurred')
         finally:
             pass

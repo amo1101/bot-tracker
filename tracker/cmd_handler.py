@@ -1,14 +1,10 @@
 import asyncio
-import os
 from log import TaskLogger
 import time
-import sys
-from sandbox_context import SandboxContext
 from scheduler import Scheduler
 from db_store import *
 from cli import parse_cmd
 
-CUR_DIR = os.path.dirname(os.path.abspath(__file__))
 
 l = TaskLogger(__name__)
 
@@ -195,7 +191,7 @@ async def handle_client(reader, writer):
         l.debug(f'{cmd} : {params}')
         resp = ""
         if cmd not in cmd_registry:
-            resp = f"command {cmd} not supported"
+            resp = f"Command {cmd} not supported"
         else:
             handler = cmd_registry[cmd]
             resp = await handler(params)
@@ -215,7 +211,7 @@ async def start_server():
         handle_client_task, '127.0.0.1', 8888)
 
     addr = server.sockets[0].getsockname()
-    l.debug(f'Command server on {addr}...')
+    l.info(f'Command server on {addr}...')
 
     async with server:
         await server.serve_forever()

@@ -243,7 +243,7 @@ class DBStore:
     async def add_cnc_info(self, cnc_info):
         await self._insert('cnc_info', cnc_info)
 
-    async def load_cnc_info(self, bot_id=None, ip=None):
+    async def load_cnc_info(self, bot_id=None, ip=None, port=None):
         cnc_info = []
         para = ()
 
@@ -255,6 +255,9 @@ class DBStore:
         if ip is not None:
             para += (ip,)
             filters.append('ip = %s')
+        if port is not None:
+            para += (port,)
+            filters.append('port = %s')
 
         filter_str = ' AND '.join(f for f in filters)
         if len(filters) > 0:
@@ -271,8 +274,8 @@ class DBStore:
                     cnc_info.append(CnCInfo(*record))
         return cnc_info
 
-    async def cnc_exists(self, ip):
-        cnc = await self.load_cnc_info(None, ip)
+    async def cnc_exists(self, ip, port):
+        cnc = await self.load_cnc_info(None, ip, port)
         return len(cnc) != 0
 
     async def add_cnc_stat(self, cnc_stat):
@@ -380,12 +383,12 @@ async def test_db_3():
 async def test_db_4():
     db_store = DBStore()
     await db_store.open()
-    check = await db_store.cnc_exists('109.123.1.1')
+    check = await db_store.cnc_exists('109.123.1.1',2323)
     print(f'cnc 109.123.1.1 exists? {check}')
     c = CnCInfo('109.123.1.1', 2323, '00000001', 'example.com', 0, 'China')
     print(f'add cncinfo:\n{repr(c)}\n')
     await db_store.add_cnc_info(c)
-    check1 = await db_store.cnc_exists('109.123.1.1')
+    check1 = await db_store.cnc_exists('109.123.1.1',2323)
     print(f'cnc 109.123.1.1 exists? {check1}')
     c1 = CnCInfo('109.123.1.2', 2323, '00000011', 'sina.com', 0, 'China')
     print(f'add cncinfo:\n{repr(c1)}\n')

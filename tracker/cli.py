@@ -162,20 +162,20 @@ def parse_cmd(command):
 
 def check_args(cmd, params):
     if cmd not in cmd_config:
-        print('command not supported')
+        print('Command not supported')
         return False
 
     argc = len(params)
     if argc < cmd_config[cmd][0][0] or argc > cmd_config[cmd][0][1]:
-        print('command parameter error')
+        print('Command parameter error')
         return False
 
     for k, v in params.items():
         if k not in cmd_config[cmd][1]:
-            print('command parameter key error')
+            print('Command parameter key error')
             return False
         if not cmd_config[cmd][1][k](v):
-            print('command parameter value error')
+            print('Command parameter value error')
             return False
 
     return True
