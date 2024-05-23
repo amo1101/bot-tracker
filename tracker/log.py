@@ -1,8 +1,6 @@
 import asyncio
-import os
 import logging
-import time
-import sys
+import os
 from datetime import datetime
 
 CUR_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -24,6 +22,7 @@ class TaskStreamHandler(logging.StreamHandler):
             pass
         super().emit(record)
 
+
 class TaskFileHandler(logging.FileHandler):
     def __init__(self, filename):
         super().__init__(filename)
@@ -44,9 +43,9 @@ class TaskLogger:
     _log_root = ''
     _logger = logging.getLogger(_log_root)
     #  _handler = TaskStreamHandler()
-    _log_file = CUR_DIR + os.sep +\
-                'bot-tracker-' +\
-                datetime.now().strftime('%Y-%m-%d-%H-%M-%S') +\
+    _log_file = CUR_DIR + os.sep + \
+                'bot-tracker-' + \
+                datetime.now().strftime('%Y-%m-%d-%H-%M-%S') + \
                 '.log'
     _handler = TaskFileHandler(_log_file)
     _handler.setFormatter(logging.Formatter(fmt=log_format))

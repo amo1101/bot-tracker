@@ -1,22 +1,14 @@
 import asyncio
-import libvirt
-import libvirtaio
-import os
-from log import TaskLogger
-import time
-import sys
 import configparser
-from sandbox_context import SandboxContext
-from sandbox import Sandbox
-from scheduler import Scheduler
 import cmd_handler
+import os
 from db_store import *
-from cnc_analyzer import *
-from attack_analyzer import *
+from sandbox_context import SandboxContext
+from scheduler import Scheduler
 
 CUR_DIR = os.path.dirname(os.path.abspath(__file__))
 
-l = TaskLogger(__name__)
+l: TaskLogger = TaskLogger(__name__)
 
 
 async def async_main(arguments=None):

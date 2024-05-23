@@ -1,12 +1,11 @@
-import os
-import sys
-import psycopg
-from enum import Enum
-from datetime import datetime, timezone, timedelta
 from dataclasses import dataclass, is_dataclass, fields, astuple
+from datetime import datetime, timedelta
+from enum import Enum
+import psycopg
+
 from log import TaskLogger
 
-l = TaskLogger(__name__)
+l: TaskLogger = TaskLogger(__name__)
 
 INIT_TIME_STAMP = datetime(1970, 1, 1, 0, 0, 0)
 INIT_INTERVAL = timedelta(seconds=0)
@@ -19,7 +18,7 @@ INIT_INTERVAL = timedelta(seconds=0)
 # interrupted: observing is interrupted, can be resumed
 # unstaged: observing is stopped due to maximum dormant period reached
 #           auto scheduling mode only
-# error: some error status need to be futher checked manually
+# error: some error status need to be further checked manually
 # duplicate: bot with the same CnC already exist, no need to observe
 class BotStatus(Enum):
     UNKNOWN = "unknown"
@@ -54,19 +53,19 @@ class CnCInfo:
 
     def __repr__(self):
         return f'{"ip":<8}: {self.ip}\n' + \
-               f'{"port":<8}: {self.port}\n' + \
-               f'{"bot_id":<8}: {self.bot_id}\n' + \
-               f'{"domain":<8}: {self.domain}\n' + \
-               f'{"asn":<8}: {self.asn}\n' + \
-               f'{"location":<8}: {self.location}'
+            f'{"port":<8}: {self.port}\n' + \
+            f'{"bot_id":<8}: {self.bot_id}\n' + \
+            f'{"domain":<8}: {self.domain}\n' + \
+            f'{"asn":<8}: {self.asn}\n' + \
+            f'{"location":<8}: {self.location}'
 
 
 # dormant_at:
 #   status -> active, reset to init value
 #   status -> dormant, set the timestamp
-# dormant_duration: always accure, even after resuming from interrupted
+# dormant_duration: always accrue, even after resuming from interrupted
 # observe_at: set the timestamp when start observing after CnC is found
-# observer_duration: always accure, even after resuming from interrupted
+# observer_duration: always accrue, even after resuming from interrupted
 @dataclass
 class BotInfo:
     bot_id: str
@@ -93,22 +92,26 @@ class BotInfo:
     def tag(self):
         return self.first_seen.strftime('%Y_%m_%d_%H_%M_%S') + '_' + self.family + '_' + self.bot_id[:8]
 
+    @property
+    def arch_spec(self):
+        return self.arch + '_' + str(self.bitness) + '_' + self.endianness
+
     def __repr__(self):
-        return f'{"bot_id":<16}: {self.bot_id}\n' +\
-                f'{"family":<16}: {self.family}\n' +\
-                f'{"first_seen":<16}: {self.first_seen.strftime("%Y-%m-%d %H:%M:%S")}\n' +\
-                f'{"last_seen":<16}: {self.last_seen.strftime("%Y-%m-%d %H:%M:%S")}\n' +\
-                f'{"file_type":<16}: {self.file_type}\n' +\
-                f'{"file_size":<16}: {self.file_size}\n' +\
-                f'{"arch":<16}: {self.arch}\n' +\
-                f'{"endianness":<16}: {self.endianness}\n' +\
-                f'{"bitness":<16}: {self.bitness}\n' +\
-                f'{"status":<16}: {self.status}\n' +\
-                f'{"dormant_at":<16}: {self.dormant_at.strftime("%Y-%m-%d %H:%M:%S")}\n' +\
-                f'{"dormant_duration":<16}: {self.dormant_duration}\n' + \
-                f'{"observe_at":<16}: {self.observe_at.strftime("%Y-%m-%d %H:%M:%S")}\n' +\
-                f'{"observe_duration":<16}: {self.observe_duration}\n' +\
-                f'{"tracker":<16}: {self.tracker}'
+        return f'{"bot_id":<16}: {self.bot_id}\n' + \
+            f'{"family":<16}: {self.family}\n' + \
+            f'{"first_seen":<16}: {self.first_seen.strftime("%Y-%m-%d %H:%M:%S")}\n' + \
+            f'{"last_seen":<16}: {self.last_seen.strftime("%Y-%m-%d %H:%M:%S")}\n' + \
+            f'{"file_type":<16}: {self.file_type}\n' + \
+            f'{"file_size":<16}: {self.file_size}\n' + \
+            f'{"arch":<16}: {self.arch}\n' + \
+            f'{"endianness":<16}: {self.endianness}\n' + \
+            f'{"bitness":<16}: {self.bitness}\n' + \
+            f'{"status":<16}: {self.status}\n' + \
+            f'{"dormant_at":<16}: {self.dormant_at.strftime("%Y-%m-%d %H:%M:%S")}\n' + \
+            f'{"dormant_duration":<16}: {self.dormant_duration}\n' + \
+            f'{"observe_at":<16}: {self.observe_at.strftime("%Y-%m-%d %H:%M:%S")}\n' + \
+            f'{"observe_duration":<16}: {self.observe_duration}\n' + \
+            f'{"tracker":<16}: {self.tracker}'
 
 
 @dataclass
@@ -122,13 +125,12 @@ class CnCStat:
 
     def __repr__(self):
         return f'{"ip":<9}: {self.ip}\n' + \
-                f'{"port":<9}: {self.port}\n' + \
-                f'{"bot_id":<9}: {self.bot_id}\n' + \
-                f'{"status":<9}: {self.status}\n' + \
-                f'{"update_at":<9}: {self.update_at.strftime("%Y-%m-%d %H:%M:%S")}'
+            f'{"port":<9}: {self.port}\n' + \
+            f'{"bot_id":<9}: {self.bot_id}\n' + \
+            f'{"status":<9}: {self.status}\n' + \
+            f'{"update_at":<9}: {self.update_at.strftime("%Y-%m-%d %H:%M:%S")}'
 
 
-# TODO
 @dataclass
 class AttackStat:
     bot_id: str
@@ -179,7 +181,7 @@ class DBStore:
         try:
             await self._insert('bot_info', bot)
         except psycopg.errors.UniqueViolation:
-            pass  # TODO: should return false.primary key dup handling.
+            l.error('add_bot failed due to UniqueViolation')
 
     async def add_tracker(self, tracker):
         await self._insert('tracker_info', tracker)
@@ -187,7 +189,6 @@ class DBStore:
     async def load_bot_info(self, status_list=None, bot_id=None, count=None,
                             tracker=None):
         bots = []
-        status_tuple = ()
         para = ()
 
         sql = "SELECT * FROM bot_info"
@@ -309,7 +310,6 @@ class DBStore:
                     cnc_stat.append(CnCStat(*record))
         return cnc_stat
 
-
     async def add_attack_stat(self, attack):
         await self._insert('attack_stat', attack)
 
@@ -320,8 +320,7 @@ TEST_TS3 = datetime.strptime('2022-02-01 17:00:09', "%Y-%m-%d %H:%M:%S")
 TEST_TS4 = datetime.strptime('2022-02-01 18:00:09', "%Y-%m-%d %H:%M:%S")
 
 
-async def test_db_1():
-    db_store = DBStore()
+async def test_db_1(db_store):
     await db_store.open()
     b = BotInfo('00000000', 'mirai', TEST_TS1, INIT_TIME_STAMP, 'elf', 100)
     b1 = BotInfo('00000001', 'mirai', TEST_TS1, INIT_TIME_STAMP, 'elf', 100)
@@ -335,8 +334,7 @@ async def test_db_1():
     await db_store.close()
 
 
-async def test_db_2():
-    db_store = DBStore()
+async def test_db_2(db_store):
     await db_store.open()
     check = await db_store.bot_exists('00000010')
     print(f'bot 00000001 exists? {check}')
@@ -351,8 +349,7 @@ async def test_db_2():
     await db_store.close()
 
 
-async def test_db_3():
-    db_store = DBStore()
+async def test_db_3(db_store):
     await db_store.open()
     b = BotInfo('00000021', 'mirai', TEST_TS1, INIT_TIME_STAMP,
                 'elf', 100, 'ARM', 'L', 32, 'unknown',
@@ -380,15 +377,14 @@ async def test_db_3():
     await db_store.close()
 
 
-async def test_db_4():
-    db_store = DBStore()
+async def test_db_4(db_store):
     await db_store.open()
-    check = await db_store.cnc_exists('109.123.1.1',2323)
+    check = await db_store.cnc_exists('109.123.1.1', 2323)
     print(f'cnc 109.123.1.1 exists? {check}')
     c = CnCInfo('109.123.1.1', 2323, '00000001', 'example.com', 0, 'China')
     print(f'add cncinfo:\n{repr(c)}\n')
     await db_store.add_cnc_info(c)
-    check1 = await db_store.cnc_exists('109.123.1.1',2323)
+    check1 = await db_store.cnc_exists('109.123.1.1', 2323)
     print(f'cnc 109.123.1.1 exists? {check1}')
     c1 = CnCInfo('109.123.1.2', 2323, '00000011', 'sina.com', 0, 'China')
     print(f'add cncinfo:\n{repr(c1)}\n')
@@ -402,10 +398,9 @@ async def test_db_4():
     await db_store.close()
 
 
-async def test_db_5():
-    db_store = DBStore()
+async def test_db_5(db_store):
     await db_store.open()
-    c = CnCStat('109.123.1.1',123, '00000051', 'alive', TEST_TS4)
+    c = CnCStat('109.123.1.1', 123, '00000051', 'alive', TEST_TS4)
     print(f'add cncstat:\n{repr(c)}\n')
     await db_store.add_cnc_stat(c)
     await db_store.close()
@@ -421,7 +416,8 @@ db_test_cases = {'case 1: BotInfo insert and load': test_db_1,
 # before doing the test, manually drop tables
 async def test_db():
     print('start running db test cases...')
+    db_store = DBStore('localhost', 5432, 'botnet_tracker', 'postgres', 'botnet')
     for k, v in db_test_cases.items():
         print(k)
-        await v()
+        await v(db_store)
     print('done running db test cases')

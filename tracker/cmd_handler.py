@@ -1,12 +1,8 @@
 import asyncio
-from log import TaskLogger
-import time
-from scheduler import Scheduler
-from db_store import *
 from cli import parse_cmd
+from db_store import *
 
-
-l = TaskLogger(__name__)
+l: TaskLogger = TaskLogger(__name__)
 
 server_task = None
 bot_scheduler = None
@@ -15,8 +11,6 @@ bot_db_store = None
 
 async def handle_list_bot(args):
     l.debug(f'handle_list_bot: {args}')
-    resp = ""
-    argc = len(args)
     status = []
     bot_id = None
     if '_' in args:
@@ -34,8 +28,7 @@ async def handle_list_bot(args):
     bots = await bot_db_store.load_bot_info(status, bot_id)
 
     if len(bots) == 1:
-        resp = repr(bots[0])
-        return resp
+        return repr(bots[0])
 
     head = f"{'bot_id':<68}{'family':<16}{'status':<12}"
     body = '\n' + len(head) * '-'
@@ -46,8 +39,7 @@ async def handle_list_bot(args):
     for b in bots:
         body += f"\n{b.bot_id:<68}{b.family:<16}{b.status:<12}"
     body += '\n' + len(head) * '-'
-    resp = head + body + foot
-    return resp
+    return head + body + foot
 
 
 async def handle_start_bot(args):
@@ -83,6 +75,7 @@ async def handle_stop_bot(args):
         resp = "Bot cannot be stopped manually in auto scheduler mode"
     return resp
 
+
 async def handle_list_cnc(args):
     l.debug(f'handle_list_cnc: {args}')
     resp = ""
@@ -109,12 +102,13 @@ async def handle_list_cnc(args):
 
     foot = f"\n{'count:':>{len(head) - 10}} {len(cncs)}"
     for c in cncs:
-        body += f"\n{c.ip:<20}" +\
-                f"{c.port:<12}" +\
+        body += f"\n{c.ip:<20}" + \
+                f"{c.port:<12}" + \
                 f"{c.bot_id:<64}"
     body += '\n' + len(head) * '-'
     resp = head + body + foot
     return resp
+
 
 async def handle_list_cnc_stat(args):
     l.debug(f'handle_list_cnc_stat: {args}')
@@ -152,15 +146,17 @@ async def handle_list_cnc_stat(args):
     resp = head + body + foot
     return resp
 
+
 async def handle_schedinfo(args):
     l.debug(f'handle_schedinfo: {args}')
     schedinfo = bot_scheduler.get_scheduler_info()
-    resp = f'{"mode":<20}: {schedinfo[0]}\n' +\
-            f'{"sandbox_vcpu_quota":<20}: {schedinfo[1]}\n' +\
-            f'{"max_sandbox_num":<20}: {schedinfo[2]}\n' +\
-            f'{"max_dormant_duration":<20}: {schedinfo[3]}\n' +\
-            f'{"cnc_probing_duration":<20}: {schedinfo[4]}'
+    resp = f'{"mode":<20}: {schedinfo[0]}\n' + \
+           f'{"sandbox_vcpu_quota":<20}: {schedinfo[1]}\n' + \
+           f'{"max_sandbox_num":<20}: {schedinfo[2]}\n' + \
+           f'{"max_dormant_duration":<20}: {schedinfo[3]}\n' + \
+           f'{"cnc_probing_duration":<20}: {schedinfo[4]}'
     return resp
+
 
 async def handle_set_sched(args):
     l.debug(f'handle_set_sched: {args}')
@@ -202,9 +198,11 @@ async def handle_client(reader, writer):
     writer.close()
     await writer.wait_closed()
 
+
 async def handle_client_task(reader, writer):
     task = asyncio.create_task(handle_client(reader, writer), name="t_handle_client")
     await task
+
 
 async def start_server():
     server = await asyncio.start_server(

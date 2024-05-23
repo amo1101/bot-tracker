@@ -1,14 +1,11 @@
-import asyncio
-from enum import Enum
-from datetime import datetime, timedelta
 from bot_runner import *
-from log import TaskLogger
 from db_store import *
 
-l = TaskLogger(__name__)
+l: TaskLogger = TaskLogger(__name__)
 
-SCHEDULER_MODE_MANNUAL = 0
+SCHEDULER_MODE_MANUAL = 0
 SCHEDULER_MODE_AUTO = 1
+
 
 class Scheduler:
     def __init__(self,
@@ -67,7 +64,7 @@ class Scheduler:
         l.info("Num of running bots: %d", curr_runners_num)
 
         if curr_runners_num >= self.max_sandbox_num:
-            l.warning('No avaiable slot for new bot.')
+            l.warning('No available slot for new bot.')
             return
 
         def task_done_cb(t):
@@ -80,7 +77,7 @@ class Scheduler:
             # skip bot which is already running
             already_running = False
             for _, r in self.bot_runners.items():
-                if r.bot_info.bot_id  == bot.bot_id:
+                if r.bot_info.bot_id == bot.bot_id:
                     already_running = True
                     break
 
@@ -89,7 +86,7 @@ class Scheduler:
                 continue
 
             if curr_runners_num >= self.max_sandbox_num:
-                l.warning('No avaiable slot for new bot.')
+                l.warning('No available slot for new bot.')
                 break
 
             bot_runner = BotRunner(bot,
@@ -145,24 +142,24 @@ class Scheduler:
 
         for t, r in self.bot_runners.items():
             # bot_id is None means stop all bots
-            if r.bot_info.bot_id == bot_id or bot_id == None:
+            if r.bot_info.bot_id == bot_id or bot_id is None:
                 t.cancel()
                 if bot_id is not None:
                     break
 
         return True
 
-    # this API is for seperate auto and manual schedule to avoid conflict
+    # this API is for separate auto and manual schedule to avoid conflict
     async def manual_update_bot_info(self):
-        if self.mode == SCHEDULER_MODE_MANNUAL:
+        if self.mode == SCHEDULER_MODE_MANUAL:
             await self._update_bot_info()
 
     def get_scheduler_info(self):
         return (self.mode,
-            self.sandbox_vcpu_quota,
-            self.max_sandbox_num,
-            self.max_dormant_hours,
-            self.cnc_probing_duration)
+                self.sandbox_vcpu_quota,
+                self.max_sandbox_num,
+                self.max_dormant_hours,
+                self.cnc_probing_duration)
 
     def set_scheduler_info(self, **kwargs):
         l.debug(f'{kwargs}')
@@ -171,7 +168,7 @@ class Scheduler:
             if mode == 'auto':
                 self.mode = SCHEDULER_MODE_AUTO
             else:
-                self.mode = SCHEDULER_MODE_MANNUAL
+                self.mode = SCHEDULER_MODE_MANUAL
         if 'sandbox_vcpu_quota' in kwargs:
             self.sandbox_vcpu_quota = int(kwargs['sandbox_vcpu_quota'])
         if 'max_sandbox_num' in kwargs:
@@ -181,4 +178,3 @@ class Scheduler:
             self.max_dormant_duration = timedelta(hours=self.max_dormant_hours)
         if 'cnc_probing_duration' in kwargs:
             self.cnc_probing_duration = int(kwargs['cnc_probing_duration'])
-

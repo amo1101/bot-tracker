@@ -1,15 +1,10 @@
-import asyncio
-import libvirt
-import libvirtaio
 import os
-import logging
-import time
-import sys
 from enum import Enum
+import libvirt
 from lxml import etree
 from log import TaskLogger
 
-l = TaskLogger(__name__)
+l: TaskLogger = TaskLogger(__name__)
 CUR_DIR = os.path.dirname(os.path.realpath(__file__))
 
 
@@ -24,14 +19,6 @@ class SandboxScript(Enum):
     FETCH_LOG = "fetch_log.sh"
 
 
-#  class SandboxNWFilterParameter(Enum):
-#  PORT_DEV = "portdev"
-#  MAC_ADDR = "mac"
-#  MAL_REPO_IP = "MAL_REPO_IP"
-#  CNC_IP = "CNC_IP"
-#  SCAN_PORT = "SCAN_PORT"
-#  CONN_LIMIT = "CONN_LIMIT"
-
 class SandboxContext:
     def __init__(self,
                  network_peak,
@@ -43,8 +30,6 @@ class SandboxContext:
                  port_max_conn,
                  allowed_tcp_ports,
                  allowed_server_ip):
-        #  self.loop = loop
-        self.event_imp = None
         self.conn = None
         self.net = None
         self.image_dir = "/var/lib/libvirt/images"
@@ -66,7 +51,7 @@ class SandboxContext:
         self.allowed_server_ip = allowed_server_ip
         self.sandbox_registry = \
             {
-                "ARM": [
+                "ARM_32_L": [
                     "sandbox_armv7.xml",
                     "openwrt-armsr-armv7-generic-kernel.bin",
                     "openwrt-armsr-armv7-generic-ext4-rootfs.img"
@@ -80,14 +65,6 @@ class SandboxContext:
             }
 
         self.nwfilter_objs = []
-
-    @staticmethod
-    def _net_lifecycle_cb(conn, net, event, detail, net_changed_event):
-        if event == libvirt.VIR_NETWORK_EVENT_STARTED or event == \
-                libvirt.VIR_NETWORK_EVENT_STOPPED:
-            l.debug("network lifecycle event occured, event: %d, detail: %d",
-                    event, detail)
-            net_changed_event.set()
 
     def _get_net_config(self):
         with open(self.net_conf, 'r') as file:
@@ -106,7 +83,7 @@ class SandboxContext:
 
         return etree.tostring(tree, encoding='unicode')
 
-    def is_support_arch(self, arch):
+    def is_supported_arch(self, arch):
         return arch in self.sandbox_registry
 
     def get_sandbox_config(self, arch, name):
@@ -182,7 +159,6 @@ class SandboxContext:
     def _undefine_nwfilters(self):
         for obj in self.nwfilter_objs:
             obj.undefine()
-            # TODO do we need to free the obj?
 
     def _get_nwfilter_binding(self, filter_name, **kwargs):
         if filter_name not in SandboxNWFilter:
@@ -290,35 +266,24 @@ class SandboxContext:
             l.debug("destroy default network...")
             default_net.destroy()
 
-
         #  async with aiofiles.open(self.net_conf, mode='r') as file:
         #  net_xml = await file.read()
         net_xml = self._get_net_config()
         l.debug(f'net_xml:\n{net_xml}')
         self.net = self.conn.networkCreateXMLFlags(net_xml)
 
-        #  self.conn.networkEventRegisterAny(self.net,
-        #  libvirt.VIR_NETWORK_EVENT_ID_LIFECYCLE,
-        #  self._net_lifecycle_cb, net_changed_event)
-
-        #  if self.net.isActive():
-        #  l.debug("network is active....")
-
-        #  await asyncio.wait_for(net_changed_event.wait(), 2)
-        # TODO is networkCreateXMLFlags synchronous?
         if not self.net.isActive():
             l.error("network is not active")
             return False
 
-        l.debug("network is active")
+        l.info("network is active")
 
         # define nwfilters
         if not self._define_nwfilters():
             l.error("failed to define network filters")
             return False
 
-        l.debug("nwfilters are defined")
-
+        l.info("nwfilters are defined")
         return True
 
     def destroy(self):
@@ -326,7 +291,6 @@ class SandboxContext:
         # undefine nwfilters
         self._undefine_nwfilters()
 
-        #  self.conn.networkEventDeregisterAny(libvirt.VIR_NETWORK_EVENT_ID_LIFECYCLE)
         if self.net is not None and self.net.isActive():
             l.debug("destroying network...")
             self.net.destroy()

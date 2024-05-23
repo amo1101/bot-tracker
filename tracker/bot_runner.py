@@ -1,19 +1,15 @@
-import asyncio
-import libvirt
-import os
-import sys
 import signal
-from log import TaskLogger
-from datetime import datetime, timedelta
 from concurrent.futures import ProcessPoolExecutor
-from cnc_analyzer import *
+import asyncio
+import os
 from attack_analyzer import *
+from cnc_analyzer import *
+from db_store import *
 from packet_capture import *
 from sandbox import Sandbox
-from sandbox_context import SandboxNWFilter, SandboxContext
-from db_store import *
+from sandbox_context import SandboxNWFilter
 
-l = TaskLogger(__name__)
+l: TaskLogger = TaskLogger(__name__)
 CUR_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
@@ -34,7 +30,7 @@ class BotRunner:
                  cnc_probing_duration, sandbox_ctx, db_store,
                  max_analyzing_workers):
 
-        if BotRunner.analyzer_executor == None:
+        if BotRunner.analyzer_executor is None:
             BotRunner.analyzer_executor = \
                 ProcessPoolExecutor(max_workers=max_analyzing_workers,
                                     initializer=init_worker)
@@ -73,7 +69,7 @@ class BotRunner:
     def _init_capture(self, port_dev):
         if self.live_capture is None:
             iface = port_dev
-            bpf_filter = None #f"ether src {mac_addr} or ether dst {mac_addr}"
+            bpf_filter = None  # f"ether src {mac_addr} or ether dst {mac_addr}"
             output_file = self.log_dir + os.sep + "capture.pcap"
             self.live_capture = AsyncLiveCapture(interface=iface,
                                                  bpf_filter=bpf_filter,
@@ -200,10 +196,10 @@ class BotRunner:
                                    self.sandbox_vcpu_quota,
                                    self.bot_info.tag,
                                    self.bot_info.file_name,
-                                   self.bot_info.arch,
+                                   self.bot_info.arch_spec,
                                    self.bot_repo_ip,
                                    self.bot_repo_user,
-                                   self.bot_repo_path)  # TODO: map arch
+                                   self.bot_repo_path)
             await self.sandbox.start()
 
             # transit status to staged
@@ -233,14 +229,14 @@ class BotRunner:
                     # we can support multiple CnCs, but now only use 1
                     self.cnc_info.append(CnCInfo(ip_port[0], int(ip_port[1]),
                                                  self.bot_info.bot_id, domain, 0, ''))
-                    l.debug(f"Find CnC:{ip_port[0]}:{ip_port[1]}")
+                    l.info(f"Find CnC:{ip_port[0]}:{ip_port[1]}")
 
                     # Check if CnC already existed
                     #  exists = await self.db_store.cnc_exists(ip_port[0], int(ip_port[1]))
                     #  if exists:
-                        #  self.notify_dup = True
-                        #  await self.destroy()
-                        #  return
+                    #  self.notify_dup = True
+                    #  await self.destroy()
+                    #  return
 
                     await self.db_store.add_cnc_info(self.cnc_info[0])
                 else:
@@ -279,7 +275,8 @@ class BotRunner:
             self.sandbox.fetch_log(self.log_dir)
 
             # Turn off traffic redirection
-            self.sandbox.redirect_traffic('OFF', self.cnc_info[0].ip)
+            if self.cnc_info is not None:
+                self.sandbox.redirect_traffic('OFF', self.cnc_info[0].ip)
 
             self.sandbox.destroy()
             if self.live_capture is not None:

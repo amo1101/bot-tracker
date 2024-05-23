@@ -1,5 +1,3 @@
-import sys
-import os
 import pyshark
 from db_store import CnCStatus
 
@@ -28,8 +26,8 @@ class AttackReport:
             f'cnc_ip: {self.cnc_ip}\n'
 
 
-# avoiding logging here cuz this will run in another python intepretor
-# don't wanna bother logging to the same file, just use print for debugging
+# avoiding logging here cuz this will run in another python interpreter
+# don't want to bother logging to the same file, just use print for debugging
 class AttackAnalyzer:
     def __init__(self, cnc_ip, cnc_port, own_ip):
         self.cnc_ip = cnc_ip

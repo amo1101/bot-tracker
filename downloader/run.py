@@ -16,7 +16,7 @@ now = datetime.now()
 current_time = now.strftime("%Y-%m-%d-%H-%M-%S")
 logging.basicConfig(filename='bot-downloader-' + current_time + '.log',
                     filemode='w',
-                    format='%(asctime)s-%(levelname)s-%(name)s: %(message)s',datefmt='%y-%m-%d %H:%M:%S',
+                    format='%(asctime)s-%(levelname)s-%(name)s: %(message)s', datefmt='%y-%m-%d %H:%M:%S',
                     level=logging.DEBUG)
 #  logging.basicConfig(format='%(asctime)s-%(levelname)s-%(message)s', datefmt='%d-%b-%y %H:%M:%S', level=logging.DEBUG)
 l = logging.getLogger(name=__name__)
@@ -25,6 +25,7 @@ valid_tags = ['mirai']
 valid_file_type = ['elf']
 valid_arch = {'MIPS': {32: ['B', 'L']}, 'ARM': {32: ['L']}}
 download_period = 3600  # download hourly
+
 
 def get_arch_info(bot_file, bot_info):
     # unzipped file name should be sha256
@@ -153,7 +154,7 @@ async def download_recent(remote_repo, local_repo, db_store):
 
 
 async def async_main():
-    #await test_db()
+    # await test_db()
     global valid_tags
     config = configparser.ConfigParser()
     ini_file = CUR_DIR + os.sep + 'config.ini'

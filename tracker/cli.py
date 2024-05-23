@@ -1,94 +1,93 @@
 import asyncio
-import time
 
-welcome_ui = "Welcome to bot-tracker command line.\n\n" +\
-    "Type:  'help' for help with commands\n" +\
-    "       'quit' to exit"
-help_outline = "Bot management commands:\n" +\
-    "    list-bot                   list bot information.\n" +\
-    "    start-bot                  start running bot.\n" +\
-    "    stop-bot                   stop running bot.\n\n" +\
-    "CnC information query:\n" +\
-    "    list-cnc                   list cnc information.\n" +\
-    "    list-cnc-stat              list cnc status information.\n\n" +\
-    "Bot scheduler setting commands:\n" +\
-    "    schedinfo                  show bot scheduler information.\n" +\
-    "    set-sched                  set scheduler parameters."
+welcome_ui = "Welcome to bot-tracker command line.\n\n" + \
+             "Type:  'help' for help with commands\n" + \
+             "       'quit' to exit"
+help_outline = "Bot management commands:\n" + \
+               "    list-bot                   list bot information.\n" + \
+               "    start-bot                  start running bot.\n" + \
+               "    stop-bot                   stop running bot.\n\n" + \
+               "CnC information query:\n" + \
+               "    list-cnc                   list cnc information.\n" + \
+               "    list-cnc-stat              list cnc status information.\n\n" + \
+               "Bot scheduler setting commands:\n" + \
+               "    schedinfo                  show bot scheduler information.\n" + \
+               "    set-sched                  set scheduler parameters."
 
-help_list_bot = "NAME\n" +\
-    "  list-bot - list bot information.\n" +\
-    "\nSYNOPSIS\n" +\
-    "  list-bot [bot_id] [--all] [--status]\n" +\
-    "\nDESCRIPTION\n" +\
-    "  List bot information with specified bot_id or bot status.\n" +\
-    "  If no option specified, list all 'staged','active' and 'dormant' bots.\n" +\
-    "\nOPTIONS\n" +\
-    "  [bot_id]: bot id\n" +\
-    "  [--all]: list all bots\n" +\
-    "  [--status]=<status>: bot status, could be one of 'unknown','staged','dormant',\n" +\
-    "             'active','interrupted','unstaged','error', or 'duplicate'"
+help_list_bot = "NAME\n" + \
+                "  list-bot - list bot information.\n" + \
+                "\nSYNOPSIS\n" + \
+                "  list-bot [bot_id] [--all] [--status]\n" + \
+                "\nDESCRIPTION\n" + \
+                "  List bot information with specified bot_id or bot status.\n" + \
+                "  If no option specified, list all 'staged','active' and 'dormant' bots.\n" + \
+                "\nOPTIONS\n" + \
+                "  [bot_id]: bot id\n" + \
+                "  [--all]: list all bots\n" + \
+                "  [--status]=<status>: bot status, could be one of 'unknown','staged','dormant',\n" + \
+                "             'active','interrupted','unstaged','error', or 'duplicate'"
 
-help_start_bot = "NAME\n" +\
-    "  start-bot - start running bot.\n" +\
-    "\nSYNOPSIS\n" +\
-    "  start-bot <bot_id> [--all]\n" +\
-    "\nDESCRIPTION\n" +\
-    "  Start running bot with specified bot_id or all bots, supported in manual scheduler mode." +\
-    "\nOPTIONS\n" +\
-    "  [--all]: start all bots which are not currently running"
+help_start_bot = "NAME\n" + \
+                 "  start-bot - start running bot.\n" + \
+                 "\nSYNOPSIS\n" + \
+                 "  start-bot <bot_id> [--all]\n" + \
+                 "\nDESCRIPTION\n" + \
+                 "  Start running bot with specified bot_id or all bots, supported in manual scheduler mode." + \
+                 "\nOPTIONS\n" + \
+                 "  [--all]: start all bots which are not currently running"
 
-help_stop_bot = "NAME\n" +\
-    "  stop-bot - stop running bot.\n" +\
-    "\nSYNOPSIS\n" +\
-    "  stop-bot <bot_id> [--all]\n" +\
-    "\nDESCRIPTION\n" +\
-    "  Stop running bot with specified bot_id or all bots, supported in manual scheduler mode." +\
-    "\nOPTIONS\n" +\
-    "  [--all]: stop all bots which are currently running"
+help_stop_bot = "NAME\n" + \
+                "  stop-bot - stop running bot.\n" + \
+                "\nSYNOPSIS\n" + \
+                "  stop-bot <bot_id> [--all]\n" + \
+                "\nDESCRIPTION\n" + \
+                "  Stop running bot with specified bot_id or all bots, supported in manual scheduler mode." + \
+                "\nOPTIONS\n" + \
+                "  [--all]: stop all bots which are currently running"
 
-help_list_cnc = "NAME\n" +\
-    "  list-cnc - list CnC information.\n" +\
-    "\nSYNOPSIS\n" +\
-    "  list-cnc [--ip] [--bot_id]\n" +\
-    "\nDESCRIPTION\n" +\
-    "  List CnC information with specified bot_id or CnC IP.\n" +\
-    "  If no option specified, list all CnC information.\n" +\
-    "\nOPTIONS\n" +\
-    "  [--bot_id]=<bot_id>: bot id\n" +\
-    "  [--ip]=<ip>: CnC IP"
+help_list_cnc = "NAME\n" + \
+                "  list-cnc - list CnC information.\n" + \
+                "\nSYNOPSIS\n" + \
+                "  list-cnc [--ip] [--bot_id]\n" + \
+                "\nDESCRIPTION\n" + \
+                "  List CnC information with specified bot_id or CnC IP.\n" + \
+                "  If no option specified, list all CnC information.\n" + \
+                "\nOPTIONS\n" + \
+                "  [--bot_id]=<bot_id>: bot id\n" + \
+                "  [--ip]=<ip>: CnC IP"
 
-help_list_cnc_stat = "NAME\n" +\
-    "  list-cnc-stat - list CnC status.\n" +\
-    "\nSYNOPSIS\n" +\
-    "  list-cnc-stat [--ip] [--bot_id]\n" +\
-    "\nDESCRIPTION\n" +\
-    "  List CnC status information with specified bot_id or CnC IP.\n" +\
-    "  If no option specified, list all CnC status information.\n" +\
-    "\nOPTIONS\n" +\
-    "  [--bot_id]=<bot_id>: bot id\n" +\
-    "  [--ip]=<ip>: CnC IP\n"
+help_list_cnc_stat = "NAME\n" + \
+                     "  list-cnc-stat - list CnC status.\n" + \
+                     "\nSYNOPSIS\n" + \
+                     "  list-cnc-stat [--ip] [--bot_id]\n" + \
+                     "\nDESCRIPTION\n" + \
+                     "  List CnC status information with specified bot_id or CnC IP.\n" + \
+                     "  If no option specified, list all CnC status information.\n" + \
+                     "\nOPTIONS\n" + \
+                     "  [--bot_id]=<bot_id>: bot id\n" + \
+                     "  [--ip]=<ip>: CnC IP\n"
 
-help_schedinfo = "NAME\n" +\
-    "  schedinfo - show bot scheduler information.\n" +\
-    "\nSYNOPSIS\n" +\
-    "  schedinfo\n" +\
-    "\nDESCRIPTION\n" +\
-    "  Show bot scheduler information.\n"
+help_schedinfo = "NAME\n" + \
+                 "  schedinfo - show bot scheduler information.\n" + \
+                 "\nSYNOPSIS\n" + \
+                 "  schedinfo\n" + \
+                 "\nDESCRIPTION\n" + \
+                 "  Show bot scheduler information.\n"
 
-help_set_sched = "NAME\n" +\
-    "  set-sched - set bot scheduler parameters.\n" +\
-    "\nSYNOPSIS\n" +\
-    "  set-sched [--mode] [--sandbox_vcpu_quota] [--max_sandbox_num]\n" +\
-    "            [--max_dormant_duration] [--cnc_probing_duration]\n" +\
-    "\nDESCRIPTION\n" +\
-    "  Set bot scheduler parameters, changes will apply immediately.\n" +\
-    "  Multiple parameters can be set at the same time.\n" +\
-    "\nOPTIONS\n" +\
-    "  [--mode]=<mode>: bot scheduler mode, could be 'auto' or 'manual'\n" +\
-    "  [--sandbox_vcpu_quota]=<quota>: sandbox vcpu quota in percentage of a physical cpu core.\n" +\
-    "  [--max_sandbox_num]=<num>: max number of sandboxes the scheduler can run.\n" +\
-    "  [--max_dormant_duration]=<duration>: max dormant hours allowed before a bot is unstaged.\n" +\
-    "  [--cnc_probing_duration]=<duration>: time in second for probing CnC server.\n"
+help_set_sched = "NAME\n" + \
+                 "  set-sched - set bot scheduler parameters.\n" + \
+                 "\nSYNOPSIS\n" + \
+                 "  set-sched [--mode] [--sandbox_vcpu_quota] [--max_sandbox_num]\n" + \
+                 "            [--max_dormant_duration] [--cnc_probing_duration]\n" + \
+                 "\nDESCRIPTION\n" + \
+                 "  Set bot scheduler parameters, changes will apply immediately.\n" + \
+                 "  Multiple parameters can be set at the same time.\n" + \
+                 "\nOPTIONS\n" + \
+                 "  [--mode]=<mode>: bot scheduler mode, could be 'auto' or 'manual'\n" + \
+                 "  [--sandbox_vcpu_quota]=<quota>: sandbox vcpu quota in percentage of a physical cpu core.\n" + \
+                 "  [--max_sandbox_num]=<num>: max number of sandboxes the scheduler can run.\n" + \
+                 "  [--max_dormant_duration]=<duration>: max dormant hours allowed before a bot is unstaged.\n" + \
+                 "  [--cnc_probing_duration]=<duration>: time in second for probing CnC server.\n"
 
 cmd_help = {'list-bot': help_list_bot,
             'start-bot': help_start_bot,
@@ -101,24 +100,24 @@ cmd_help = {'list-bot': help_list_bot,
 cmd_config = {
     'help': ([0, 1], {
         '_': lambda v: v in ['list-bot',
-            'start-bot',
-            'stop-bot',
-            'list-cnc',
-            'list-cnc-stat',
-            'schedinfo',
-            'set-sched']}),
+                             'start-bot',
+                             'stop-bot',
+                             'list-cnc',
+                             'list-cnc-stat',
+                             'schedinfo',
+                             'set-sched']}),
 
     'list-bot': ([0, 1], {
         '_': lambda v: True,
         'all': lambda v: True,
         'status': lambda v: v in ['unknown',
-            'staged',
-            'dormant',
-            'active',
-            'interrupted',
-            'unstaged',
-            'error',
-            'duplicate']}),
+                                  'staged',
+                                  'dormant',
+                                  'active',
+                                  'interrupted',
+                                  'unstaged',
+                                  'error',
+                                  'duplicate']}),
 
     'start-bot': ([1, 1], {'_': lambda v: True, 'all': lambda v: True}),
     'stop-bot': ([1, 1], {'_': lambda v: True, 'all': lambda v: True}),
@@ -133,13 +132,14 @@ cmd_config = {
 
     'schedinfo': ([0, 0], {}),
 
-    'set-sched': ([1, 5], {\
+    'set-sched': ([1, 5], {
         'mode': lambda v: v in ['auto', 'manual'],
-        'sandbox_vcpu_quota': lambda v: v.isdigit() and int(v) > 0 and int(v) <= 100,
+        'sandbox_vcpu_quota': lambda v: v.isdigit() and 0 < int(v) <= 100,
         'max_sandbox_num': lambda v: v.isdigit(),
         'max_dormant_duration': lambda v: v.isdigit(),
         'cnc_probing_duration': lambda v: v.isdigit()})
 }
+
 
 def parse_cmd(command):
     cmd_split = command.split(' ')
@@ -159,6 +159,7 @@ def parse_cmd(command):
                 params['_'] = p
 
     return cmd, params
+
 
 def check_args(cmd, params):
     if cmd not in cmd_config:
@@ -198,7 +199,7 @@ async def start_cli():
             if cmd == 'quit':
                 break
             #  print(f'{cmd} : {params}')
-            if check_args(cmd, params) == False:
+            if not check_args(cmd, params):
                 continue
 
             if cmd == 'help':

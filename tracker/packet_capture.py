@@ -1,10 +1,8 @@
-import asyncio
-import libvirt
-import libvirtaio
 from pyshark import LiveCapture
+
 from log import TaskLogger
 
-l = TaskLogger(__name__)
+l: TaskLogger = TaskLogger(__name__)
 
 
 class AsyncLiveCapture(LiveCapture):
@@ -57,10 +55,5 @@ class AsyncLiveCapture(LiveCapture):
 
                 if packet_count and packets_captured >= packet_count:
                     break
-
-                if packets_captured % 100 == 0:
-                    self._log.debug(f"received {packets_captured} packets...")
-
         finally:
-            # TODO: gotta do something?
             pass

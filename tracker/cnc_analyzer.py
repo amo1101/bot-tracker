@@ -1,5 +1,3 @@
-import sys
-import os
 import re
 import pyshark
 
@@ -74,7 +72,7 @@ class CnCReport:
                                                      self.ip_dict[ip]["Total"]) / self.port_dict[ip_port[1]]
                     else:
                         should_be_added = False
-                else:  # there's not port to consider
+                else:  # there's no port to consider
                     self.ip_dict[ip]["Score"] = (1.0 * self.ip_dict[ip]["Total"])
                 ip_key = ip_port[0]
                 if ip_key in self.DNS_Mappings:
@@ -92,8 +90,9 @@ class CnCReport:
         if len(self.cnc_info) > 0:
             return self.cnc_info[0]
 
-# avoiding logging here cuz this will run in another python intepretor
-# don't wanna bother logging to the same file, just use print for debugging
+
+# avoiding logging here cuz this will run in another python interpreter
+# don't want to bother logging to the same file, just use print for debugging
 class CnCAnalyzer:
     def __init__(self, own_ip, excluded_ips=None, excluded_ports=None):
         self.report = CnCReport()
@@ -158,12 +157,12 @@ class CnCAnalyzer:
                         return self.report
                         #  return self.report # don't need to take into account SYN ACK
                 else:
-                    if self.own_ip and pkt.ip.dst == self.own_ip or "192.168" not in pkt.ip.src:  # it's a server response
+                    if self.own_ip and pkt.ip.dst == self.own_ip or "192.168" not in pkt.ip.src:  # server response
                         if pkt.tcp.flags_reset == '1':
                             # print(dir(pkt.tcp))
                             state = "RST"
                         elif pkt.tcp.flags_fin == "1":
-                            state = "FIN"  # FIN will later tell us if the conn was really a success
+                            state = "FIN"  # FIN will later tell us if the connection was really a success
                         elif pkt.tcp.len != "0":
                             state = "SUC"  # We are interested in server exchanging data
                         else:

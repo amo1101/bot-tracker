@@ -1,17 +1,9 @@
 import asyncio
-import libvirt
-import libvirtaio
-import libxml2
-import os
 import shutil
-import logging
-import time
-import sys
 import subprocess
 from sandbox_context import *
-from log import TaskLogger
 
-l = TaskLogger(__name__)
+l: TaskLogger = TaskLogger(__name__)
 
 
 class Sandbox:
@@ -29,7 +21,6 @@ class Sandbox:
         self.bot_repo_user = bot_repo_user
         self.bot_repo_path = bot_repo_path
         self.dom = None
-        #  self.dom_changed_event = asyncio.Event()
         self.ifinfo = None
         self.port_dev = None
         self.mac_address = ""
@@ -54,20 +45,18 @@ class Sandbox:
             proc = subprocess.Popen(params, stdout=subprocess.PIPE)
             out, err = proc.communicate()
             if err:
-                l.error("failed to run script:{script}, error: {err}")
+                l.error("Failed to run script:{script}, error: {err}")
                 return False
             return True
         except Exception as err:
-            l.error(f'exception occurred: {err}')
+            l.error(f'Exception occurred: {err}')
             return False
 
     def _prepare_fs(self):
         src, dst = self.context.get_sandbox_fs(self.arch, self.name)
         l.debug("fs src %s, dst %s", src, dst)
 
-        # TODO: prepare fs
         self.fs = dst
-
         if not os.path.exists(dst):
             shutil.copyfile(src, dst)
 
@@ -86,7 +75,7 @@ class Sandbox:
 
     def redirect_traffic(self, sw, cnc_ip):
         redirect_server = self.context.get_redirect_server()
-        if redirect_server == '0.0.0.0': # no redirect
+        if redirect_server == '0.0.0.0':  # no redirect
             return
         allowed_tcp_ports = self.context.get_allowed_tcp_ports()
         s = SandboxScript.REDIRECT
@@ -105,20 +94,18 @@ class Sandbox:
 
         self.dom = self.context.create_sandbox(sandbox_xml)
         if self.dom is None:
-            l.error("create sandbox %s failed", self.name)
+            l.error("Create sandbox %s failed", self.name)
             return
 
         while True:
             if self.dom.state()[0] != libvirt.VIR_DOMAIN_RUNNING:
                 l.debug("domain state %d, reason %d...", self.dom.state()[0],
                         self.dom.state()[1])
-                await asyncio.sleep(5)
+                await asyncio.sleep(1)
             else:
                 break
 
-        l.debug("domain is running")
-
-        # set schduler info
+        # set scheduler info
         if self.sandbox_vcpu_quota > 100:
             self.sandbox_vcpu_quota = 100
         period = 1000000
@@ -150,12 +137,10 @@ class Sandbox:
         l.debug("get port_dev %s, mac_address: %s, ip: %s", self.port_dev,
                 self.mac_address, self.ip)
 
-        l.debug(f"domain started {self.name}")
+        l.info(f"Sandbox started {self.name}")
 
-
-    # TODO: replace with asyncio
     def get_ifinfo(self):
-       return (self.port_dev, self.mac_address, self.ip)
+        return self.port_dev, self.mac_address, self.ip
 
     def apply_nwfilter(self, filter_name, **kwargs):
         if self.filter_binding:
@@ -170,10 +155,10 @@ class Sandbox:
                                                           sandbox_ip=self.ip,
                                                           **kwargs)
         if not self.filter_binding:
-            l.error("failed to apply nw filter")
+            l.error("Failed to apply nw filter")
             return False
 
-        l.debug("filter %s is applied", filter_name.value)
+        l.info("Filter %s is applied", filter_name.value)
         return True
 
     def destroy(self):
@@ -182,4 +167,4 @@ class Sandbox:
             l.debug("delete filter binding...")
             self.filter_binding.delete()
         self.dom.destroy()
-        l.debug("dom destroyed %s", self.name)
+        l.info("Sandbox destroyed %s", self.name)
