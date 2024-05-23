@@ -275,7 +275,7 @@ class BotRunner:
             self.sandbox.fetch_log(self.log_dir)
 
             # Turn off traffic redirection
-            if self.cnc_info is not None:
+            if self.cnc_info is not None and len(self.cnc_info) > 0:
                 self.sandbox.redirect_traffic('OFF', self.cnc_info[0].ip)
 
             self.sandbox.destroy()
