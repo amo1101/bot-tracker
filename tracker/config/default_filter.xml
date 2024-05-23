@@ -1,7 +1,11 @@
 <filter name='sandbox-default-filter'>
-  <!-- Allow dhcp, arp -->
-  <filterref filter='allow-dhcp'/>
-  <filterref filter='allow-arp'/>
+  <!-- Allow dhcp -->
+  <rule action='accept' direction='out' priority='500'>
+    <udp srcportstart='68' dstportstart='67' dstipaddr='255.255.255.255'/>
+  </rule>
+  <rule action='accept' direction='out' priority='500'>
+    <udp srcportstart='68' dstportstart='67' dstipaddr='192.168.122.1'/>
+  </rule>
 
   <!-- allow scp to malware repo vm -->
   <rule action='accept' direction='out' priority='600'>

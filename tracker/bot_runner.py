@@ -206,10 +206,10 @@ class BotRunner:
             await self.update_bot_info(BotStatus.STAGED)
 
             port_dev, _, own_ip = self.sandbox.get_ifinfo()
+            self._init_capture(port_dev)
 
             # set default nwfiter
             self.sandbox.apply_nwfilter(SandboxNWFilter.DEFAULT)
-            self._init_capture(port_dev)
 
             # find cnc server
             try:
