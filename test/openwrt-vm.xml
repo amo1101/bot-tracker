@@ -1,0 +1,73 @@
+<!--
+WARNING: THIS IS AN AUTO-GENERATED FILE. CHANGES TO IT ARE LIKELY TO BE
+OVERWRITTEN AND LOST. Changes to this xml configuration should be made using:
+  virsh edit openwrt-vm
+or other application using the libvirt API.
+-->
+
+<domain type='qemu'>
+  <name>openwrt-vm</name>
+  <uuid>0b4b8244-ae4a-48d8-ae12-cd5845bc7595</uuid>
+  <memory unit='KiB'>1048576</memory>
+  <currentMemory unit='KiB'>1048576</currentMemory>
+  <vcpu placement='static'>1</vcpu>
+  <os>
+    <type arch='armv7l' machine='virt-9.0'>hvm</type>
+    <kernel>/var/lib/libvirt/images/openwrt-armsr-armv7-generic-kernel.bin</kernel>
+    <cmdline>root=/dev/vda</cmdline>
+    <boot dev='hd'/>
+  </os>
+  <features>
+    <gic version='2'/>
+  </features>
+  <cpu mode='custom' match='exact' check='none'>
+    <model fallback='forbid'>cortex-a15</model>
+  </cpu>
+  <clock offset='utc'/>
+  <on_poweroff>destroy</on_poweroff>
+  <on_reboot>restart</on_reboot>
+  <on_crash>destroy</on_crash>
+  <devices>
+    <emulator>/usr/local/bin/qemu-system-arm</emulator>
+    <disk type='file' device='disk'>
+      <driver name='qemu' type='raw'/>
+      <source file='/var/lib/libvirt/images/openwrt-armsr-armv7-generic-ext4-rootfs.img'/>
+      <target dev='vda' bus='virtio'/>
+      <address type='pci' domain='0x0000' bus='0x02' slot='0x00' function='0x0'/>
+    </disk>
+    <controller type='pci' index='0' model='pcie-root'/>
+    <controller type='pci' index='1' model='pcie-root-port'>
+      <model name='pcie-root-port'/>
+      <target chassis='1' port='0x8'/>
+      <address type='pci' domain='0x0000' bus='0x00' slot='0x01' function='0x0' multifunction='on'/>
+    </controller>
+    <controller type='pci' index='2' model='pcie-root-port'>
+      <model name='pcie-root-port'/>
+      <target chassis='2' port='0x9'/>
+      <address type='pci' domain='0x0000' bus='0x00' slot='0x01' function='0x1'/>
+    </controller>
+    <controller type='pci' index='3' model='pcie-root-port'>
+      <model name='pcie-root-port'/>
+      <target chassis='3' port='0xa'/>
+      <address type='pci' domain='0x0000' bus='0x00' slot='0x01' function='0x2'/>
+    </controller>
+    <interface type='network'>
+      <mac address='52:54:00:29:c5:04'/>
+      <source network='default'/>
+      <bandwidth>
+        <outbound average='100' peak='100' burst='100'/>
+      </bandwidth>
+      <model type='virtio'/>
+      <address type='pci' domain='0x0000' bus='0x01' slot='0x00' function='0x0'/>
+    </interface>
+    <serial type='pty'>
+      <target type='system-serial' port='0'>
+        <model name='pl011'/>
+      </target>
+    </serial>
+    <console type='pty'>
+      <target type='serial' port='0'/>
+    </console>
+    <audio id='1' type='none'/>
+  </devices>
+</domain>
