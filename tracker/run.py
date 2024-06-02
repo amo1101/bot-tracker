@@ -46,7 +46,7 @@ async def async_main(arguments=None):
                           config['local_bot_repo']['user'],
                           config['local_bot_repo']['path'],
                           int(config['scheduler']['mode']),
-                          config['scheduler']['monitor_on_iface'],
+                          config['scheduler']['monitored_iface'],
                           int(config['scheduler']['sandbox_vcpu_quota']),
                           int(config['scheduler']['max_sandbox_num']),
                           int(config['scheduler']['max_dormant_duration']),

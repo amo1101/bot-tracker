@@ -51,6 +51,7 @@ class SandboxContext:
         self.bot_dir = CUR_DIR + os.sep + "bot"
         self.net_conf = self.config_base + os.sep + "network.xml"
         self.subnet = ''
+        self.netmask = ''
         self.network_mode = network_mode
         self.dns_rate_limit = dns_rate_limit
         self.https_proxy_port = https_proxy_port
@@ -86,12 +87,8 @@ class SandboxContext:
 
         self.nwfilter_objs = []
 
-    def _get_subnet(self, ip, netmask):
-        if netmask == '255.255.255.0':
-            segs = ip.split('.')
-            self.subnet = '.'.join(segs[:3]) + '.0' + '/24'
-        else:
-            l.warning('Only support /24 subnet!')
+    def get_subnet(self):
+        return self.subnet, self.netmask
 
     def _get_net_config(self):
         with open(self.net_conf, 'r') as file:
@@ -100,9 +97,13 @@ class SandboxContext:
         tree = etree.fromstring(net_xml)
         ip_node = tree.xpath("//ip")[0]
         ip_addr = ip_node.get('address')
-        netmask = ip_node.get('netmask')
-        self.subnet = self._get_subnet(ip_addr, netmask)
-        l.debug(f'subnet: {self.subnet}')
+
+        self.netmask = ip_node.get('netmask')
+        if self.netmask != '255.255.255.0':
+            l.warning('Wrong network configuration, only support /24 prefix.')
+        segs = ip_addr.split('.')
+        self.subnet = '.'.join(segs[:3]) + '.0'
+        l.debug(f'subnet: {self.subnet}, netmask: {self.netmask}')
 
         # block mode do not rate limit bandwidth
         if self.network_mode == NetworkMode.BLOCK:
@@ -119,6 +120,10 @@ class SandboxContext:
         port_bandwidth_node.set('burst', self.port_burst)
 
         return etree.tostring(tree, encoding='unicode')
+
+    @property
+    def network_mode(self):
+        return self.network_mode
 
     @property
     def default_nwfilter(self):
@@ -180,7 +185,6 @@ class SandboxContext:
         fs_dst = f"openwrt-vm-{arch}-{name}-ext4-rootfs.img"
         return (self.image_base + os.sep + fs_src,
                 self.image_dir + os.sep + fs_dst)
-
 
     def get_script(self, name):
         if name == SandboxScript.PREPARE_FS:
@@ -301,7 +305,7 @@ class SandboxContext:
     def _default_rule(self, switch='ON'):
         s = SandboxScript.DEFAULT_RULE
         self.run_script(s, switch,
-                        self.subnet,
+                        self.subnet + '/24',
                         self.dns_rate_limit,
                         self.https_proxy_port)
 

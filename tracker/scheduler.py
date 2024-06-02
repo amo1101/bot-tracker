@@ -1,5 +1,6 @@
 from bot_runner import *
 from db_store import *
+from iface_monitor import IfaceMonitor
 
 l: TaskLogger = TaskLogger(__name__)
 
@@ -14,7 +15,7 @@ class Scheduler:
                  bot_repo_user,
                  bot_repo_path,
                  mode,
-                 monitor_on_iface,
+                 monitored_iface,
                  sandbox_vcpu_quota,
                  max_sandbox_num,
                  max_dormant_duration,
@@ -27,7 +28,7 @@ class Scheduler:
         self.bot_repo_user = bot_repo_user
         self.bot_repo_path = bot_repo_path
         self.mode = mode
-        self.monitor_on_iface = monitor_on_iface
+        self.monitored_iface = monitored_iface
         self.checkpoint_interval = 10
         self.sandbox_vcpu_quota = sandbox_vcpu_quota
         self.max_sandbox_num = max_sandbox_num
@@ -37,6 +38,8 @@ class Scheduler:
         self.cnc_probing_duration = cnc_probing_duration
         self.sandbox_cxt = sandbox_ctx
         self.db_store = db_store
+        self.iface_monitor = None
+        self.iface_monitor_task = None
 
         # {running_task: bot-runner obj}
         self.bot_runners = {}
@@ -49,6 +52,8 @@ class Scheduler:
                 l.debug(f'Task {t.get_name()} has been cancelled')
         if BotRunner.analyzer_executor is not None:
             BotRunner.analyzer_executor.shutdown()
+        if self.iface_monitor_task is not None:
+            self.iface_monitor_task.cancel()
 
     def _unstage_bots(self):
         for t, r in self.bot_runners.items():
@@ -116,6 +121,15 @@ class Scheduler:
 
     async def checkpoint(self):
         try:
+            # create the inteface monitor task
+            subnet, netmask = self.sandbox_ctx.get_subnet()
+            self.iface_monitor = IfaceMonitor(self.sandbox_cxt.network_mode,
+                                              self,
+                                              self.monitored_iface,
+                                              subnet,
+                                              netmask)
+            self.iface_monitor_task = asyncio.create_task(self.iface_monitor.start(),
+                                                          name=f't_iface_monitor')
             while True:
                 if self.mode == SCHEDULER_MODE_AUTO:
                     self._unstage_bots()

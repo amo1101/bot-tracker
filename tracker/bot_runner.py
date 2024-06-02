@@ -8,6 +8,7 @@ from db_store import *
 from packet_capture import *
 from sandbox import Sandbox
 from sandbox_context import SandboxNWFilter
+from iface_monitor import IfaceMonitor
 
 l: TaskLogger = TaskLogger(__name__)
 CUR_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -28,7 +29,8 @@ class BotRunner:
                  bot_repo_ip, bot_repo_user, bot_repo_path,
                  sandbox_vcpu_quota,
                  cnc_probing_duration, sandbox_ctx, db_store,
-                 max_analyzing_workers):
+                 max_analyzing_workers,
+                 iface_monitor):
 
         if BotRunner.analyzer_executor is None:
             BotRunner.analyzer_executor = \
@@ -59,6 +61,7 @@ class BotRunner:
         self.dormant_time = INIT_TIME_STAMP
         self.staged_time = INIT_TIME_STAMP
         self.destroyed = False
+        self.iface_monitor = iface_monitor
 
     def _create_log_dir(self):
         if not os.path.exists(self.log_base):
@@ -245,6 +248,11 @@ class BotRunner:
                     await self.destroy()
                     return
 
+            # register to iface_monitor
+            _, mac, _ = self.sandbox.get_ifinfo()
+            self.iface_monitor.register(mac, self.cnc_info[0].ip,
+                                        self.bot_info.bot_id)
+
             # enforce nwfilter
             nwfilter_type = self.sandbox_ctx.cnc_nwfilter
             args = {"cnc_ip": self.cnc_info[0].ip}
@@ -276,6 +284,9 @@ class BotRunner:
 
             # turn off traffic redirection
             self.sandbox.redirect_traffic('OFF', self.cnc_info[0].ip)
+
+            _, mac, _ = self.sandbox.get_ifinfo()
+            self.iface_monitor.unregister(mac)
 
             self.sandbox.destroy()
             if self.live_capture is not None:
