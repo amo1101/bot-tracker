@@ -1,6 +1,5 @@
 import asyncio
 import shutil
-import subprocess
 from sandbox_context import *
 
 l: TaskLogger = TaskLogger(__name__)
@@ -35,22 +34,7 @@ class Sandbox:
             shutil.copyfile(src, dst)
 
     def _run_script(self, which, *args):
-        try:
-            params = []
-            script = self.context.get_script(which)
-            params.append(script)
-            for p in args:
-                params.append(p)
-            l.debug(f'params: ${params}')
-            proc = subprocess.Popen(params, stdout=subprocess.PIPE)
-            out, err = proc.communicate()
-            if err:
-                l.error("Failed to run script:{script}, error: {err}")
-                return False
-            return True
-        except Exception as err:
-            l.error(f'Exception occurred: {err}')
-            return False
+        return self.context.run_script(which, *args)
 
     def _prepare_fs(self):
         src, dst = self.context.get_sandbox_fs(self.arch, self.name)
@@ -72,15 +56,6 @@ class Sandbox:
     def _destroy_fs(self):
         if os.path.exists(self.fs):
             os.remove(self.fs)
-
-    def redirect_traffic(self, sw, cnc_ip):
-        redirect_server = self.context.get_redirect_server()
-        if redirect_server == '0.0.0.0':  # no redirect
-            return
-        allowed_tcp_ports = self.context.get_allowed_tcp_ports()
-        s = SandboxScript.REDIRECT
-        self._run_script(s, sw, self.ip, allowed_tcp_ports,
-                         redirect_server, cnc_ip)
 
     def fetch_log(self, dst):
         s = SandboxScript.FETCH_LOG

@@ -1,0 +1,13 @@
+<filterbinding>
+  <owner>
+    <name>bot-tracker</name>
+    <uuid>f4a73a90-d9c9-11ee-8795-3f7e75dc3ecb</uuid>
+  </owner>
+  <portdev name='vnet0'/>
+  <mac address='52:54:00:29:c5:04'/>
+  <filterref filter='sandbox-default-filter-rate-limit'>
+    <parameter name='MAL_REPO_IP' value='192.168.100.4'/>
+    <parameter name='SANDBOX_IP' value='192.168.100.5'/>
+  </filterref>
+</filterbinding>
+

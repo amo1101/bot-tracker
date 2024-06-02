@@ -1,5 +1,5 @@
-<filter name='sandbox-cnc-filter'>
-  <filterref filter='sandbox-default-filter'/>
+<filter name='sandbox-cnc-filter-rate-limit'>
+  <filterref filter='sandbox-default-filter-rate-limit'/>
   <!-- give high priority so is not blocked by connection limitation -->
   <rule action='accept' direction='out' priority='700'>
     <tcp srcipaddr='$SANDBOX_IP' dstipaddr='$CNC_IP'/>
@@ -7,9 +7,9 @@
   <rule action='accept' direction='in' priority='700'>
     <tcp srcipaddr='$CNC_IP'/>
   </rule>
-  
-  <!-- allow on tcp ports -->
-  <rule action='accept' direction='out' priority='900'>
-    <tcp dstportstart='$TCP_PORT[@1]' dstipaddr='$SIM_SERVER[@2]'/>
+
+  <!-- allow connection limit -->
+  <rule action='drop' direction='out' priority='800'>
+    <tcp connlimit-above='$CONN_LIMIT'/>
   </rule>
 </filter>

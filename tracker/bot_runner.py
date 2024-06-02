@@ -209,7 +209,7 @@ class BotRunner:
             self._init_capture(port_dev)
 
             # set default nwfiter
-            self.sandbox.apply_nwfilter(SandboxNWFilter.DEFAULT)
+            self.sandbox.apply_nwfilter(self.sandbox_ctx.default_nwfilter)
 
             # find cnc server
             try:
@@ -217,7 +217,7 @@ class BotRunner:
                                        timeout=self.cnc_probing_time)
             except asyncio.TimeoutError:
                 l.warning("Cnc probing timeout...")
-
+            finally:
                 if self.cnc_analyzer.report.is_ready():
                     cnc_info = self.cnc_analyzer.report.get()
                     ip_port = cnc_info[0].split(':')
@@ -246,12 +246,9 @@ class BotRunner:
                     return
 
             # enforce nwfilter
-            nwfilter_type = SandboxNWFilter.CNC
+            nwfilter_type = self.sandbox_ctx.cnc_nwfilter
             args = {"cnc_ip": self.cnc_info[0].ip}
             self.sandbox.apply_nwfilter(nwfilter_type, **args)
-
-            # redirect traffic to simulated server if needed
-            self.sandbox.redirect_traffic('ON', self.cnc_info[0].ip)
 
             # Set bot status to dormant before we observe CnC communication
             await self.update_bot_info(BotStatus.DORMANT)
@@ -273,10 +270,6 @@ class BotRunner:
             l.info("Bot runner destroyed")
             await self.update_bot_info(BotStatus.INTERRUPTED)
             self.sandbox.fetch_log(self.log_dir)
-
-            # Turn off traffic redirection
-            if self.cnc_info is not None and len(self.cnc_info) > 0:
-                self.sandbox.redirect_traffic('OFF', self.cnc_info[0].ip)
 
             self.sandbox.destroy()
             if self.live_capture is not None:
