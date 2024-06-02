@@ -23,7 +23,9 @@ class SandboxNWFilter(Enum):
 class SandboxScript(Enum):
     PREPARE_FS = "prepare_fs.sh"
     FETCH_LOG = "fetch_log.sh"
-    SET_IPTABLES = "set_iptables.sh"
+    REDIRECT = "redirect.sh"
+    DEFAULT_RULE = "default_rule.sh"
+
 
 
 class SandboxContext:
@@ -48,6 +50,7 @@ class SandboxContext:
         self.scripts_base = CUR_DIR + os.sep + "scripts"
         self.bot_dir = CUR_DIR + os.sep + "bot"
         self.net_conf = self.config_base + os.sep + "network.xml"
+        self.subnet = ''
         self.network_mode = network_mode
         self.dns_rate_limit = dns_rate_limit
         self.https_proxy_port = https_proxy_port
@@ -83,15 +86,27 @@ class SandboxContext:
 
         self.nwfilter_objs = []
 
+    def _get_subnet(self, ip, netmask):
+        if netmask == '255.255.255.0':
+            segs = ip.split('.')
+            self.subnet = '.'.join(segs[:3]) + '.0' + '/24'
+        else:
+            l.warning('Only support /24 subnet!')
+
     def _get_net_config(self):
         with open(self.net_conf, 'r') as file:
             net_xml = file.read()
 
+        tree = etree.fromstring(net_xml)
+        ip_node = tree.xpath("//ip")[0]
+        ip_addr = ip_node.get('address')
+        netmask = ip_node.get('netmask')
+        self.subnet = self._get_subnet(ip_addr, netmask)
+        l.debug(f'subnet: {self.subnet}')
+
         # block mode do not rate limit bandwidth
         if self.network_mode == NetworkMode.BLOCK:
-            return net_xml;
-
-        tree = etree.fromstring(net_xml)
+            return net_xml
 
         net_bandwidth_node = tree.xpath("//bandwidth/outbound")[0]
         net_bandwidth_node.set('average', self.network_average)
@@ -116,6 +131,14 @@ class SandboxContext:
         if self.network_mode == NetworkMode.BLOCK:
             return SandboxNWFilter.CNC
         return SandboxNWFilter.CNC_RATE_LIMIT
+
+    @property
+    def allowed_tcp_ports(self):
+        return self.allowed_tcp_ports
+
+    @property
+    def simulated_server(self):
+        return self.simulated_server
 
     def is_supported_arch(self, arch):
         return arch in self.sandbox_registry
@@ -158,8 +181,6 @@ class SandboxContext:
         return (self.image_base + os.sep + fs_src,
                 self.image_dir + os.sep + fs_dst)
 
-    def get_allowed_tcp_ports(self):
-        return self.allowed_tcp_ports
 
     def get_script(self, name):
         if name == SandboxScript.PREPARE_FS:
@@ -277,8 +298,12 @@ class SandboxContext:
 
         return etree.tostring(tree, encoding='unicode')
 
-    def _apply_ip_tables_rules(self):
-        
+    def _default_rule(self, switch='ON'):
+        s = SandboxScript.DEFAULT_RULE
+        self.run_script(s, switch,
+                        self.subnet,
+                        self.dns_rate_limit,
+                        self.https_proxy_port)
 
     def create_sandbox(self, sandbox_xml):
         return self.conn.createXML(sandbox_xml, libvirt.VIR_DOMAIN_START_VALIDATE)
@@ -319,6 +344,8 @@ class SandboxContext:
 
         l.info("network is active")
 
+        self._default_rule('ON')
+
         # define nwfilters
         if not self._define_nwfilters():
             l.error("failed to define network filters")
@@ -331,6 +358,8 @@ class SandboxContext:
         # now we should have all domains destroyed
         # undefine nwfilters
         self._undefine_nwfilters()
+
+        self._default_rule('OFF')
 
         if self.net is not None and self.net.isActive():
             l.debug("destroying network...")

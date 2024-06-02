@@ -57,6 +57,12 @@ class Sandbox:
         if os.path.exists(self.fs):
             os.remove(self.fs)
 
+    def redirect_traffic(self, switch, cnc_ip):
+        s = SandboxScript.REDIRECT
+        self._run_script(s, switch, self.ip,
+                         self.context.allowed_tcp_ports,
+                         self.context.simulated_server, cnc_ip)
+
     def fetch_log(self, dst):
         s = SandboxScript.FETCH_LOG
         self._run_script(s, self.fs, dst)

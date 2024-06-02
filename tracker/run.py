@@ -20,15 +20,18 @@ async def async_main(arguments=None):
         return
 
     config.read(ini_file)
-    sandbox_ctx = SandboxContext(config['rate_limit']['network_peak'],
-                                 config['rate_limit']['network_average'],
-                                 config['rate_limit']['network_burst'],
-                                 config['rate_limit']['port_peak'],
-                                 config['rate_limit']['port_average'],
-                                 config['rate_limit']['port_burst'],
-                                 config['network_control']['max_conn'],
-                                 config['network_control']['allowed_tcp_ports'],
-                                 config['network_control']['allowed_server_ip'])
+    sandbox_ctx = SandboxContext(int(config['network_control']['mode']),
+                                 int(config['network_control']['dns_rate_limit']),
+                                 config['network_control']['https_proxy_port']
+                                 config['network_control.block']['allowed_tcp_ports'],
+                                 config['network_control.block']['simulated_server'],
+                                 config['network_control.rate_limit']['network_peak'],
+                                 config['network_control.rate_limit']['network_average'],
+                                 config['network_control.rate_limit']['network_burst'],
+                                 config['network_control.rate_limit']['port_peak'],
+                                 config['network_control.rate_limit']['port_average'],
+                                 config['network_control.rate_limit']['port_burst'],
+                                 config['network_control.rate_limit']['port_max_conn'])
     sandbox_ctx.start()
 
     db_store = DBStore(config['database']['host'],
@@ -38,12 +41,12 @@ async def async_main(arguments=None):
                        config['database']['password'])
     await db_store.open()
 
-    scheduler = Scheduler(config['tracker']['id'],
+    scheduler = Scheduler(int(config['tracker']['id']),
                           config['local_bot_repo']['ip'],
                           config['local_bot_repo']['user'],
                           config['local_bot_repo']['path'],
-                          config['scheduler']['mode'],
-                          int(config['scheduler']['checkpoint_interval']),
+                          int(config['scheduler']['mode']),
+                          config['scheduler']['monitor_on_iface'],
                           int(config['scheduler']['sandbox_vcpu_quota']),
                           int(config['scheduler']['max_sandbox_num']),
                           int(config['scheduler']['max_dormant_duration']),

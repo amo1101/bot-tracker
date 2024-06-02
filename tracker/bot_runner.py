@@ -250,6 +250,9 @@ class BotRunner:
             args = {"cnc_ip": self.cnc_info[0].ip}
             self.sandbox.apply_nwfilter(nwfilter_type, **args)
 
+            # redirect traffic to simulated server
+            self.sandbox.redirect_traffic('ON', self.cnc_info[0].ip)
+
             # Set bot status to dormant before we observe CnC communication
             await self.update_bot_info(BotStatus.DORMANT)
 
@@ -270,6 +273,9 @@ class BotRunner:
             l.info("Bot runner destroyed")
             await self.update_bot_info(BotStatus.INTERRUPTED)
             self.sandbox.fetch_log(self.log_dir)
+
+            # turn off traffic redirection
+            self.sandbox.redirect_traffic('OFF', self.cnc_info[0].ip)
 
             self.sandbox.destroy()
             if self.live_capture is not None:

@@ -14,7 +14,7 @@ class Scheduler:
                  bot_repo_user,
                  bot_repo_path,
                  mode,
-                 checkpoint_interval,
+                 monitor_on_iface,
                  sandbox_vcpu_quota,
                  max_sandbox_num,
                  max_dormant_duration,
@@ -27,7 +27,8 @@ class Scheduler:
         self.bot_repo_user = bot_repo_user
         self.bot_repo_path = bot_repo_path
         self.mode = mode
-        self.checkpoint_interval = checkpoint_interval
+        self.monitor_on_iface = monitor_on_iface
+        self.checkpoint_interval = 10
         self.sandbox_vcpu_quota = sandbox_vcpu_quota
         self.max_sandbox_num = max_sandbox_num
         self.max_dormant_hours = max_dormant_duration
@@ -135,7 +136,7 @@ class Scheduler:
         await self._schedule_bots(None, bot_id)
         return True
 
-    def stop_bot(self, bot_id):
+    def stop_bot(self, bot_id, force_stop=False):
         if self.mode == SCHEDULER_MODE_AUTO:
             l.warning('stop_bot command not supported in auto mode')
             return False
