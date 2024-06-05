@@ -24,8 +24,22 @@ mkdir -p /.ssh
 cp known_hosts /root/.ssh/
 cp known_hosts /.ssh/
 
+MAX_RETRIES=10
+retry_count=0
+
 echo "Downloading bot from $HOST:$DOWNLOAD_PATH/$BOT_NAME"
-/usr/bin/scp -i ./$KEY_FILE $USERNAME@$HOST:$DOWNLOAD_PATH/$BOT_NAME ./$BOT_NAME
+while [ $retry_count -lt $MAX_RETRIES ]; do
+    /usr/bin/scp -i ./$KEY_FILE $USERNAME@$HOST:$DOWNLOAD_PATH/$BOT_NAME ./$BOT_NAME
+    if [ $? -eq 0 ]; then
+        echo "Bot downloaded successfully."
+        break
+    else
+        echo "Failed to download bot. Retrying... ($((retry_count + 1))/$MAX_RETRIES)"
+        retry_count=$((retry_count + 1))
+    fi
+    sleep 3
+done
+
 chmod +x ./$BOT_NAME
 
 echo "Running bot with strace: $BOT_NAME"

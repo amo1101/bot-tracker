@@ -3,9 +3,8 @@
 SWITCH=$1
 SUBNET=$2
 DNS_RATE=$3
-HTTPS_PROXY_PORT=$4
 
-CHAIN=BC_FWO
+CHAIN=FWD-BC
 
 if [ $SWITCH == 'ON' ]; then
     iptables -N $CHAIN

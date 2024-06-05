@@ -21,8 +21,7 @@ async def async_main(arguments=None):
 
     config.read(ini_file)
     sandbox_ctx = SandboxContext(int(config['network_control']['mode']),
-                                 int(config['network_control']['dns_rate_limit']),
-                                 config['network_control']['https_proxy_port']
+                                 config['network_control']['dns_rate_limit'],
                                  config['network_control.block']['allowed_tcp_ports'],
                                  config['network_control.block']['simulated_server'],
                                  config['network_control.rate_limit']['network_peak'],
@@ -45,8 +44,10 @@ async def async_main(arguments=None):
                           config['local_bot_repo']['ip'],
                           config['local_bot_repo']['user'],
                           config['local_bot_repo']['path'],
+                          config['interface_monitor']['iface'],
+                          config['interface_monitor']['excluded_ips'],
+                          config['interface_monitor']['action'],
                           int(config['scheduler']['mode']),
-                          config['scheduler']['monitored_iface'],
                           int(config['scheduler']['sandbox_vcpu_quota']),
                           int(config['scheduler']['max_sandbox_num']),
                           int(config['scheduler']['max_dormant_duration']),
@@ -57,7 +58,7 @@ async def async_main(arguments=None):
 
     cmd_handler.start_cmd_handler(scheduler, db_store)
     await scheduler.checkpoint()
-    scheduler.destroy()
+    await scheduler.destroy()
     await db_store.close()
     sandbox_ctx.destroy()
 
@@ -68,6 +69,7 @@ async def main_task():
 
 if __name__ == "__main__":
     try:
+        #  asyncio.get_event_loop().run_until_complete(main_task())
         asyncio.run(main_task(), debug=True)
     except KeyboardInterrupt:
         l.info('Interrupted by user')

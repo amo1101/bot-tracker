@@ -1,5 +1,5 @@
 import asyncio
-from cli import parse_cmd
+from cli import parse_cmd, cmd_buffer_len
 from db_store import *
 
 l: TaskLogger = TaskLogger(__name__)
@@ -24,7 +24,6 @@ async def handle_list_bot(args):
                   BotStatus.ACTIVE.value,
                   BotStatus.DORMANT.value]
 
-    await bot_scheduler.manual_update_bot_info()
     bots = await bot_db_store.load_bot_info(status, bot_id)
 
     if len(bots) == 1:
@@ -68,7 +67,7 @@ async def handle_stop_bot(args):
     elif 'all' in args:
         bot_id = None
 
-    ret = bot_scheduler.stop_bot(bot_id)
+    ret = await bot_scheduler.stop_bot(bot_id)
     if ret:
         resp = "Bot stopped"
     else:
@@ -177,7 +176,7 @@ cmd_registry = {
 
 async def handle_client(reader, writer):
     while True:
-        data = await reader.read(8192)
+        data = await reader.read(cmd_buffer_len)
         l.debug(f'received command: {data}')
         if not data:
             break

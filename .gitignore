@@ -24,6 +24,7 @@ var/
 wheels/
 share/python-wheels/
 tracker/image
+tracker/iface_monitor_log
 downloader/malware_repo
 tracker/log
 *.egg-info/

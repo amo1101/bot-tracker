@@ -140,7 +140,7 @@ cmd_config = {
         'cnc_probing_duration': lambda v: v.isdigit()})
 }
 
-
+cmd_buffer_len = 1024 * 1024 * 4
 def parse_cmd(command):
     cmd_split = command.split(' ')
     cmd = cmd_split[0]
@@ -207,7 +207,7 @@ async def start_cli():
                 continue
 
             writer.write(command.encode())
-            data = await reader.read(8192)
+            data = await reader.read(cmd_buffer_len)
             if not data:
                 break
             resp = data.decode()

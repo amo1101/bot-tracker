@@ -45,7 +45,7 @@ class Sandbox:
             shutil.copyfile(src, dst)
 
         # copy bot directory to sandbox fs
-        bot_dir = self.context.get_bot_dir()
+        bot_dir = self.context.bot_dir
         s = SandboxScript.PREPARE_FS
         self._run_script(s, self.bot_file, bot_dir, dst, self.bot_repo_ip,
                          self.bot_repo_user, self.bot_repo_path)
@@ -58,14 +58,15 @@ class Sandbox:
             os.remove(self.fs)
 
     def redirect_traffic(self, switch, cnc_ip):
-        s = SandboxScript.REDIRECT
-        self._run_script(s, switch, self.ip,
-                         self.context.allowed_tcp_ports,
-                         self.context.simulated_server, cnc_ip)
+        if self.context.network_mode == NetworkMode.BLOCK.value:
+            s = SandboxScript.REDIRECT
+            self._run_script(s, switch, self.ip,
+                             self.context.allowed_tcp_ports,
+                             self.context.simulated_server, cnc_ip)
 
-    def fetch_log(self, dst):
+    def fetch_log(self, dst, start_time, end_time):
         s = SandboxScript.FETCH_LOG
-        self._run_script(s, self.fs, dst)
+        self._run_script(s, self.fs, dst, start_time, end_time)
 
     async def start(self):
         self._prepare_kernel()
@@ -118,7 +119,9 @@ class Sandbox:
         l.debug("get port_dev %s, mac_address: %s, ip: %s", self.port_dev,
                 self.mac_address, self.ip)
 
-        l.info(f"Sandbox started {self.name}")
+        sandbox_info = f"name: {self.name}, vcpu quota:{self.sandbox_vcpu_quota}, " + \
+                       f"arch: {self.arch}, interface: {self.port_dev, self.mac_address, self.ip}"
+        l.info(f"Sandbox started: {sandbox_info}")
 
     def get_ifinfo(self):
         return self.port_dev, self.mac_address, self.ip

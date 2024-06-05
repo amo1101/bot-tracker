@@ -56,4 +56,4 @@ class AsyncLiveCapture(LiveCapture):
                 if packet_count and packets_captured >= packet_count:
                     break
         finally:
-            pass
+            self._log.debug("sniff finalized.")

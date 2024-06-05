@@ -9,11 +9,21 @@ for b in $bindings; do
 done
 
 virsh nwfilter-undefine sandbox-default-filter
+virsh nwfilter-undefine sandbox-default-filter-rate-limit
 virsh nwfilter-undefine sandbox-cnc-filter
+virsh nwfilter-undefine sandbox-cnc-filter-rate-limit
+virsh nwfilter-undefine sandbox-base-filter
 virsh net-destroy mynet
 
 progs=$(ps -ef | grep 'python3 run.py' | awk '{print $2}' | head -n 3)
 for prog in $progs; do
     kill -9 $prog
 done
+
+iptables -D FORWARD -s 192.168.122.0/24 -p tcp --dport 53 -j FWD-BC
+iptables -D FORWARD -s 192.168.122.0/24 -p udp --dport 53 -j FWD-BC
+iptables -F FWD-BC
+iptables -X FWD-BC
+iptables -F PREROUTING -t nat
+
 

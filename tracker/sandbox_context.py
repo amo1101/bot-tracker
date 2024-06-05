@@ -14,11 +14,11 @@ class NetworkMode(Enum):
     RATE_LIMIT = 1
 
 class SandboxNWFilter(Enum):
+    BASE = "sandbox-base-filter"
     DEFAULT = "sandbox-default-filter"
     DEFAULT_RATE_LIMIT = "sandbox-default-filter-rate-limit"
     CNC = "sandbox-cnc-filter"
     CNC_RATE_LIMIT = "sandbox-cnc-filter-rate-limit"
-
 
 class SandboxScript(Enum):
     PREPARE_FS = "prepare_fs.sh"
@@ -26,13 +26,10 @@ class SandboxScript(Enum):
     REDIRECT = "redirect.sh"
     DEFAULT_RULE = "default_rule.sh"
 
-
-
 class SandboxContext:
     def __init__(self,
                  network_mode,
                  dns_rate_limit,
-                 https_proxy_port,
                  allowed_tcp_ports,
                  simulated_server,
                  network_peak,
@@ -48,15 +45,14 @@ class SandboxContext:
         self.config_base = CUR_DIR + os.sep + "config"
         self.image_base = CUR_DIR + os.sep + "image"
         self.scripts_base = CUR_DIR + os.sep + "scripts"
-        self.bot_dir = CUR_DIR + os.sep + "bot"
+        self._bot_dir = CUR_DIR + os.sep + "bot"
         self.net_conf = self.config_base + os.sep + "network.xml"
         self.subnet = ''
         self.netmask = ''
-        self.network_mode = network_mode
+        self._network_mode = network_mode
         self.dns_rate_limit = dns_rate_limit
-        self.https_proxy_port = https_proxy_port
-        self.allowed_tcp_ports = allowed_tcp_ports
-        self.simulated_server = simulated_server
+        self._allowed_tcp_ports = allowed_tcp_ports
+        self._simulated_server = simulated_server
         self.network_peak = network_peak
         self.network_average = network_average
         self.network_burst = network_burst
@@ -75,6 +71,8 @@ class SandboxContext:
 
         self.sandbox_nwfilter_registry = \
             {
+                SandboxNWFilter.BASE.value:
+                    ["base_filter.xml", ""],
                 SandboxNWFilter.DEFAULT.value:
                     ["default_filter.xml", "bind_default_filter.xml"],
                 SandboxNWFilter.DEFAULT_RATE_LIMIT.value:
@@ -86,6 +84,34 @@ class SandboxContext:
             }
 
         self.nwfilter_objs = []
+
+    @property
+    def network_mode(self):
+        return self._network_mode
+
+    @property
+    def default_nwfilter(self):
+        if self._network_mode == NetworkMode.BLOCK.value:
+            return SandboxNWFilter.DEFAULT
+        return SandboxNWFilter.DEFAULT_RATE_LIMIT
+
+    @property
+    def cnc_nwfilter(self):
+        if self._network_mode == NetworkMode.BLOCK.value:
+            return SandboxNWFilter.CNC
+        return SandboxNWFilter.CNC_RATE_LIMIT
+
+    @property
+    def allowed_tcp_ports(self):
+        return self._allowed_tcp_ports
+
+    @property
+    def simulated_server(self):
+        return self._simulated_server
+
+    @property
+    def bot_dir(self):
+        return self._bot_dir
 
     def get_subnet(self):
         return self.subnet, self.netmask
@@ -106,7 +132,7 @@ class SandboxContext:
         l.debug(f'subnet: {self.subnet}, netmask: {self.netmask}')
 
         # block mode do not rate limit bandwidth
-        if self.network_mode == NetworkMode.BLOCK:
+        if self._network_mode == NetworkMode.BLOCK:
             return net_xml
 
         net_bandwidth_node = tree.xpath("//bandwidth/outbound")[0]
@@ -120,30 +146,6 @@ class SandboxContext:
         port_bandwidth_node.set('burst', self.port_burst)
 
         return etree.tostring(tree, encoding='unicode')
-
-    @property
-    def network_mode(self):
-        return self.network_mode
-
-    @property
-    def default_nwfilter(self):
-        if self.network_mode == NetworkMode.BLOCK:
-            return SandboxNWFilter.DEFAULT
-        return SandboxNWFilter.DEFAULT_RATE_LIMIT
-
-    @property
-    def cnc_nwfilter(self):
-        if self.network_mode == NetworkMode.BLOCK:
-            return SandboxNWFilter.CNC
-        return SandboxNWFilter.CNC_RATE_LIMIT
-
-    @property
-    def allowed_tcp_ports(self):
-        return self.allowed_tcp_ports
-
-    @property
-    def simulated_server(self):
-        return self.simulated_server
 
     def is_supported_arch(self, arch):
         return arch in self.sandbox_registry
@@ -193,6 +195,8 @@ class SandboxContext:
             return self.scripts_base + os.sep + SandboxScript.REDIRECT.value
         elif name == SandboxScript.FETCH_LOG:
             return self.scripts_base + os.sep + SandboxScript.FETCH_LOG.value
+        elif name == SandboxScript.DEFAULT_RULE:
+            return self.scripts_base + os.sep + SandboxScript.DEFAULT_RULE.value
         else:
             return ""
 
@@ -213,9 +217,6 @@ class SandboxContext:
         except Exception as err:
             l.error(f'Exception occurred: {err}')
             return False
-
-    def get_bot_dir(self):
-        return self.bot_dir
 
     def _define_nwfilters(self):
         for k, v in self.sandbox_nwfilter_registry.items():
@@ -257,7 +258,7 @@ class SandboxContext:
             }
 
         if (filter_name == SandboxNWFilter.DEFAULT or
-            filter_name == SandboxNWFilter.DEFAULT_DEFAULT_RATE_LIMIT):
+            filter_name == SandboxNWFilter.DEFAULT_RATE_LIMIT):
             del para_to_check["cnc_ip"]
             del para_to_check["allowed_tcp_ports"]
             del para_to_check["simulated_server"]
@@ -306,17 +307,16 @@ class SandboxContext:
         s = SandboxScript.DEFAULT_RULE
         self.run_script(s, switch,
                         self.subnet + '/24',
-                        self.dns_rate_limit,
-                        self.https_proxy_port)
+                        self.dns_rate_limit)
 
     def create_sandbox(self, sandbox_xml):
         return self.conn.createXML(sandbox_xml, libvirt.VIR_DOMAIN_START_VALIDATE)
 
     def apply_nwfilter(self, filter_name, **kwargs):
-        tcp_ports = self.allowed_tcp_ports.split(',')
+        tcp_ports = self._allowed_tcp_ports.split(',')
         binding_xml = self._get_nwfilter_binding(filter_name,
                                                  allowed_tcp_ports=tcp_ports,
-                                                 simulated_server=self.simulated_server,
+                                                 simulated_server=self._simulated_server,
                                                  conn_limit=self.port_max_conn,
                                                  **kwargs)
         if binding_xml == "":
@@ -346,7 +346,7 @@ class SandboxContext:
             l.error("network is not active")
             return False
 
-        l.info("network is active")
+        l.info(f"network is active, mode: {self.network_mode}, subnet: {self.subnet}, mask: {self.netmask}")
 
         self._default_rule('ON')
 
@@ -369,3 +369,4 @@ class SandboxContext:
             l.debug("destroying network...")
             self.net.destroy()
         self.conn.close()
+        l.debug("libvirt connection closed...")

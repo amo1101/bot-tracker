@@ -1,6 +1,7 @@
 from bot_runner import *
 from db_store import *
-from iface_monitor import IfaceMonitor
+from iface_monitor import *
+from sandbox_context import SandboxContext
 
 l: TaskLogger = TaskLogger(__name__)
 
@@ -14,8 +15,10 @@ class Scheduler:
                  bot_repo_ip,
                  bot_repo_user,
                  bot_repo_path,
+                 iface_monitor_iface,
+                 iface_monitor_excluded_ips,
+                 iface_monitor_action,
                  mode,
-                 monitored_iface,
                  sandbox_vcpu_quota,
                  max_sandbox_num,
                  max_dormant_duration,
@@ -23,47 +26,56 @@ class Scheduler:
                  cnc_probing_duration,
                  sandbox_ctx,
                  db_store):
-        self.tracker_id = tracker_id  # left for supporting multiple trackers.
+        self.tracker_id = tracker_id  # reserved for supporting multiple trackers.
         self.bot_repo_ip = bot_repo_ip
         self.bot_repo_user = bot_repo_user
         self.bot_repo_path = bot_repo_path
+        self.iface_monitor_iface = iface_monitor_iface
+        self.iface_monitor_excluded_ips = iface_monitor_excluded_ips
+        self.iface_monitor_action = iface_monitor_action
         self.mode = mode
-        self.monitored_iface = monitored_iface
-        self.checkpoint_interval = 10
+        self.checkpoint_interval = 15
         self.sandbox_vcpu_quota = sandbox_vcpu_quota
         self.max_sandbox_num = max_sandbox_num
         self.max_dormant_hours = max_dormant_duration
         self.max_dormant_duration = timedelta(hours=self.max_dormant_hours)
         self.max_analyzing_workers = max_packet_analyzing_workers
         self.cnc_probing_duration = cnc_probing_duration
-        self.sandbox_cxt = sandbox_ctx
+        self.sandbox_ctx = sandbox_ctx
         self.db_store = db_store
         self.iface_monitor = None
         self.iface_monitor_task = None
 
         # {running_task: bot-runner obj}
+        self.bot_runners_lock = asyncio.Lock()
         self.bot_runners = {}
 
-    def destroy(self):
-        for t, r in self.bot_runners.items():
-            if not t.cancelled():
-                t.cancel()
-            else:
-                l.debug(f'Task {t.get_name()} has been cancelled')
+    async def destroy(self):
+        async with self.bot_runners_lock:
+            for t, r in self.bot_runners.items():
+                if not t.cancelled():
+                    t.cancel()
+                else:
+                    l.debug(f'Task {t.get_name()} has been cancelled')
+                #  await t.destroy()
+
         if BotRunner.analyzer_executor is not None:
             BotRunner.analyzer_executor.shutdown()
+
         if self.iface_monitor_task is not None:
             self.iface_monitor_task.cancel()
+            await self.iface_monitor.destroy()
 
-    def _unstage_bots(self):
-        for t, r in self.bot_runners.items():
-            dd = r.dormant_duration()
-            od = r.observe_duration()
-            l.info(f"Bot [{r.bot_info.tag}]: \ndormant_duration:{dd}\nobserve_duration:{od}")
-            if dd > self.max_dormant_duration:
-                l.info(f"Cancelling running bot [{r.bot_info.tag}]")
-                r.notify_unstage = True
-                t.cancel()
+    async def _unstage_bots(self):
+        async with self.bot_runners_lock:
+            for t, r in self.bot_runners.items():
+                dd = r.dormant_duration()
+                od = r.observe_duration()
+                l.info(f"Bot [{r.bot_info.tag}]: \ndormant_duration:{dd}\nobserve_duration:{od}")
+                if dd > self.max_dormant_duration:
+                    l.info(f"Cancelling running bot [{r.bot_info.tag}]")
+                    r.notify_unstage = True
+                    t.cancel()
 
     async def _schedule_bots(self, status_list=None, bot_id=None, count=None):
         curr_runners_num = len(self.bot_runners)
@@ -74,18 +86,17 @@ class Scheduler:
             return
 
         def task_done_cb(t):
-            if t in self.bot_runners:
-                del self.bot_runners[t]
-                l.debug('Task done removed')
+            l.debug('Task done cancelled')
 
         bots = await self.db_store.load_bot_info(status_list, bot_id, count)
         for bot in bots:
             # skip bot which is already running
             already_running = False
-            for _, r in self.bot_runners.items():
-                if r.bot_info.bot_id == bot.bot_id:
-                    already_running = True
-                    break
+            async with self.bot_runners_lock:
+                for _, r in self.bot_runners.items():
+                    if r.bot_info.bot_id == bot.bot_id:
+                        already_running = True
+                        break
 
             if already_running:
                 l.warning('Bot %s already running.', bot.bot_id)
@@ -101,12 +112,14 @@ class Scheduler:
                                    self.bot_repo_path,
                                    self.sandbox_vcpu_quota,
                                    self.cnc_probing_duration,
-                                   self.sandbox_cxt,
+                                   self.sandbox_ctx,
                                    self.db_store,
-                                   self.max_analyzing_workers)
+                                   self.max_analyzing_workers,
+                                   self.iface_monitor)
             task = asyncio.create_task(bot_runner.run(),
                                        name=f't_{bot.tag}')
-            self.bot_runners[task] = bot_runner
+            async with self.bot_runners_lock:
+                self.bot_runners[task] = bot_runner
             task.add_done_callback(task_done_cb)
             l.info(f"Bot [{bot.tag}] scheduled")
             curr_runners_num += 1
@@ -116,25 +129,40 @@ class Scheduler:
                                    BotStatus.INTERRUPTED.value])
 
     async def _update_bot_info(self):
-        for _, r in self.bot_runners.items():
-            await r.update_bot_info()
+        l.debug(f'update bot info..., bot count: {len(self.bot_runners)}')
+        to_del = []
+        async with self.bot_runners_lock:
+            for t, r in self.bot_runners.items():
+                if t.done():
+                    to_del.append(t)
+                else:
+                    await r.update_bot_info()
+            for t in to_del:
+                del self.bot_runners[t]
+                l.debug(f'remove task {t.get_name()}')
 
     async def checkpoint(self):
         try:
             # create the inteface monitor task
-            subnet, netmask = self.sandbox_ctx.get_subnet()
-            self.iface_monitor = IfaceMonitor(self.sandbox_cxt.network_mode,
-                                              self,
-                                              self.monitored_iface,
-                                              subnet,
-                                              netmask)
-            self.iface_monitor_task = asyncio.create_task(self.iface_monitor.start(),
+            iface_monitor_action_type = IfaceMonitorAction.ALARM if \
+                self.iface_monitor_action == '0' else IfaceMonitorAction.BLOCK
+
+            def iface_monitor_action():
+                if self.iface_monitor_action != '0':
+                    self.stop_bot(None, True)
+
+            self.iface_monitor = IfaceMonitor(self.iface_monitor_iface,
+                                              iface_monitor_action_type,
+                                              iface_monitor_action,
+                                              self.iface_monitor_excluded_ips)
+            self.iface_monitor_task = asyncio.create_task(self.iface_monitor.run(),
                                                           name=f't_iface_monitor')
             while True:
                 if self.mode == SCHEDULER_MODE_AUTO:
-                    self._unstage_bots()
+                    await self._unstage_bots()
                     await self._stage_bots()
-                    await self._update_bot_info()
+
+                await self._update_bot_info()
                 await asyncio.sleep(self.checkpoint_interval)
         except asyncio.CancelledError:
             l.warning("Scheduler cancelled")
@@ -150,24 +178,20 @@ class Scheduler:
         await self._schedule_bots(None, bot_id)
         return True
 
-    def stop_bot(self, bot_id, force_stop=False):
-        if self.mode == SCHEDULER_MODE_AUTO:
+    async def stop_bot(self, bot_id, force_stop=False):
+        if self.mode == SCHEDULER_MODE_AUTO and not force_stop:
             l.warning('stop_bot command not supported in auto mode')
             return False
 
-        for t, r in self.bot_runners.items():
-            # bot_id is None means stop all bots
-            if r.bot_info.bot_id == bot_id or bot_id is None:
-                t.cancel()
-                if bot_id is not None:
-                    break
+        async with self.bot_runners_lock:
+            for t, r in self.bot_runners.items():
+                # bot_id is None means stop all bots
+                if r.bot_info.bot_id == bot_id or bot_id is None:
+                    t.cancel()
+                    if bot_id is not None:
+                        break
 
         return True
-
-    # this API is for separate auto and manual schedule to avoid conflict
-    async def manual_update_bot_info(self):
-        if self.mode == SCHEDULER_MODE_MANUAL:
-            await self._update_bot_info()
 
     def get_scheduler_info(self):
         return (self.mode,

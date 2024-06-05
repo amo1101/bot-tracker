@@ -54,7 +54,6 @@ class BotRunner:
         self.log_dir = self.log_base + os.sep + bot_info.tag
         self.cnc_info = None
         self.cnc_probing_time = cnc_probing_duration
-        self.start_time = None
         self.notify_unstage = False
         self.notify_error = False
         self.notify_dup = False
@@ -72,7 +71,7 @@ class BotRunner:
     def _init_capture(self, port_dev):
         if self.live_capture is None:
             iface = port_dev
-            bpf_filter = None  # f"ether src {mac_addr} or ether dst {mac_addr}"
+            bpf_filter = "not stp and not arp" # filter out background traffic
             output_file = self.log_dir + os.sep + "capture.pcap"
             self.live_capture = AsyncLiveCapture(interface=iface,
                                                  bpf_filter=bpf_filter,
@@ -93,11 +92,11 @@ class BotRunner:
         try:
             async for packet in self.live_capture.sniff_continuously():
                 #  l.debug(f'packet arrives:\n{packet}')
-                l.debug(f'cnc report before:\n{repr(self.cnc_analyzer.report)}')
+                l.debug(f'cnc report before: {repr(self.cnc_analyzer.report)}')
                 self.cnc_analyzer.report = await loop.run_in_executor(BotRunner.analyzer_executor,
                                                                       self.cnc_analyzer.analyze,
                                                                       packet)
-                l.debug(f'cnc report after:\n{repr(self.cnc_analyzer.report)}')
+                l.debug(f'cnc report after: {repr(self.cnc_analyzer.report)}')
         # let the caller handle all the exceptions
         finally:
             l.debug('_find_cnc finalized')
@@ -105,7 +104,7 @@ class BotRunner:
 
     async def _find_cnc_task(self, own_ip, excluded_ips):
         task = asyncio.create_task(self._find_cnc(own_ip, excluded_ips),
-                                   name="t_find_cnc")
+                                   name=f"t_find_cnc_{self.bot_info.tag}")
         await task
 
     # TODO: now only monitor cnc status, will add online attack monitoring
@@ -130,14 +129,14 @@ class BotRunner:
         try:
             async for packet in self.live_capture.sniff_continuously():
                 #  l.debug(f'packet arrives:\n{packet}')
-                l.debug(f'attack report before:\n{repr(self.attack_analyzer.report)}')
+                l.debug(f'attack report before: {repr(self.attack_analyzer.report)}')
                 self.attack_analyzer.report = await loop.run_in_executor(BotRunner.analyzer_executor,
                                                                          self.attack_analyzer.analyze,
                                                                          packet)
                 if self.attack_analyzer.report.is_ready():
                     await self._handle_attack_report(self.attack_analyzer.report.get())
                 else:
-                    l.debug(f'attack report after:\n{repr(self.attack_analyzer.report)}')
+                    l.debug(f'attack report after: {repr(self.attack_analyzer.report)}')
         finally:
             l.debug('_observe_attack finalized')
             #  pass
@@ -208,7 +207,7 @@ class BotRunner:
             # transit status to staged
             await self.update_bot_info(BotStatus.STAGED)
 
-            port_dev, _, own_ip = self.sandbox.get_ifinfo()
+            port_dev, mac, own_ip = self.sandbox.get_ifinfo()
             self._init_capture(port_dev)
 
             # set default nwfiter
@@ -220,7 +219,6 @@ class BotRunner:
                                        timeout=self.cnc_probing_time)
             except asyncio.TimeoutError:
                 l.warning("Cnc probing timeout...")
-            finally:
                 if self.cnc_analyzer.report.is_ready():
                     cnc_info = self.cnc_analyzer.report.get()
                     ip_port = cnc_info[0].split(':')
@@ -242,23 +240,22 @@ class BotRunner:
                     #  return
 
                     await self.db_store.add_cnc_info(self.cnc_info[0])
-                else:
-                    l.warning("Cnc not find, stop bot runner...")
-                    self.notify_error = True
-                    await self.destroy()
-                    return
+
+            if self.cnc_info is None or len(self.cnc_info) == 0:
+                l.warning("Cnc not find, stop bot runner...")
+                self.notify_error = True
+                await self.destroy()
+                return
 
             # register to iface_monitor
-            _, mac, _ = self.sandbox.get_ifinfo()
-            self.iface_monitor.register(mac, self.cnc_info[0].ip,
-                                        self.bot_info.bot_id)
+            self.iface_monitor.register(self.cnc_info[0].ip)
 
             # enforce nwfilter
             nwfilter_type = self.sandbox_ctx.cnc_nwfilter
             args = {"cnc_ip": self.cnc_info[0].ip}
             self.sandbox.apply_nwfilter(nwfilter_type, **args)
 
-            # redirect traffic to simulated server
+            # redirect traffic to simulated server in block network mode
             self.sandbox.redirect_traffic('ON', self.cnc_info[0].ip)
 
             # Set bot status to dormant before we observe CnC communication
@@ -280,13 +277,14 @@ class BotRunner:
                 return
             l.info("Bot runner destroyed")
             await self.update_bot_info(BotStatus.INTERRUPTED)
-            self.sandbox.fetch_log(self.log_dir)
+            str_start_time = self.staged_time.strftime('%Y-%m-%d-%H-%M-%S')
+            str_end_time = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
+            self.sandbox.fetch_log(self.log_dir, str_start_time, str_end_time)
 
             # turn off traffic redirection
-            self.sandbox.redirect_traffic('OFF', self.cnc_info[0].ip)
-
-            _, mac, _ = self.sandbox.get_ifinfo()
-            self.iface_monitor.unregister(mac)
+            if self.cnc_info is not None and len(self.cnc_info) > 0:
+                self.sandbox.redirect_traffic('OFF', self.cnc_info[0].ip)
+                self.iface_monitor.unregister(self.cnc_info[0].ip)
 
             self.sandbox.destroy()
             if self.live_capture is not None:

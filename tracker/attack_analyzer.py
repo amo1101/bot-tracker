@@ -20,10 +20,10 @@ class AttackReport:
                 'cnc_status': self.cnc_status}
 
     def __repr__(self):
-        return f'cnc_status: {self.cnc_status}\n' + \
-            f'cnc_ready: {self.cnc_ready}\n' + \
-            f'attack_ready: {self.attack_ready}\n' + \
-            f'cnc_ip: {self.cnc_ip}\n'
+        return f'cnc_status: {self.cnc_status}, ' + \
+            f'cnc_ready: {self.cnc_ready}, ' + \
+            f'attack_ready: {self.attack_ready}, ' + \
+            f'cnc_ip: {self.cnc_ip}'
 
 
 # avoiding logging here cuz this will run in another python interpreter
@@ -39,14 +39,14 @@ class AttackAnalyzer:
         if 'tcp' in dir(pkt):
             # we only monitor sync_ack or fin_ack from server -> client
             if pkt.ip.src == self.cnc_ip and pkt.ip.dst == self.own_ip:
-                if pkt.tcp.flags_fin == '1':
+                if pkt.tcp.flags_fin == 'True':
                     # server initiate FIN, connection broken
                     if self.report.cnc_status != CnCStatus.DISCONNECTED.value:
                         self.report.cnc_status = CnCStatus.DISCONNECTED.value
                         self.report.cnc_ready = True
                 else:
                     # if sync ack from server, or data exchange from server
-                    if (pkt.tcp.flags_syn == '1' and pkt.tcp.flags_ack == '1') \
+                    if (pkt.tcp.flags_syn == 'True' and pkt.tcp.flags_ack == 'True') \
                        or (pkt.tcp.len != '0'):
                         if self.report.cnc_status != CnCStatus.ALIVE.value:
                             self.report.cnc_status = CnCStatus.ALIVE.value

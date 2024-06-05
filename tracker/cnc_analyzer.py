@@ -37,12 +37,12 @@ class CnCReport:
         return len(self.cnc_info) > 0
 
     def __repr__(self):
-        return f'ip_dict: {self.ip_dict}\n' + \
-            f'port_dict: {self.port_dict}\n' + \
-            f'DNS_Mappings: {self.DNS_Mappings}\n' + \
-            f'count: {self.count}\n' + \
-            f'Alexa_ranking: {self.Alexa_ranking}\n' + \
-            f'cnc_info: {self.cnc_info}\n'
+        return f'ip_dict: {self.ip_dict}, ' + \
+            f'port_dict: {self.port_dict}, ' + \
+            f'DNS_Mappings: {self.DNS_Mappings}, ' + \
+            f'count: {self.count}, ' + \
+            f'Alexa_ranking: {self.Alexa_ranking}, ' + \
+            f'cnc_info: {self.cnc_info}'
 
     def rank(self, domain):
         return 0
@@ -150,18 +150,18 @@ class CnCAnalyzer:
                         self.report.port_dict[port_num] += 1  # a new host of this port was contacted
                     else:
                         self.report.port_dict[port_num] = 1  # the only host, we favor these
-                if pkt.tcp.flags_syn == '1':
-                    if pkt.tcp.flags_ack != "1":
+                if pkt.tcp.flags_syn == 'True':
+                    if pkt.tcp.flags_ack != "True":
                         state = "SYN"
                     else:
                         return self.report
                         #  return self.report # don't need to take into account SYN ACK
                 else:
                     if self.own_ip and pkt.ip.dst == self.own_ip or "192.168" not in pkt.ip.src:  # server response
-                        if pkt.tcp.flags_reset == '1':
+                        if pkt.tcp.flags_reset == 'True':
                             # print(dir(pkt.tcp))
                             state = "RST"
-                        elif pkt.tcp.flags_fin == "1":
+                        elif pkt.tcp.flags_fin == "True":
                             state = "FIN"  # FIN will later tell us if the connection was really a success
                         elif pkt.tcp.len != "0":
                             state = "SUC"  # We are interested in server exchanging data

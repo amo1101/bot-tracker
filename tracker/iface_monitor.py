@@ -1,66 +1,57 @@
-from concurrent.futures import ProcessPoolExecutor
 import asyncio
 import os
 from datetime import datetime
 from packet_capture import *
-from scheduler import Scheduler
-from sandbox_ctx import NetworkMode
+from enum import Enum
 
 l: TaskLogger = TaskLogger(__name__)
 CUR_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
+class IfaceMonitorAction(Enum):
+    ALARM = "Alarm"
+    BLOCK = "Block"
+
 class IfaceMonitor:
     def __init__(self,
-                 network_mode,
-                 scheduler,
                  iface,
-                 subnet,
-                 netmask):
-        self.network_mode = network_mode
+                 action_type,
+                 action,
+                 excluded_ips):
         self.iface = iface
-        self.subnet = subnet
-        self.netmask = netmask
+        self.action_type = action_type
+        self.action = action
+        self.excluded_ips = excluded_ips.split(',')
         self.capture = None
-        self.dns_server = '8.8.8.8' # yes hard code it
-        self.bot_reg = {}
-        self.report_file = CUR_DIR + os.sep + f'iface-monitor-report-{self.iface}.log'
+        self.cnc_ips= set()
+        self.log_dir = CUR_DIR + os.sep + 'iface_monitor_log'
+        self.report_file = self.log_dir + os.sep + f'iface-monitor-report-{self.iface}.log'
 
     # bots call the api to register monitoring
-    def register(self, mac, cnc_ip, bot_id):
-        self.bot_reg[mac] = [cnc_ip, bot_id]
+    def register(self, cnc_ip):
+        self.cnc_ips.add(cnc_ip)
+        l.debug(f'Registered for monitoring cnc_ip: {cnc_ip}')
 
-    def unregister(self, mac):
-        del self.bot_reg[mac]
+    def unregister(self, cnc_ip):
+        self.cnc_ips.discard(cnc_ip)
+        l.debug(f'Unregistered cnc_ip: {cnc_ip}')
 
     def _init_monitor(self):
+        if not os.path.exists(self.log_dir):
+            os.makedirs(self.log_dir)
+
         if self.capture is None:
             # filter outgoing packets
-            output_file = CUR_DIR + os.sep + f'iface-monitor-{self.iface}.pcap'
-            bpf_filter = f'not (dst net {self.subnet} mask {self.netmask}) ' + \
-                         f'and not dst host {self.dns_server}'
-            self.capture = AsyncLiveCapture(interface=self.monitor_on_iface,
+            output_file = self.log_dir + os.sep + f'iface-monitor-{self.iface}.pcap'
+            bpf_filter = ' and '.join([' not dst host ' + dst for dst in self.excluded_ips])
+            l.info(f'Iface monitor bpf filter: {bpf_filter}')
+            self.capture = AsyncLiveCapture(interface=self.iface,
                                             bpf_filter=bpf_filter,
-                                            output_file=output_file)
+                                            output_file=output_file,
+                                            debug=False)
 
-    def report_incident(self, mac, cnc_ip, bot_id, src, src_port, dst, dst_port, prot, action):
-        with open(self.report_file, 'a') as file:
-            report = f"{'timestamp':<16}:{datetime.now()}\n" + \
-                     f"{'network_mode':<16}:{self.network_mode}\n" + \
-                     f"{'mac':<16}:{mac}\n" + \
-                     f"{'cnc_ip':<16}:{cnc_ip}\n" + \
-                     f"{'bot_id':<16}:{bot_id[:16]}\n" + \
-                     f"{'src_ip':<16}:{src}\n" + \
-                     f"{'src_port':<16}:{src_port}\n" + \
-                     f"{'dst_ip':<16}:{dst}\n" + \
-                     f"{'dst_port':<16}:{dst_port}\n" + \
-                     f"{'protocol':<16}:{prot}\n" + \
-                     f"{'action':<16}:{action}\n"
-            file.write(report)
-
-    def traffic_analyze(self, pkt):
+    def _get_report(self, pkt):
         dst = pkt.ip.dst
-        mac = pkt.eth.src
         src = pkt.ip.src
         src_port = 'NA'
         dst_port = 'NA'
@@ -74,21 +65,41 @@ class IfaceMonitor:
             src_port = pkt.udp.srcport
             dst_port = pkt.udp.dstport
 
-        # if sent from a bot and dst is not cnc, then this is an
-        # incidence, record it and stop the bot immediately
-        if mac in self.bot_reg and dst != self.bot_reg[mac][0]:
-            self.report_incident()
-            if self.network_mode == NetworkMode.BLOCK:
-                self.scheduler.stop_bot(self.bot_reg[mac][1], True)
+        report = f"{'timestamp':<16}:{datetime.now()}\n" + \
+                 f"{'src_ip':<16}:{src}\n" + \
+                 f"{'src_port':<16}:{src_port}\n" + \
+                 f"{'dst_ip':<16}:{dst}\n" + \
+                 f"{'dst_port':<16}:{dst_port}\n" + \
+                 f"{'protocol':<16}:{prot}\n" + \
+                 f"{'action':<16}:{self.action_type.value}\n\n"
 
-    async def start(self):
-        self._init_monitor()
-        loop = asyncio.get_running_loop()
-        # the monitor should not be busy, suffice to use 1 worker
-        with ProcessPoolExecutor(max_workers=1) as pool:
+        return report
+
+    def report_incidence(self, pkt):
+        with open(self.report_file, 'a') as file:
+            report = self._get_report(pkt)
+            file.write(report)
+
+    def monitoring(self, pkt):
+        dst = pkt.ip.dst
+
+        # if sent from a bot and dst is not cnc, then this is an
+        # violation, report it and take action
+        if dst not in self.cnc_ips:
+            return 1
+        return 0
+
+    async def run(self):
+        try:
+            self._init_monitor()
             async for packet in self.capture.sniff_continuously():
-                await loop.run_in_executor(pool, self.traffic_analyze,
-                                           packet)
+                res = self.monitoring(packet)
+                if res == 1 and self.action is not None:
+                    self.action()
+                    self.report_incidence(packet)
+        except asyncio.CancelledError:
+            l.debug('iface monitor cancelled.')
+
     async def destroy(self):
         try:
             l.info("iface monitor destroyed")
