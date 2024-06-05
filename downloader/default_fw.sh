@@ -1,12 +1,15 @@
 #!/usr/bin/bash
 
-#allow for db connection to host
+# allow for db connection to host
 sudo iptables -A OUTPUT -d 192.168.100.5 -p tcp --dport 5432 -j ACCEPT
 	
-#allow for ssh connection from sandbox to download bot using scp command
+# allow for ssh connection from sandbox to download bot using scp command
 iptables -A INPUT -p tcp --dport 22 -j ACCEPT
-	
-#allow established or related traffic in the other direction
+
+# redirect https traffic to PolarProxy
+iptables -t nat -A PREROUTING -p tcp --dport 443 -j REDIRECT --to 10443
+
+# allow established or related traffic in the other direction
 iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 iptables -A OUTPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 	

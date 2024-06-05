@@ -43,7 +43,7 @@ class IfaceMonitor:
         if self.capture is None:
             # filter outgoing packets
             output_file = self.log_dir + os.sep + f'iface-monitor-{self.iface}.pcap'
-            bpf_filter = ' and '.join([' not dst host ' + dst for dst in self.excluded_ips])
+            bpf_filter = ' and '.join(['not dst host ' + dst for dst in self.excluded_ips])
             l.info(f'Iface monitor bpf filter: {bpf_filter}')
             self.capture = AsyncLiveCapture(interface=self.iface,
                                             bpf_filter=bpf_filter,

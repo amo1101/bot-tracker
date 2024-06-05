@@ -19,6 +19,7 @@ echo 'export SSL_CERT_DIR=/etc/ssl/certs' > $MOUNT_FOLDER/root/.profile
 
 cat > $MOUNT_FOLDER/etc/run_bot.sh << EOF
 #!/bin/sh
+/bot/start_net.sh
 sleep 30
 cd /bot; ./start_bot.sh $BOT_NAME $BOT_REPO_IP $BOT_REPO_USER $BOT_REPO_PATH &
 EOF
@@ -27,6 +28,7 @@ chmod +x $MOUNT_FOLDER/etc/run_bot.sh
 
 if [ $? -eq 0 ]; then
     cp -rf $BOT_DIR $MOUNT_FOLDER/
+    chmod +x $MOUNT_FOLDER/bot/start_net.sh
     chmod +x $MOUNT_FOLDER/bot/start_bot.sh
     cat > $MOUNT_FOLDER/etc/rc.local << EOF
         /etc/run_bot.sh
