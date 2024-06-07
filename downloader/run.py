@@ -21,7 +21,7 @@ logging.basicConfig(filename='bot-downloader-' + current_time + '.log',
 #  logging.basicConfig(format='%(asctime)s-%(levelname)s-%(message)s', datefmt='%d-%b-%y %H:%M:%S', level=logging.DEBUG)
 l = logging.getLogger(name=__name__)
 
-valid_tags = ['mirai']
+valid_tags = ['mirai','gafgyt','tsunami']
 valid_file_type = ['elf']
 valid_arch = {'MIPS': {32: ['B', 'L']}, 'ARM': {32: ['L']}}
 download_period = 3600  # download hourly

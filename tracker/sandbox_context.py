@@ -66,6 +66,16 @@ class SandboxContext:
                     "sandbox_armv7.xml",
                     "openwrt-armsr-armv7-generic-kernel.bin",
                     "openwrt-armsr-armv7-generic-ext4-rootfs.img"
+                ],
+                "MIPS_32_L": [
+                    "sandbox_mipsel.xml",
+                    "openwrt-malta-le-vmlinux.elf",
+                    "openwrt-malta-le-rootfs-ext4.img"
+                ],
+                "MIPS_32_B": [
+                    "sandbox_mips.xml",
+                    "openwrt-malta-be-vmlinux.elf",
+                    "openwrt-malta-be-rootfs-ext4.img"
                 ]
             }
 

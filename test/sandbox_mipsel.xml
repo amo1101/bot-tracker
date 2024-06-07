@@ -1,0 +1,25 @@
+<domain type='qemu'>
+  <name>openwrt-vm-mipsel</name>
+  <memory unit='KiB'>524288</memory>
+  <vcpu placement='static'>1</vcpu>
+  <os>
+    <type arch='mipsel' machine='malta'>hvm</type>
+    <kernel>/var/lib/libvirt/images/openwrt-malta-le-vmlinux.elf</kernel>
+    <cmdline>root=/dev/sda</cmdline>
+  </os>
+  <devices>
+    <disk type='file' device='disk'>
+      <driver name='qemu' type='raw'/>
+      <source file='/var/lib/libvirt/images/openwrt-malta-le-rootfs-ext4.img'/>
+      <target dev='sda' bus='ide'/>
+    </disk>
+    <interface type='network'>
+      <source network='default'/>
+      <model type='rtl8139'/>
+      <address type='pci' domain='0x0000' bus='0x00' slot='0x0b' function='0x0'/>
+    </interface>
+    <console type='pty'>
+      <target type='serial' port='0'/>
+    </console>
+  </devices>
+</domain>

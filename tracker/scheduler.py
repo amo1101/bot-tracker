@@ -64,7 +64,6 @@ class Scheduler:
 
         if self.iface_monitor_task is not None:
             self.iface_monitor_task.cancel()
-            await self.iface_monitor.destroy()
 
     async def _unstage_bots(self):
         async with self.bot_runners_lock:

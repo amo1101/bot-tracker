@@ -248,7 +248,7 @@ class BotRunner:
                 return
 
             # register to iface_monitor
-            self.iface_monitor.register(self.cnc_info[0].ip)
+            await self.iface_monitor.register(self.cnc_info[0].ip)
 
             # enforce nwfilter
             nwfilter_type = self.sandbox_ctx.cnc_nwfilter
@@ -284,7 +284,7 @@ class BotRunner:
             # turn off traffic redirection
             if self.cnc_info is not None and len(self.cnc_info) > 0:
                 self.sandbox.redirect_traffic('OFF', self.cnc_info[0].ip)
-                self.iface_monitor.unregister(self.cnc_info[0].ip)
+                await self.iface_monitor.unregister(self.cnc_info[0].ip)
 
             self.sandbox.destroy()
             if self.live_capture is not None:

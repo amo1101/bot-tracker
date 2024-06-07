@@ -57,7 +57,7 @@ or other application using the libvirt API.
       <bandwidth>
         <outbound average='100' peak='100' burst='100'/>
       </bandwidth>
-      <model type='virtio'/>
+      <model type='vmxnet3'/>
       <address type='pci' domain='0x0000' bus='0x01' slot='0x00' function='0x0'/>
     </interface>
     <serial type='pty'>

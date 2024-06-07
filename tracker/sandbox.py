@@ -87,21 +87,6 @@ class Sandbox:
             else:
                 break
 
-        # set scheduler info
-        if self.sandbox_vcpu_quota > 100:
-            self.sandbox_vcpu_quota = 100
-        period = 1000000
-        quota = int(period * (self.sandbox_vcpu_quota / 100.0))
-
-        params = {
-            libvirt.VIR_DOMAIN_SCHEDULER_VCPU_PERIOD: period,
-            libvirt.VIR_DOMAIN_SCHEDULER_VCPU_QUOTA: quota
-        }
-
-        l.debug(f'domain scheduler params:\n{params}')
-        self.dom.setSchedulerParametersFlags(params, libvirt.VIR_DOMAIN_AFFECT_LIVE)
-        l.debug(f'domain scheduler params set')
-
         # wait for interface info
         ifaces = self.dom.interfaceAddresses(libvirt.VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_LEASE)
         while len(ifaces) == 0:
@@ -118,6 +103,22 @@ class Sandbox:
         self.ip = ifaces[self.port_dev]['addrs'][0]['addr']
         l.debug("get port_dev %s, mac_address: %s, ip: %s", self.port_dev,
                 self.mac_address, self.ip)
+
+        # set scheduler info
+        if self.sandbox_vcpu_quota > 100:
+            self.sandbox_vcpu_quota = 100
+        period = 1000000
+        quota = int(period * (self.sandbox_vcpu_quota / 100.0))
+
+        params = {
+            libvirt.VIR_DOMAIN_SCHEDULER_VCPU_PERIOD: period,
+            libvirt.VIR_DOMAIN_SCHEDULER_VCPU_QUOTA: quota
+        }
+
+        l.debug(f'domain scheduler params:\n{params}')
+        self.dom.setSchedulerParametersFlags(params,
+                                             libvirt.VIR_DOMAIN_AFFECT_CURRENT)
+        l.debug(f'domain scheduler params set')
 
         sandbox_info = f"name: {self.name}, vcpu quota:{self.sandbox_vcpu_quota}, " + \
                        f"arch: {self.arch}, interface: {self.port_dev, self.mac_address, self.ip}"
