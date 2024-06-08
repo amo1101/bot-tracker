@@ -20,7 +20,9 @@ async def async_main(arguments=None):
         return
 
     config.read(ini_file)
-    sandbox_ctx = SandboxContext(int(config['network_control']['mode']),
+    sandbox_ctx = SandboxContext(config['network_control']['subnet'],
+                                 config['network_control']['dns_server'],
+                                 int(config['network_control']['mode']),
                                  config['network_control']['dns_rate_limit'],
                                  config['network_control.block']['allowed_tcp_ports'],
                                  config['network_control.block']['simulated_server'],

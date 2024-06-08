@@ -146,9 +146,11 @@ class Scheduler:
             iface_monitor_action_type = IfaceMonitorAction.ALARM if \
                 self.iface_monitor_action == '0' else IfaceMonitorAction.BLOCK
 
-            def iface_monitor_action():
+            async def iface_monitor_action():
+                l.warning(f'Iface monitor action triggered, action={self.iface_monitor_action}!')
                 if self.iface_monitor_action != '0':
-                    self.stop_bot(None, True)
+                    l.warning('Stopping all bots!')
+                    await self.stop_bot(None, True)
 
             self.iface_monitor = IfaceMonitor(self.iface_monitor_iface,
                                               iface_monitor_action_type,

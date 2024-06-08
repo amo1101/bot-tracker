@@ -46,9 +46,11 @@ class Sandbox:
 
         # copy bot directory to sandbox fs
         bot_dir = self.context.bot_dir
+        dns_server = self.context.dns_server
         s = SandboxScript.PREPARE_FS
         self._run_script(s, self.bot_file, bot_dir, dst, self.bot_repo_ip,
-                         self.bot_repo_user, self.bot_repo_path)
+                         self.bot_repo_user, self.bot_repo_path,
+                         dns_server)
 
     def _get_config(self):
         return self.context.get_sandbox_config(self.arch, self.name)
@@ -89,9 +91,12 @@ class Sandbox:
 
         # wait for interface info
         ifaces = self.dom.interfaceAddresses(libvirt.VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_LEASE)
+        retry = 0
         while len(ifaces) == 0:
-            l.debug("sleep 2 secs for interface info...")
-            await asyncio.sleep(2)
+            if retry % 6 == 0:
+                retry += 1
+                l.debug("waiting for interface info...")
+            await asyncio.sleep(0.5)
             ifaces = self.dom.interfaceAddresses(libvirt.VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_LEASE)
 
         l.debug("interfaces are:")

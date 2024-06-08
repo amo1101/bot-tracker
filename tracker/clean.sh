@@ -25,6 +25,6 @@ iptables -D FORWARD -s 192.168.122.0/24 -p udp --dport 53 -j FWD-BC
 iptables -F FWD-BC
 iptables -X FWD-BC
 iptables -F PREROUTING -t nat
-iptables -t mangle -D PREROUTING -s 192.168.122.0/24 -j MARK --set-mark 1
+iptables -t mangle -D PREROUTING -s 192.168.122.0/24 -j MARK --set-mark 0xb
 
 rm /var/lib/libvirt/images/openwrt-vm*

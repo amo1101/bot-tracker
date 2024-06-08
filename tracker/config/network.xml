@@ -8,11 +8,11 @@
     </dhcp>
   </ip>
   <bandwidth>
-    <outbound average='134217728' peak='134217728' burst='134217728'/>
+    <outbound average='96' peak='96' burst='96'/>
   </bandwidth>
   <portgroup name='sandbox' trustGuestRxFilters='no'>
     <bandwidth>
-      <outbound average='134217728' peak='134217728' burst='134217728'/>
+      <outbound average='96' peak='96' burst='96'/>
     </bandwidth>
   </portgroup>
 </network>

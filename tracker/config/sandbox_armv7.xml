@@ -14,7 +14,7 @@
       <target dev='vda' bus='virtio'/>
     </disk>
     <interface type='network'>
-      <source network='mynet' portgroup='sandbox'/>
+      <source network='mynet'/>
     </interface>
     <console type='pty'>
       <target type='serial' port='0'/>

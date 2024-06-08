@@ -1,6 +1,5 @@
 import asyncio
 import os
-import sys
 from datetime import datetime
 from enum import Enum
 from bcc import BPF
@@ -9,12 +8,9 @@ import re
 import socket
 import ctypes as ct
 import multiprocessing
-from log import TaskLogger
+import sys
 
-
-l: TaskLogger = TaskLogger(__name__)
 CUR_DIR = os.path.dirname(os.path.abspath(__file__))
-
 bpf_program = """
 #include <uapi/linux/bpf.h>
 #include <uapi/linux/if_ether.h>
@@ -26,10 +22,10 @@ bpf_program = """
 struct packet_t {
     u32 src_ip;
     u32 dst_ip;
-    u32 src_port;
-    u32 dst_port;
-    u32 protocol;
-    u32 mark;
+    u16 src_port;
+    u16 dst_port;
+    u8 protocol;
+    u8 mark;
 };
 
 BPF_PERF_OUTPUT(skb_events);
@@ -66,7 +62,7 @@ int mark_filter(struct __sk_buff *skb) {
                 pkt.dst_port = udp->dest;
             } else {
             }
-            skb_events.perf_submit_skb(skb, skb->len, &pkt, sizeof(struct packet_t));
+            skb_events.perf_submit_skb(skb, 0, &pkt, sizeof(struct packet_t));
         }
     }
 
@@ -102,18 +98,47 @@ def process_skb_event(cpu, data, size):
     class SkbEvent(ct.Structure):
         _fields_ = [("src_ip", ct.c_uint32),
                     ("dst_ip", ct.c_uint32),
-                    ("src_port", ct.c_uint32),
-                    ("dst_port", ct.c_uint32),
-                    ("protocol", ct.c_uint32),
-                    ("mark", ct.c_uint32),
-                    ("raw", ct.c_ubyte * (size - 6*ct.sizeof(ct.c_uint32)))]
+                    ("src_port", ct.c_uint16),
+                    ("dst_port", ct.c_uint16),
+                    ("protocol", ct.c_uint8),
+                    ("mark", ct.c_uint8)]
+    print(f'cpu: {cpu}, data: {data}, size: {size}')
     skb_event = ct.cast(data, ct.POINTER(SkbEvent)).contents
+    print(f'src_port: {socket.ntohs(skb_event.src_port)}, dst_port: {socket.ntohs(skb_event.dst_port)}')
+    print(f'dst_ip: {to_ip_str(skb_event.dst_ip)}')
     g_queue.put((to_ip_str(skb_event.src_ip),
                 to_ip_str(skb_event.dst_ip),
-                skb_event.mark,
+                ct.c_uint8(skb_event.mark).value,
                 protocols.get(skb_event.protocol, str(skb_event.protocol)),
-                socket.ntohs(skb_event.src_port),
-                socket.ntohs(skb_event.dst_port)))
+                ct.c_uint16(skb_event.src_port).value,
+                ct.c_uint16(skb_event.dst_port).value))
+
+def run_direct(iface):
+    b = BPF(text=bpf_program)
+    fn = b.load_func("mark_filter", BPF.SCHED_CLS)
+
+    ipr = pyroute2.IPRoute()
+    idx = ipr.link_lookup(ifname=iface)[0]
+
+    try:
+        ipr.tc("del", "clsact", idx)
+    except pyroute2.netlink.exceptions.NetlinkError:
+        print('pyroute2.netlink.exceptions.NetlinkError occurred, ignored')
+
+    ipr.tc("add", "clsact", idx)
+    ipr.tc("add-filter", "bpf", idx, ":1", fd=fn.fd, name=fn.name, parent="ffff:fff3", classid=1, direct_action=True)
+    b["skb_events"].open_perf_buffer(process_skb_event)
+    print(f"eBPF program loaded and attached to interface {iface}")
+
+    try:
+        while True:
+            b.perf_buffer_poll()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        print("Detaching eBPF program...")
+        ipr.tc("del", "clsact", idx)
+
 
 def run_ebpf(queue, stop_event, iface):
     global g_queue
@@ -179,12 +204,12 @@ class IfaceMonitor:
     async def register(self, cnc_ip):
         async with self.lock:
             self.cnc_ips.add(cnc_ip)
-        l.debug(f'Registered for monitoring cnc_ip: {cnc_ip}')
+        print(f'Registered for monitoring cnc_ip: {cnc_ip}')
 
     async def unregister(self, cnc_ip):
         async with self.lock:
             self.cnc_ips.discard(cnc_ip)
-        l.debug(f'Unregistered cnc_ip: {cnc_ip}')
+        print(f'Unregistered cnc_ip: {cnc_ip}')
 
     def _init_monitor(self):
         if not os.path.exists(self.log_dir):
@@ -225,12 +250,12 @@ class IfaceMonitor:
         while True:
             while not queue.empty():
                 src_ip, dst_ip, mark, protocol, src_port, dst_port = queue.get()
-                l.debug(f'Dubious packet detected: {src_ip} -> {dst_ip}, mark: {mark}')
+                print(f'Dubious packet detected: {src_ip} -> {dst_ip}, mark: {mark}')
                 yield src_ip, dst_ip, mark, protocol, src_port, dst_port
             await asyncio.sleep(0.5)
 
     async def run(self):
-        l.info('Iface monitor task started...')
+        print('Iface monitor task started...')
         self._init_monitor()
         queue = multiprocessing.Queue()
         stop_event = multiprocessing.Event()
@@ -252,13 +277,22 @@ class IfaceMonitor:
 
                     if traffic_type == IfaceMonitorTraffic.MALICIOUS and \
                        self.action is not None:
-                        l.warning('Calling Iface monitor action!')
-                        await self.action()
+                        self.action()
 
                     self.report_incidence(src_ip, dst_ip, protocol, src_port,
                                           dst_port, traffic_type)
         except asyncio.CancelledError:
-            l.info('iface monitor cancelled.')
+            print('iface monitor cancelled.')
             stop_event.set()
             ebpf_process.join()
+
+if __name__ == "__main__":
+    try:
+        #  asyncio.get_event_loop().run_until_complete(main_task())
+        ifm = IfaceMonitor('ens160',IfaceMonitorAction.ALARM, None,
+                           '')
+        asyncio.run(ifm.run(), debug=True)
+        #  run_direct('ens160')
+    except KeyboardInterrupt:
+        print('Interrupted by user')
 

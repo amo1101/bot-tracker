@@ -28,6 +28,8 @@ class SandboxScript(Enum):
 
 class SandboxContext:
     def __init__(self,
+                 subnet,
+                 dns_server,
                  network_mode,
                  dns_rate_limit,
                  allowed_tcp_ports,
@@ -47,8 +49,9 @@ class SandboxContext:
         self.scripts_base = CUR_DIR + os.sep + "scripts"
         self._bot_dir = CUR_DIR + os.sep + "bot"
         self.net_conf = self.config_base + os.sep + "network.xml"
-        self.subnet = ''
-        self.netmask = ''
+        self.subnet = subnet
+        self.bridge_ip = None
+        self._dns_server = dns_server
         self._network_mode = network_mode
         self.dns_rate_limit = dns_rate_limit
         self._allowed_tcp_ports = allowed_tcp_ports
@@ -123,27 +126,45 @@ class SandboxContext:
     def bot_dir(self):
         return self._bot_dir
 
+    @property
+    def dns_server(self):
+        return self._dns_server
+
     def get_subnet(self):
-        return self.subnet, self.netmask
+        return self.subnet
 
     def _get_net_config(self):
+        subnet = self.subnet.split('/')
+        if len(subnet) != 2 or subnet[1] != '24':
+            l.error('Bad subnet configuration')
+            return ''
+
+        net = subnet[0]
+        segs = net.split('.')
+        bridge_ip = '.'.join(segs[:3]) + '.1'
+        self.bridge_ip = bridge_ip
+        netmask = '255.255.255.0'
+        dhcp_s = '.'.join(segs[:3]) + '.2'
+        dhcp_e = '.'.join(segs[:3]) + '.254'
+
         with open(self.net_conf, 'r') as file:
             net_xml = file.read()
 
         tree = etree.fromstring(net_xml)
         ip_node = tree.xpath("//ip")[0]
-        ip_addr = ip_node.get('address')
-
-        self.netmask = ip_node.get('netmask')
-        if self.netmask != '255.255.255.0':
-            l.warning('Wrong network configuration, only support /24 prefix.')
-        segs = ip_addr.split('.')
-        self.subnet = '.'.join(segs[:3]) + '.0'
-        l.debug(f'subnet: {self.subnet}, netmask: {self.netmask}')
+        ip_node.set('address', bridge_ip)
+        ip_node.set('netmask', netmask)
+        dhcp_range_node = tree.xpath("//ip/dhcp/range")[0]
+        dhcp_range_node.set('start', dhcp_s)
+        dhcp_range_node.set('end', dhcp_e)
 
         # block mode do not rate limit bandwidth
-        if self._network_mode == NetworkMode.BLOCK:
-            return net_xml
+        if self._network_mode == NetworkMode.BLOCK.value:
+            bandwidth_node = tree.xpath("//bandwidth")[0]
+            portgroup_node = tree.xpath("//portgroup")[0]
+            tree.remove(bandwidth_node)
+            tree.remove(portgroup_node)
+            return etree.tostring(tree, encoding='unicode')
 
         net_bandwidth_node = tree.xpath("//bandwidth/outbound")[0]
         net_bandwidth_node.set('average', self.network_average)
@@ -179,7 +200,15 @@ class SandboxContext:
         # replace fs name
         source_element = tree.xpath("//devices/disk/source")[0]
         source_element.set("file", self.get_sandbox_fs(arch, name)[1])
+
+        # add network interface to portgroup in rate-limit mode
+        if self._network_mode == NetworkMode.RATE_LIMIT.value:
+            network_source_element = tree.xpath("//devices/interface/source")[0]
+            network_source_element.set("portgroup", "sandbox")
+
         return etree.tostring(tree, encoding='unicode')
+
+
 
     def get_sandbox_kernel(self, arch):
         if arch not in self.sandbox_registry:
@@ -259,8 +288,10 @@ class SandboxContext:
         # value: [xpath, attr_to_match, atrr_to_set]
         para_to_check = \
             {
-                "mal_repo_ip": ["//filterref/parameter[@name='MAL_REPO_IP']", "value"],
+                "bridge_ip": ["//filterref/parameter[@name='BRIDGE_IP']", "value"],
                 "sandbox_ip": ["//filterref/parameter[@name='SANDBOX_IP']", "value"],
+                "dns_server": ["//filterref/parameter[@name='DNS_SERVER']", "value"],
+                "mal_repo_ip": ["//filterref/parameter[@name='MAL_REPO_IP']", "value"],
                 "cnc_ip": ["//filterref/parameter[@name='CNC_IP']", "value"],
                 "allowed_tcp_ports": ["//filterref/parameter[@name='TCP_PORT']", "value"],
                 "simulated_server": ["//filterref/parameter[@name='SIM_SERVER']", "value"],
@@ -316,7 +347,7 @@ class SandboxContext:
     def _default_rule(self, switch='ON'):
         s = SandboxScript.DEFAULT_RULE
         self.run_script(s, switch,
-                        self.subnet + '/24',
+                        self.subnet,
                         self.dns_rate_limit)
 
     def create_sandbox(self, sandbox_xml):
@@ -325,6 +356,8 @@ class SandboxContext:
     def apply_nwfilter(self, filter_name, **kwargs):
         tcp_ports = self._allowed_tcp_ports.split(',')
         binding_xml = self._get_nwfilter_binding(filter_name,
+                                                 bridge_ip=self.bridge_ip,
+                                                 dns_server=self.dns_server,
                                                  allowed_tcp_ports=tcp_ports,
                                                  simulated_server=self._simulated_server,
                                                  conn_limit=self.port_max_conn,
@@ -356,7 +389,7 @@ class SandboxContext:
             l.error("network is not active")
             return False
 
-        l.info(f"network is active, mode: {self.network_mode}, subnet: {self.subnet}, mask: {self.netmask}")
+        l.info(f"network is active, mode: {self.network_mode}, subnet:{self.subnet}, dns_server: {self.dns_server}")
 
         self._default_rule('ON')
 
