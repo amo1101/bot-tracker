@@ -21,7 +21,7 @@ logging.basicConfig(filename='bot-downloader-' + current_time + '.log',
 #  logging.basicConfig(format='%(asctime)s-%(levelname)s-%(message)s', datefmt='%d-%b-%y %H:%M:%S', level=logging.DEBUG)
 l = logging.getLogger(name=__name__)
 
-valid_tags = ['mirai','gafgyt','tsunami']
+valid_tags = None
 valid_file_type = ['elf']
 valid_arch = {'MIPS': {32: ['B', 'L']}, 'ARM': {32: ['L']}}
 download_period = 3600  # download hourly
@@ -68,7 +68,7 @@ async def download_base(remote_repo, local_repo, db_store, time_threshold):
     l.debug('download base started...')
     enable_bazzar_access()
     for t in valid_tags:
-        bot_list = remote_repo.bazaar_query('tag', t, '2')
+        bot_list = remote_repo.bazaar_query('tag', t, '10')
         l.debug(f'response json: {bot_list}')
         if bot_list["query_status"] != "ok":
             continue
