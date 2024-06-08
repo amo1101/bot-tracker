@@ -66,7 +66,7 @@ def get_timestamp(timestr):
 
 async def download_base(remote_repo, local_repo, db_store, time_threshold):
     l.debug('download base started...')
-    enable_bazzar_access()
+    #  enable_bazzar_access()
     for t in valid_tags:
         bot_list = remote_repo.bazaar_query('tag', t, '10')
         l.debug(f'response json: {bot_list}')
@@ -101,13 +101,13 @@ async def download_base(remote_repo, local_repo, db_store, time_threshold):
             shutil.move(bot_file, local_repo + os.sep + bot_file)
             l.debug('storing bot_info')
             await db_store.add_bot(bot_info)
-    disable_bazzar_access()
+    #  disable_bazzar_access()
     l.debug('download base done')
 
 
 async def download_recent(remote_repo, local_repo, db_store):
     l.debug('download recent started...')
-    enable_bazzar_access()
+    #  enable_bazzar_access()
     bot_list = remote_repo.bazaar_list_samples('time')
     l.debug(f'response json: {bot_list}')
     if bot_list["query_status"] != "ok":
@@ -149,7 +149,7 @@ async def download_recent(remote_repo, local_repo, db_store):
         l.debug('storing bot_info...')
         shutil.move(bot_file, local_repo + os.sep + bot_file)
         await db_store.add_bot(bot_info)
-    disable_bazzar_access()
+    #  disable_bazzar_access()
     l.debug('download recent done')
 
 
