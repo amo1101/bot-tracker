@@ -8,6 +8,7 @@ if [ $SWITCH == 'OFF' ]; then
 fi
 
 # allow inbound traffic from botnet-tracker
+iptables $OP INPUT -d 192.168.100.4 -j ACCEPT
 iptables $OP INPUT -s 192.168.100.5 -j ACCEPT
 iptables $OP INPUT -s 192.168.100.4 -j ACCEPT
 iptables $OP INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
