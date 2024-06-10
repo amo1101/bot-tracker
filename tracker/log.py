@@ -50,7 +50,7 @@ class TaskLogger:
     _handler = TaskFileHandler(_log_file)
     _handler.setFormatter(logging.Formatter(fmt=log_format))
     _logger.addHandler(_handler)
-    _logger.setLevel(logging.DEBUG)
+    _logger.setLevel(logging.INFO)
 
     def __init__(self, name):
         self._logger = logging.getLogger(name)

@@ -246,7 +246,7 @@ class SandboxContext:
             params.append(script)
             for p in args:
                 params.append(p)
-            l.debug(f'params: ${params}')
+            l.info(f'Running script, params: ${params}')
             proc = subprocess.Popen(params, stdout=subprocess.PIPE)
             out, err = proc.communicate()
             if err:
@@ -264,7 +264,7 @@ class SandboxContext:
             obj = self.conn.nwfilterDefineXML(xml_desc)
             if obj:
                 self.nwfilter_objs.append(obj)
-                l.debug(f'nwfilter defined:\n{xml_desc}')
+                l.info(f'nwfilter defined:\n{xml_desc}')
             else:
                 l.error("Failed to define nwfilter %s", k)
                 return False
@@ -365,7 +365,7 @@ class SandboxContext:
         if binding_xml == "":
             return None
 
-        l.debug("binding xml:\n%s", binding_xml)
+        l.info("binding xml:\n%s", binding_xml)
 
         return self.conn.nwfilterBindingCreateXML(binding_xml)
 
@@ -382,7 +382,7 @@ class SandboxContext:
             l.debug(f'libvirt exception occured: {e}')
 
         net_xml = self._get_net_config()
-        l.debug(f'net_xml:\n{net_xml}')
+        l.info(f'net_xml:\n{net_xml}')
         self.net = self.conn.networkCreateXMLFlags(net_xml)
 
         if not self.net.isActive():

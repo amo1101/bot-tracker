@@ -74,7 +74,7 @@ class Sandbox:
         self._prepare_kernel()
         self._prepare_fs()
         sandbox_xml = self._get_config()
-        l.debug("domain config:\n%s", sandbox_xml)
+        l.info("domain config:\n%s", sandbox_xml)
 
         self.dom = self.context.create_sandbox(sandbox_xml)
         if self.dom is None:
@@ -95,7 +95,7 @@ class Sandbox:
         while len(ifaces) == 0:
             if retry % 6 == 0:
                 retry += 1
-                l.debug("waiting for interface info...")
+                l.info("waiting for interface info...")
             await asyncio.sleep(0.5)
             ifaces = self.dom.interfaceAddresses(libvirt.VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_LEASE)
 
@@ -153,8 +153,8 @@ class Sandbox:
 
     def destroy(self):
         self._destroy_fs()
-        if self.filter_binding:
-            l.debug("delete filter binding...")
-            self.filter_binding.delete()
         self.dom.destroy()
         l.info("Sandbox destroyed %s", self.name)
+        if self.filter_binding:
+            l.info("delete filter binding...")
+            self.filter_binding.delete()

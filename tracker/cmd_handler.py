@@ -29,14 +29,14 @@ async def handle_list_bot(args):
     if len(bots) == 1:
         return repr(bots[0])
 
-    head = f"{'bot_id':<68}{'family':<16}{'status':<12}"
+    head = f"{'bot_id':<68}{'family':<16}{'arch':<16}{'upload_at':<24}{'status':<12}"
     body = '\n' + len(head) * '-'
     if len(bots) == 0:
         return head + body
 
     foot = f"\n{'count:':>{len(head) - 10}} {len(bots)}"
     for b in bots:
-        body += f"\n{b.bot_id:<68}{b.family:<16}{b.status:<12}"
+        body += f"\n{b.bot_id:<68}{b.family:<16}{b.arch_spec:<16}{b.upload_at:<24}{b.status:<12}"
     body += '\n' + len(head) * '-'
     return head + body + foot
 

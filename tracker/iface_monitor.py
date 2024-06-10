@@ -1,6 +1,5 @@
 import asyncio
 import os
-import sys
 from datetime import datetime
 from enum import Enum
 from bcc import BPF
@@ -9,12 +8,11 @@ import re
 import socket
 import ctypes as ct
 import multiprocessing
+import sys
 from log import TaskLogger
-
 
 l: TaskLogger = TaskLogger(__name__)
 CUR_DIR = os.path.dirname(os.path.abspath(__file__))
-
 bpf_program = """
 #include <uapi/linux/bpf.h>
 #include <uapi/linux/if_ether.h>
@@ -23,13 +21,16 @@ bpf_program = """
 #include <linux/udp.h>
 #include <uapi/linux/pkt_cls.h>
 
+BPF_HASH(policy_table, u32, u32);
+
 struct packet_t {
     u32 src_ip;
     u32 dst_ip;
-    u32 src_port;
-    u32 dst_port;
-    u32 protocol;
-    u32 mark;
+    u16 src_port;
+    u16 dst_port;
+    u8 protocol;
+    u8 policy;
+    u8 mark;
 };
 
 BPF_PERF_OUTPUT(skb_events);
@@ -66,7 +67,22 @@ int mark_filter(struct __sk_buff *skb) {
                 pkt.dst_port = udp->dest;
             } else {
             }
-            skb_events.perf_submit_skb(skb, skb->len, &pkt, sizeof(struct packet_t));
+
+            u32* policy = NULL;
+            u32 default_policy_key = 0;
+            policy = policy_table.lookup(&pkt.dst_ip);
+            if (policy == NULL) {
+                policy = policy_table.lookup(&default_policy_key);
+            }
+
+            if (policy == NULL)
+                return TC_ACT_OK;
+
+            pkt.policy = *policy;
+            skb_events.perf_submit_skb(skb, 0, &pkt, sizeof(struct packet_t));
+
+            if (*policy == 0)
+                return TC_ACT_SHOT;
         }
     }
 
@@ -91,35 +107,84 @@ protocols = {
     132: "SCTP",
 }
 
-g_queue = None
+g_trace_queue = None
+g_cnc_queue = None # only for block network mode
+g_policy_table = None
 
-def to_ip_str(ip_int):
+def int_ip_to_str(ip_int):
     ip = socket.inet_ntoa(ip_int.to_bytes(4, sys.byteorder))
     return ip
 
+def str_ip_to_int(ip_str):
+    ip_int = socket.inet_aton(ip_str)
+    return int.from_bytes(ip_int, sys.byteorder)
+
 def process_skb_event(cpu, data, size):
-    global g_queue
+    global g_trace_queue
+    global g_cnc_queue
+    global g_policy_table
+
+    # should not block
+    if g_cnc_queue is not None:
+        while not g_cnc_queue.empty():
+            ip_str, op = g_cnc_queue.get(False)
+            ip_int = str_ip_to_int(ip_str)
+            ip_key = ct.c_uint32(ip_int)
+            if op == 1:
+                g_policy_table[ip_key] = ct.c_uint32(1) # block
+                #  print(f'cnc_ip {ip_str} inserted')
+            else:
+                del g_policy_table[ip_key]
+                #  print(f'cnc_ip {ip_str} deleted')
+            g_policy_table.update()
+
     class SkbEvent(ct.Structure):
         _fields_ = [("src_ip", ct.c_uint32),
                     ("dst_ip", ct.c_uint32),
-                    ("src_port", ct.c_uint32),
-                    ("dst_port", ct.c_uint32),
-                    ("protocol", ct.c_uint32),
-                    ("mark", ct.c_uint32),
-                    ("raw", ct.c_ubyte * (size - 6*ct.sizeof(ct.c_uint32)))]
-    skb_event = ct.cast(data, ct.POINTER(SkbEvent)).contents
-    g_queue.put((to_ip_str(skb_event.src_ip),
-                to_ip_str(skb_event.dst_ip),
-                skb_event.mark,
-                protocols.get(skb_event.protocol, str(skb_event.protocol)),
-                socket.ntohs(skb_event.src_port),
-                socket.ntohs(skb_event.dst_port)))
+                    ("src_port", ct.c_uint16),
+                    ("dst_port", ct.c_uint16),
+                    ("protocol", ct.c_uint8),
+                    ("policy", ct.c_uint8),
+                    ("mark", ct.c_uint8)]
 
-def run_ebpf(queue, stop_event, iface):
-    global g_queue
-    g_queue = queue
+    skb_event = ct.cast(data, ct.POINTER(SkbEvent)).contents
+    g_trace_queue.put((int_ip_to_str(skb_event.src_ip),
+                      int_ip_to_str(skb_event.dst_ip),
+                      ct.c_uint8(skb_event.mark).value,
+                      ct.c_uint8(skb_event.policy).value,
+                      protocols.get(skb_event.protocol, str(skb_event.protocol)),
+                      ct.c_uint16(skb_event.src_port).value,
+                      ct.c_uint16(skb_event.dst_port).value))
+
+def run_ebpf(network_mode,
+             iface,
+             excluded_ips,
+             trace_queue,
+             cnc_queue,
+             stop_event):
+    global g_trace_queue
+    global g_cnc_queue
+    global g_policy_table
+
+    g_trace_queue = trace_queue
+    g_cnc_queue = cnc_queue
+
     b = BPF(text=bpf_program)
     fn = b.load_func("mark_filter", BPF.SCHED_CLS)
+
+    g_policy_table = b.get_table("policy_table")
+
+    # default policy
+    # 0: block all in block network mode except excluded ips and cnc
+    # 1: allow all in rate-limit network mode
+    default_policy_key = ct.c_uint32(0)
+    g_policy_table[default_policy_key] = ct.c_uint32(1) # allow, 0 is key for default policy
+    if network_mode == 0:
+        g_policy_table[default_policy_key] = ct.c_uint32(0)
+        for ip_str in excluded_ips:
+            ip_int = str_ip_to_int(ip_str)
+            ip_key = ct.c_uint32(ip_int)
+            g_policy_table[ip_key] = ct.c_uint32(1) # allow
 
     ipr = pyroute2.IPRoute()
     idx = ipr.link_lookup(ifname=iface)[0]
@@ -127,7 +192,8 @@ def run_ebpf(queue, stop_event, iface):
     try:
         ipr.tc("del", "clsact", idx)
     except pyroute2.netlink.exceptions.NetlinkError:
-        print('pyroute2.netlink.exceptions.NetlinkError occurred, ignored')
+        pass
+        #  print('pyroute2.netlink.exceptions.NetlinkError occurred, ignored')
 
     ipr.tc("add", "clsact", idx)
     ipr.tc("add-filter", "bpf", idx, ":1", fd=fn.fd, name=fn.name, parent="ffff:fff3", classid=1, direct_action=True)
@@ -152,8 +218,8 @@ class Colors:
     ENDC = '\033[0m'
 
 class IfaceMonitorAction(Enum):
+    TEAR_DOWN = "Tear Down"
     ALARM = "Alarm"
-    BLOCK = "Block"
 
 class IfaceMonitorTraffic(Enum):
     EXCLUSIVE = "Exclusive"
@@ -162,43 +228,62 @@ class IfaceMonitorTraffic(Enum):
 
 class IfaceMonitor:
     def __init__(self,
+                 network_mode,
                  iface,
+                 excluded_ips,
                  action_type,
-                 action,
-                 excluded_ips):
+                 action):
+        self.network_mode = network_mode
         self.iface = iface
+        self.excluded_ips = excluded_ips.split(',')
         self.action_type = action_type
         self.action = action
-        self.excluded_ips = excluded_ips.split(',')
-        self.cnc_ips= set()
+        self.cnc_queue = None
+        self.trace_queue = None
+        self.stop_event = None
+        self.ebpf_process = None
         self.lock = asyncio.Lock()
+        self.cnc_map = {}
         self.log_dir = CUR_DIR + os.sep + 'iface_monitor_log'
         self.report_file = self.log_dir + os.sep + f'iface-monitor-report-{self.iface}.log'
 
     # bots call the api to register monitoring
-    async def register(self, cnc_ip):
+    async def register(self, cnc_ip, bot_id):
         async with self.lock:
-            self.cnc_ips.add(cnc_ip)
-        l.debug(f'Registered for monitoring cnc_ip: {cnc_ip}')
+            self.cnc_map[cnc_ip] = bot_id
+            if self.network_mode == 0:
+                self.cnc_queue.put((cnc_ip, 1)) # 1 means add
+        l.info(f'Registered for monitoring cnc_ip: {cnc_ip}')
 
     async def unregister(self, cnc_ip):
         async with self.lock:
-            self.cnc_ips.discard(cnc_ip)
-        l.debug(f'Unregistered cnc_ip: {cnc_ip}')
+            del self.cnc_map[cnc_ip]
+            if self.network_mode == 0:
+                self.cnc_queue.put((cnc_ip, 0)) # 0 means delete
+        l.info(f'Unregistered cnc_ip: {cnc_ip}')
 
     def _init_monitor(self):
         if not os.path.exists(self.log_dir):
             os.makedirs(self.log_dir)
+        self.trace_queue = multiprocessing.Queue()
+        if self.network_mode == 0:
+            self.cnc_queue = multiprocessing.Queue()
+        self.stop_event = multiprocessing.Event()
 
-    def _get_report(self, src_ip, dst_ip, protocol, src_port, dst_port,
+    def _get_report(self, src_ip, dst_ip, protocol, src_port, dst_port, policy,
                     traffic_type, action):
+        desc = traffic_type.value
+        if dst_ip in self.cnc_map:
+            desc = f"{desc} (bot_id: {self.cnc_map[dst_ip]})"
+
         report = f"{'timestamp':<16}:{datetime.now()}\n" + \
                  f"{'src_ip':<16}:{src_ip}\n" + \
                  f"{'dst_ip':<16}:{dst_ip}\n" + \
                  f"{'protocol':<16}:{protocol}\n" + \
                  f"{'src_port':<16}:{src_port if protocol in ['TCP','UDP'] else 'NA'}\n" + \
                  f"{'dst_port':<16}:{dst_port if protocol in ['TCP','UDP'] else 'NA'}\n" + \
-                 f"{'type':<16}:{traffic_type.value}\n" + \
+                 f"{'policy':<16}:{'Dropped' if policy == 0 else 'Allowed'}\n" + \
+                 f"{'type':<16}:{desc}\n" + \
                  f"{'action':<16}:{action}\n\n"
 
         color = Colors.OKGREEN
@@ -213,37 +298,41 @@ class IfaceMonitor:
         return report
 
     def report_incidence(self, src_ip, dst_ip, protocol, src_port, dst_port,
+                         policy,
                          traffic_type):
         with open(self.report_file, 'a') as file:
             action = self.action_type.value \
                     if traffic_type == IfaceMonitorTraffic.MALICIOUS else 'None'
             report = self._get_report(src_ip, dst_ip, protocol, src_port,
-                                      dst_port, traffic_type, action)
+                                      dst_port, policy, traffic_type, action)
             file.write(report)
 
-    async def fetch_trace_output(self, queue):
+    async def fetch_trace_output(self):
         while True:
-            while not queue.empty():
-                src_ip, dst_ip, mark, protocol, src_port, dst_port = queue.get()
-                l.debug(f'Dubious packet detected: {src_ip} -> {dst_ip}, mark: {mark}')
-                yield src_ip, dst_ip, mark, protocol, src_port, dst_port
+            while not self.trace_queue.empty():
+                src_ip, dst_ip, mark, policy, protocol, src_port, dst_port = self.trace_queue.get()
+                l.debug(f'Dubious packet detected: {src_ip} -> {dst_ip}, mark: {mark}, policy {policy}')
+                yield src_ip, dst_ip, mark, policy, protocol, src_port, dst_port
             await asyncio.sleep(0.5)
 
     async def run(self):
         l.info('Iface monitor task started...')
         self._init_monitor()
-        queue = multiprocessing.Queue()
-        stop_event = multiprocessing.Event()
-        ebpf_process = multiprocessing.Process(target=run_ebpf,
-                                               args=(queue, stop_event, self.iface))
-        ebpf_process.start()
+        self.ebpf_process = multiprocessing.Process(target=run_ebpf,
+                                                    args=(self.network_mode,
+                                                          self.iface,
+                                                          self.excluded_ips,
+                                                          self.trace_queue,
+                                                          self.cnc_queue,
+                                                          self.stop_event))
+        self.ebpf_process.start()
 
         try:
-            async for src_ip, dst_ip, mark, protocol, src_port, dst_port \
-                    in self.fetch_trace_output(queue):
+            async for src_ip, dst_ip, mark, policy, protocol, src_port, dst_port \
+                    in self.fetch_trace_output():
                 async with self.lock:
                     traffic_type = IfaceMonitorTraffic.MALICIOUS
-                    if dst_ip in self.cnc_ips:
+                    if dst_ip in self.cnc_map:
                         traffic_type = IfaceMonitorTraffic.C2_COMM
                     elif dst_ip in self.excluded_ips:
                         traffic_type = IfaceMonitorTraffic.EXCLUSIVE
@@ -252,13 +341,11 @@ class IfaceMonitor:
 
                     if traffic_type == IfaceMonitorTraffic.MALICIOUS and \
                        self.action is not None:
-                        l.warning('Calling Iface monitor action!')
                         await self.action()
 
                     self.report_incidence(src_ip, dst_ip, protocol, src_port,
-                                          dst_port, traffic_type)
+                                          dst_port, policy, traffic_type)
         except asyncio.CancelledError:
-            l.info('iface monitor cancelled.')
-            stop_event.set()
-            ebpf_process.join()
-
+            l.info('Iface monitor cancelled.')
+            self.stop_event.set()
+            self.ebpf_process.join()

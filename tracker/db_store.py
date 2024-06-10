@@ -96,6 +96,10 @@ class BotInfo:
     def arch_spec(self):
         return self.arch + '_' + str(self.bitness) + '_' + self.endianness
 
+    @property
+    def upload_at(self):
+        return self.first_seen.strftime("%Y-%m-%d %H:%M:%S")
+
     def __repr__(self):
         return f'{"bot_id":<16}: {self.bot_id}\n' + \
             f'{"family":<16}: {self.family}\n' + \

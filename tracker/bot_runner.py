@@ -17,7 +17,7 @@ CUR_DIR = os.path.dirname(os.path.abspath(__file__))
 def init_worker():
     # suppress SIGINT in worker process to cleanly reclaim resource only by
     # main process
-    l.debug('ProcessPoolExecutor initialized')
+    l.info('ProcessPoolExecutor initialized')
     signal.signal(signal.SIGINT, signal.SIG_IGN)
 
 
@@ -36,7 +36,7 @@ class BotRunner:
             BotRunner.analyzer_executor = \
                 ProcessPoolExecutor(max_workers=max_analyzing_workers,
                                     initializer=init_worker)
-            l.debug('Initialized analyzer executor with %d workers',
+            l.info('Initialized analyzer executor with %d workers',
                     max_analyzing_workers)
 
         self.bot_info = bot_info
@@ -52,7 +52,7 @@ class BotRunner:
         self.live_capture = None
         self.log_base = CUR_DIR + os.sep + "log"
         self.log_dir = self.log_base + os.sep + bot_info.tag
-        self.cnc_info = None
+        self.cnc_info = []
         self.cnc_probing_time = cnc_probing_duration
         self.notify_unstage = False
         self.notify_error = False
@@ -79,12 +79,6 @@ class BotRunner:
                                                  debug=False)
 
     async def _find_cnc(self, own_ip, excluded_ips):
-        # check if cnc already exist
-        self.cnc_info = await self.db_store.load_cnc_info(self.bot_info.bot_id)
-        if len(self.cnc_info) > 0:
-            l.info('CnC already exist.')
-            return
-
         if self.cnc_analyzer is None:
             self.cnc_analyzer = CnCAnalyzer(own_ip, excluded_ips)
 
@@ -232,14 +226,26 @@ class BotRunner:
                                                  self.bot_info.bot_id, domain, 0, ''))
                     l.info(f"Find CnC:{ip_port[0]}:{ip_port[1]}")
 
-                    # Check if CnC already existed
-                    #  exists = await self.db_store.cnc_exists(ip_port[0], int(ip_port[1]))
-                    #  if exists:
-                    #  self.notify_dup = True
-                    #  await self.destroy()
-                    #  return
+                    # check if this cnc already exist for this bot in previous
+                    # measurement, only insert if new CnC is found
+                    cnc_info_in_db = await self.db_store.load_cnc_info(None,
+                                                                       self.cnc_info[0].ip,
+                                                                       self.cnc_info[0].port)
+                    cnc_dup = False
+                    for cnc in cnc_info_in_db:
+                        if cnc.bot_id != self.bot_info.bot_id:
+                            l.warning(f'Bot already exists for the botnet!')
+                            self.notify_dup = True;
+                            await self.destroy()
+                            return
+                        else:
+                            l.warning(f'This is a previous discovered CnC server!')
+                            cnc_dup = True
 
-                    await self.db_store.add_cnc_info(self.cnc_info[0])
+                    # newly discovered cnc server
+                    if not cnc_dup:
+                        l.warning(f'This is a newly discovered CnC server!')
+                        await self.db_store.add_cnc_info(self.cnc_info[0])
 
             if self.cnc_info is None or len(self.cnc_info) == 0:
                 l.warning("Cnc not find, stop bot runner...")
@@ -248,7 +254,8 @@ class BotRunner:
                 return
 
             # register to iface_monitor
-            await self.iface_monitor.register(self.cnc_info[0].ip)
+            await self.iface_monitor.register(self.cnc_info[0].ip,
+                                              self.bot_info.tag)
 
             # enforce nwfilter
             nwfilter_type = self.sandbox_ctx.cnc_nwfilter
@@ -267,7 +274,7 @@ class BotRunner:
                                        own_ip)
 
         except asyncio.CancelledError:
-            l.info("Bot runner cancelled")
+            l.warning("Bot runner cancelled")
             await self.destroy()
 
     async def destroy(self):
@@ -275,6 +282,7 @@ class BotRunner:
             if self.destroyed:
                 l.debug("Bot runner has been destroyed")
                 return
+
             l.info("Bot runner destroyed")
             await self.update_bot_info(BotStatus.INTERRUPTED)
             str_start_time = self.staged_time.strftime('%Y-%m-%d-%H-%M-%S')
@@ -296,3 +304,6 @@ class BotRunner:
             l.debug('Cancelled error occurred')
         finally:
             pass
+
+    def is_destroyed(self):
+        return self.destroyed

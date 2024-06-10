@@ -78,7 +78,7 @@ class Scheduler:
 
     async def _schedule_bots(self, status_list=None, bot_id=None, count=None):
         curr_runners_num = len(self.bot_runners)
-        l.info("Num of running bots: %d", curr_runners_num)
+        l.debug("Num of running bots: %d", curr_runners_num)
 
         if curr_runners_num >= self.max_sandbox_num:
             l.warning('No available slot for new bot.')
@@ -128,11 +128,11 @@ class Scheduler:
                                    BotStatus.INTERRUPTED.value])
 
     async def _update_bot_info(self):
-        l.debug(f'update bot info..., bot count: {len(self.bot_runners)}')
+        l.info(f'Update bot info..., bot count: {len(self.bot_runners)}')
         to_del = []
         async with self.bot_runners_lock:
             for t, r in self.bot_runners.items():
-                if t.done():
+                if r.is_destroyed():
                     to_del.append(t)
                 else:
                     await r.update_bot_info()
@@ -143,19 +143,20 @@ class Scheduler:
     async def checkpoint(self):
         try:
             # create the inteface monitor task
-            iface_monitor_action_type = IfaceMonitorAction.ALARM if \
-                self.iface_monitor_action == '0' else IfaceMonitorAction.BLOCK
+            iface_monitor_action_type = IfaceMonitorAction.TEAR_DOWN if \
+                self.iface_monitor_action == '0' else IfaceMonitorAction.ALARM
 
             async def iface_monitor_action():
                 l.warning(f'Iface monitor action triggered, action={self.iface_monitor_action}!')
-                if self.iface_monitor_action != '0':
+                if self.iface_monitor_action != '1':
                     l.warning('Stopping all bots!')
                     await self.stop_bot(None, True)
 
-            self.iface_monitor = IfaceMonitor(self.iface_monitor_iface,
+            self.iface_monitor = IfaceMonitor(self.sandbox_ctx.network_mode,
+                                              self.iface_monitor_iface,
+                                              self.iface_monitor_excluded_ips,
                                               iface_monitor_action_type,
-                                              iface_monitor_action,
-                                              self.iface_monitor_excluded_ips)
+                                              iface_monitor_action)
             self.iface_monitor_task = asyncio.create_task(self.iface_monitor.run(),
                                                           name=f't_iface_monitor')
             while True:
