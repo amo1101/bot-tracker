@@ -36,10 +36,15 @@ CREATE TABLE IF NOT EXISTS cnc_stat (
 CREATE TABLE IF NOT EXISTS attack_stat (
     bot_id VARCHAR (128),
     cnc_ip VARCHAR (32),
-    target VARCHAR (32),
-    attack_type VARCHAR (16),
-    attack_at TIMESTAMPTZ,
-    attack_duration INTERVAL
+    attack_type VARCHAR (32),
+    time TIMESTAMPTZ,
+    duration INTERVAL,
+    target VARCHAR,
+    protocol VARCHAR,
+    src_port VARCHAR,
+    dst_port VARCHAR,
+    packet_num INT,
+    total_bytes INT
 );
 
 -- insert records for the test bot

@@ -127,8 +127,8 @@ class Scheduler:
         await self._schedule_bots([BotStatus.UNKNOWN.value,
                                    BotStatus.INTERRUPTED.value])
 
-    async def _update_bot_info(self):
-        l.info(f'Update bot info..., bot count: {len(self.bot_runners)}')
+    async def _update_bot_and_attack_info(self):
+        l.info(f'Update bot and attack info..., bot count: {len(self.bot_runners)}')
         to_del = []
         async with self.bot_runners_lock:
             for t, r in self.bot_runners.items():
@@ -136,6 +136,7 @@ class Scheduler:
                     to_del.append(t)
                 else:
                     await r.update_bot_info()
+                    await r.update_attack_info()
             for t in to_del:
                 del self.bot_runners[t]
                 l.debug(f'remove task {t.get_name()}')

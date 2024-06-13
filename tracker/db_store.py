@@ -36,6 +36,11 @@ class CnCStatus(Enum):
     ALIVE = "alive"
     DISCONNECTED = "disconnected"
 
+class AttackType(Enum):
+    ATTACK_DP = 'DP Attack'
+    ATTACK_RA = 'RA Attack'
+    ATTACK_SCAN = 'Scanning'
+
 
 @dataclass
 class TrackerInfo:
@@ -139,11 +144,28 @@ class CnCStat:
 class AttackStat:
     bot_id: str
     cnc_ip: str
-    # could be: connected/disconnected
-    target: str
     attack_type: str
     time: datetime
     duration: timedelta
+    target: str
+    protocol: str
+    src_port: str
+    dst_port: str
+    packet_num: int
+    total_bytes: int
+
+    def __repr__(self):
+        return f'{"bot_id":<16}: {self.bot_id}\n' + \
+            f'{"cnc_ip":<16}: {self.cnc_ip}\n' + \
+            f'{"type":<16}: {self.attack_type}\n' + \
+            f'{"time":<16}: {self.time.strftime("%Y-%m-%d %H:%M:%S")}\n' + \
+            f'{"duration":<16}: {self.duration}\n' + \
+            f'{"target":<16}: {self.target}\n' + \
+            f'{"protocol":<16}: {self.protocol}\n' + \
+            f'{"src_port":<16}: {self.src_port}\n' + \
+            f'{"dst_port":<16}: {self.dst_port}\n' + \
+            f'{"packet_num":<16}: {self.packet_num}\n' + \
+            f'{"total_bytes":<16}: {self.total_bytes}'
 
 
 class DBStore:
@@ -316,6 +338,35 @@ class DBStore:
 
     async def add_attack_stat(self, attack):
         await self._insert('attack_stat', attack)
+
+    async def load_attack_stat(self, bot_id=None, cnc_ip=None):
+        attack_stat = []
+        para = ()
+
+        sql = "SELECT * FROM attack_stat"
+        filters = []
+        if bot_id is not None:
+            para += (bot_id,)
+            filters.append('bot_id = %s')
+        if cnc_ip is not None:
+            para += (cnc_ip,)
+            filters.append('cnc_ip = %s')
+
+        filter_str = ' AND '.join(f for f in filters)
+        if len(filters) > 0:
+            sql += ' WHERE '
+            sql += filter_str
+
+        l.debug(f"sql: {sql}")
+        l.debug(f"para: {para}")
+
+        if self.conn is not None:
+            async with self.conn.cursor() as cur:
+                await cur.execute(sql, para)
+                async for record in cur:
+                    attack_stat.append(AttackStat(*record))
+        return attack_stat
+
 
 
 TEST_TS1 = datetime.strptime('2022-02-01 15:00:09', "%Y-%m-%d %H:%M:%S")

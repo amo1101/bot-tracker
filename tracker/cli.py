@@ -67,6 +67,17 @@ help_list_cnc_stat = "NAME\n" + \
                      "  [--bot_id]=<bot_id>: bot id\n" + \
                      "  [--ip]=<ip>: CnC IP\n"
 
+help_list_attack = "NAME\n" + \
+                     "  list-attack - list attacks.\n" + \
+                     "\nSYNOPSIS\n" + \
+                     "  list-attack [--cnc_ip] [--bot_id]\n" + \
+                     "\nDESCRIPTION\n" + \
+                     "  List attack information with specified bot_id or CnC IP.\n" + \
+                     "  If no option specified, list all attacks information.\n" + \
+                     "\nOPTIONS\n" + \
+                     "  [--bot_id]=<bot_id>: bot id\n" + \
+                     "  [--cnc_ip]=<ip>: CnC IP\n"
+
 help_schedinfo = "NAME\n" + \
                  "  schedinfo - show bot scheduler information.\n" + \
                  "\nSYNOPSIS\n" + \
@@ -94,6 +105,7 @@ cmd_help = {'list-bot': help_list_bot,
             'stop-bot': help_stop_bot,
             'list-cnc': help_list_cnc,
             'list-cnc-stat': help_list_cnc_stat,
+            'list-attack': help_list_attack,
             'schedinfo': help_schedinfo,
             'set-sched': help_set_sched}
 
@@ -104,6 +116,7 @@ cmd_config = {
                              'stop-bot',
                              'list-cnc',
                              'list-cnc-stat',
+                             'list-attack',
                              'schedinfo',
                              'set-sched']}),
 
@@ -128,6 +141,10 @@ cmd_config = {
 
     'list-cnc-stat': ([0, 1], {
         'ip': lambda v: True,
+        'bot_id': lambda v: True}),
+
+    'list-attack': ([0, 1], {
+        'cnc_ip': lambda v: True,
         'bot_id': lambda v: True}),
 
     'schedinfo': ([0, 0], {}),

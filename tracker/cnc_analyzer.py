@@ -1,26 +1,11 @@
 import re
 import pyshark
-
-
-def validate_ip_format(ip_str):
-    ip_param = ip_str
-    reg_exp = r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$"
-    if ":" in ip_str:
-        li = ip_str.split(":")
-        if len(li) >= 2:
-            ip_param = li[0]
-    res = False
-    try:
-        m = re.match(reg_exp, ip_param)
-        if m:
-            res = True
-    except:
-        res = False
-    return res
+from packet_parser import *
 
 
 MIN_OCCURRENCE = 1  # Not interested in scanning or similar activities
 
+background_fields = ["icmpv6", "icmp", "mdns", "dns", "dhcpv6", "dhcp", "arp", "ntp"]
 
 class CnCReport:
     def __init__(self):
@@ -47,9 +32,10 @@ class CnCReport:
     def rank(self, domain):
         return 0
 
+    # return a tuple ('key',{})
     def get(self):
         if len(self.cnc_info) > 0:
-            return self.cnc_info[0]  # return the first tuple with the highest Score
+            return {self.cnc_info[0][0] : self.cnc_info[0][1]}  # return the first tuple with the highest Score
 
         ports_added = []
         dict_all = {}
@@ -88,7 +74,7 @@ class CnCReport:
 
         self.cnc_info = sorted(dict_all.items(), key=lambda kv: kv[1]['Score'], reverse=True)
         if len(self.cnc_info) > 0:
-            return self.cnc_info[0]
+            return {self.cnc_info[0][0] : self.cnc_info[0][1]}  # return the first tuple with the highest Score
 
 
 # avoiding logging here cuz this will run in another python interpreter
@@ -99,28 +85,17 @@ class CnCAnalyzer:
         self.own_ip = own_ip
         self.excluded_ports = excluded_ports
         self.excluded_ips = excluded_ips
-        self.background_fields = ["icmpv6", "icmp", "mdns", "dns", "dhcpv6", "dhcp", "arp", "ntp"]
-
-    def is_background_traffic(self, pkt):
-        pkt_fields = dir(pkt)
-        for field in self.background_fields:
-            if field in pkt_fields:
-                #  background_traffic.append(pkt)
-                return True
-        return False
 
     def check_dns_address(self, pkt):  # Exception for DNS packets
-        if 'dns' in dir(pkt):
-            dns_dir = dir(pkt.dns)
-            for_test = int(pkt.dns.flags.hex_value) & 0x8001
-            reply_status = int(pkt.dns.flags.hex_value) & 0x8003  # this means response and no reply in DNS
-            if reply_status == 0x8003:
-                return pkt.dns.qry_name
-            elif for_test == 0x8000 and "a" in dns_dir and "qry_name" in dns_dir:  # it's a response and no error
-                # print(dir(pkt.dns))
-                self.report.DNS_Mappings[pkt.dns.a] = pkt.dns.qry_name
-                # print("qry_name",pkt.dns.qry_name,":",pkt.dns.a)    
+        if 'dns' in pkt.layers:
+            if pkt.dns_a is None:
+                return pkt.dns_qry_name
+            else:
+                self.report.DNS_Mappings[pkt.dns_a] = pkt.dns_qry_name
         return None
+
+    def get_result(self):
+        return self.report.get()
 
     def analyze(self, pkt):
         self.report.count += 1
@@ -132,36 +107,36 @@ class CnCAnalyzer:
             else:
                 self.report.ip_dict[not_found_dns_addr] = {"Total": 1, "DNS_QUERIES": 1}
 
-        bg_pkt = self.is_background_traffic(pkt)
+        bg_pkt = is_background_traffic(pkt, background_fields)
         if not bg_pkt:
-            if 'tcp' in dir(pkt):
-                if self.own_ip and pkt.ip.dst == self.own_ip:
-                    target = pkt.ip.src + ":" + pkt.tcp.srcport  # the response should be also considered.
+            if 'tcp' in pkt.layers:
+                if self.own_ip and pkt.ip_dst == self.own_ip:
+                    target = pkt.ip_src + ":" + pkt.tcp_srcport  # the response should be also considered.
                 else:
-                    target = pkt.ip.dst + ":" + pkt.tcp.dstport
+                    target = pkt.ip_dst + ":" + pkt.tcp_dstport
                 state = ""
                 port_num = target.split(":")[1]
                 dst_ip = target.split(":")[0]
                 if (self.excluded_ports and port_num in self.excluded_ports) or \
                         (self.excluded_ips and dst_ip in self.excluded_ips):
-                    return self.report
+                    return
                 if target not in self.report.ip_dict:  # this is a new IP address contacted by port port_num
                     if port_num in self.report.port_dict:
                         self.report.port_dict[port_num] += 1  # a new host of this port was contacted
                     else:
                         self.report.port_dict[port_num] = 1  # the only host, we favor these
-                if pkt.tcp.flags_syn == 'True':
-                    if pkt.tcp.flags_ack != "True":
+                if pkt.tcp_flags_syn == 'True':
+                    if pkt.tcp_flags_ack != "True":
                         state = "SYN"
                     else:
-                        return self.report
+                        return
                         #  return self.report # don't need to take into account SYN ACK
                 else:
-                    if self.own_ip and pkt.ip.dst == self.own_ip or "192.168" not in pkt.ip.src:  # server response
-                        if pkt.tcp.flags_reset == 'True':
+                    if self.own_ip and pkt.ip_dst == self.own_ip or "192.168" not in pkt.ip_src:  # server response
+                        if pkt.tcp_flags_reset == 'True':
                             # print(dir(pkt.tcp))
                             state = "RST"
-                        elif pkt.tcp.flags_fin == "True":
+                        elif pkt.tcp_flags_fin == "True":
                             state = "FIN"  # FIN will later tell us if the connection was really a success
                         elif pkt.tcp.len != "0":
                             state = "SUC"  # We are interested in server exchanging data
@@ -181,7 +156,6 @@ class CnCAnalyzer:
                         self.report.ip_dict[target][state] = 1
                 else:
                     self.report.ip_dict[target] = {"Total": 1, state: 1}
-        return self.report
 
 
 cc_analyzer = None

@@ -145,6 +145,43 @@ async def handle_list_cnc_stat(args):
     resp = head + body + foot
     return resp
 
+async def handle_list_attack(args):
+    l.debug(f'handle_list_attack: {args}')
+    resp = ""
+    cnc_ip = None
+    bot_id = None
+
+    if 'cnc_ip' in args:
+        cnc_ip = args['cnc_ip']
+    elif 'bot_id' in args:
+        bot_id = args['bot_id']
+    else:
+        pass
+
+    attack_stats = await bot_db_store.load_attack_stat(bot_id, cnc_ip)
+
+    if len(attack_stats) == 1:
+        resp = repr(attack_stats[0])
+        return resp
+
+    head = f"{'bot_id':<24}{'cnc_ip':<20}{'type':<12}{'time':<20}{'duration':<20}"
+    body = '\n' + len(head) * '-'
+    if len(attack_stats) == 0:
+        return head + body
+
+    foot = f"\n{'count:':>{len(head) - 10}} {len(attack_stats)}\n"
+    for a in attack_stats:
+        if len(a.bot_id) <= 16:
+            body += f"\n{a.bot_id[:16]:<24}"
+        else:
+            body += f"\n{a.bot_id[:16] + '...':<24}"
+        body += f"{a.cnc_ip:<20}{a.type:<12}"
+        body += f"{a.time:<20}{a.time.strftime('%Y-%m-%d %H:%M:%S'):<20}"
+        body += f"{a.duration:<20}{a.duration:<20}"
+    body += '\n' + len(head) * '-'
+    resp = head + body + foot
+    return resp
+
 
 async def handle_schedinfo(args):
     l.debug(f'handle_schedinfo: {args}')
@@ -169,6 +206,7 @@ cmd_registry = {
     'stop-bot': handle_stop_bot,
     'list-cnc': handle_list_cnc,
     'list-cnc-stat': handle_list_cnc_stat,
+    'list-attack': handle_list_attack,
     'schedinfo': handle_schedinfo,
     'set-sched': handle_set_sched
 }

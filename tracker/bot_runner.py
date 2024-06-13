@@ -1,29 +1,19 @@
-import signal
-from concurrent.futures import ProcessPoolExecutor
 import asyncio
 import os
-from attack_analyzer import *
-from cnc_analyzer import *
 from db_store import *
 from packet_capture import *
 from sandbox import Sandbox
 from sandbox_context import SandboxNWFilter
 from iface_monitor import IfaceMonitor
+from analyzer_executor import *
 
 l: TaskLogger = TaskLogger(__name__)
 CUR_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
-def init_worker():
-    # suppress SIGINT in worker process to cleanly reclaim resource only by
-    # main process
-    l.info('ProcessPoolExecutor initialized')
-    signal.signal(signal.SIGINT, signal.SIG_IGN)
-
-
 class BotRunner:
     # use process pool for packet analyzing
-    analyzer_executor = None
+    analyzer_executor_pool = None
 
     def __init__(self, bot_info,
                  bot_repo_ip, bot_repo_user, bot_repo_path,
@@ -32,10 +22,9 @@ class BotRunner:
                  max_analyzing_workers,
                  iface_monitor):
 
-        if BotRunner.analyzer_executor is None:
-            BotRunner.analyzer_executor = \
-                ProcessPoolExecutor(max_workers=max_analyzing_workers,
-                                    initializer=init_worker)
+        if BotRunner.analyzer_executor_pool is None:
+            BotRunner.analyzer_executor_pool = \
+                AnalyzerExecutorPool(max_analyzing_workers)
             l.info('Initialized analyzer executor with %d workers',
                     max_analyzing_workers)
 
@@ -47,8 +36,6 @@ class BotRunner:
         self.sandbox_ctx = sandbox_ctx
         self.db_store = db_store
         self.sandbox = None
-        self.cnc_analyzer = None
-        self.attack_analyzer = None
         self.live_capture = None
         self.log_base = CUR_DIR + os.sep + "log"
         self.log_dir = self.log_base + os.sep + bot_info.tag
@@ -61,6 +48,9 @@ class BotRunner:
         self.staged_time = INIT_TIME_STAMP
         self.destroyed = False
         self.iface_monitor = iface_monitor
+        self.excutor_id = None
+        self.cnc_analyzer_id = None
+        self.attack_analyzer_id = None
 
     def _create_log_dir(self):
         if not os.path.exists(self.log_base):
@@ -79,16 +69,19 @@ class BotRunner:
                                                  debug=False)
 
     async def _find_cnc(self, own_ip, excluded_ips):
-        if self.cnc_analyzer is None:
-            self.cnc_analyzer = CnCAnalyzer(own_ip, excluded_ips)
+        # init cnc analyzer
+        self.cnc_analyzer_id = await BotRunner.analyzer_executor_pool.init_analyzer(self.excutor_id,
+                                                                                    AnalyzerType.ANALYZER_CNC,
+                                                                                    own_ip=own_ip,
+                                                                                    excluded_ips=excluded_ips,
+                                                                                    excluded_ports=None)
 
-        loop = asyncio.get_running_loop()
         try:
             async for packet in self.live_capture.sniff_continuously():
                 #  l.debug(f'packet arrives:\n{packet}')
                 l.debug(f'cnc report before: {repr(self.cnc_analyzer.report)}')
-                self.cnc_analyzer.report = await loop.run_in_executor(BotRunner.analyzer_executor,
-                                                                      self.cnc_analyzer.analyze,
+                await BotRunner.analyzer_executor_pool.analyze_packet(self.excutor_id,
+                                                                      self.cnc_analyzer_id,
                                                                       packet)
                 l.debug(f'cnc report after: {repr(self.cnc_analyzer.report)}')
         # let the caller handle all the exceptions
@@ -102,38 +95,60 @@ class BotRunner:
         await task
 
     # TODO: now only monitor cnc status, will add online attack monitoring
-    async def _handle_attack_report(self, report):
-        cnc_status = report['cnc_status']
-        l.debug(f"Get cnc status report: {report}")
-        attack_time = datetime.now()
-        if cnc_status == CnCStatus.ALIVE.value:
-            await self.update_bot_info(BotStatus.ACTIVE)
-        elif cnc_status == CnCStatus.DISCONNECTED.value:
-            await self.update_bot_info(BotStatus.DORMANT)
+    async def update_attack_report(self):
+        report = await BotRunner.analyzer_executor_pool.get_result(self.excutor_id,
+                                                                   self.attack_analyzer_id)
+        l.debug(f"Get attack report: {report}")
 
-        cnc_stat = CnCStat(report['cnc_ip'], report['cnc_port'],
-                           self.bot_info.bot_id, cnc_status, attack_time)
-        await self.db_store.add_cnc_stat(cnc_stat)
+        # update cnc report
+        if report['cnc_ready'] is True:
+            cnc_status = report['cnc_status']
+            if cnc_status == CnCStatus.ALIVE.value:
+                await self.update_bot_info(BotStatus.ACTIVE)
+            elif cnc_status == CnCStatus.DISCONNECTED.value:
+                await self.update_bot_info(BotStatus.DORMANT)
+
+            cnc_stat = CnCStat(report['cnc_ip'], report['cnc_port'],
+                               self.bot_info.bot_id, cnc_status,
+                               report['cnc_update_at'])
+            await self.db_store.add_cnc_stat(cnc_stat)
+
+        # update attack report
+        for _, rl in report['attacks'].items():
+            for r in rl:
+                attack_stat = AttackStat(self.bot_info.bot_id,
+                                         self.cnc_info[0].ip,
+                                         r['attack_type'],
+                                         r['start_time'],
+                                         r['duration'],
+                                         r['target'],
+                                         r['protocol'],
+                                         r['src_port'],
+                                         r['dst_port'],
+                                         r['packet_cnt'],
+                                         r['total_bytes'])
+                await self.db_store.add_attack_stat(attack_stat)
 
     async def _observe_attack(self, cnc_ip, cnc_port, own_ip):
-        if self.attack_analyzer is None:
-            self.attack_analyzer = AttackAnalyzer(cnc_ip, cnc_port, own_ip)
+        # init attack analyzer
+        self.attack_analyzer_id = await BotRunner.analyzer_executor_pool.init_analyzer(self.excutor_id,
+                                                                                       AnalyzerType.ANALYZER_ATTACK,
+                                                                                       cnc_ip=cnc_ip,
+                                                                                       cnc_port=cnc_port,
+                                                                                       own_ip=own_ip)
 
-        loop = asyncio.get_running_loop()
         try:
             async for packet in self.live_capture.sniff_continuously():
                 #  l.debug(f'packet arrives:\n{packet}')
-                l.debug(f'attack report before: {repr(self.attack_analyzer.report)}')
-                self.attack_analyzer.report = await loop.run_in_executor(BotRunner.analyzer_executor,
-                                                                         self.attack_analyzer.analyze,
-                                                                         packet)
-                if self.attack_analyzer.report.is_ready():
-                    await self._handle_attack_report(self.attack_analyzer.report.get())
-                else:
-                    l.debug(f'attack report after: {repr(self.attack_analyzer.report)}')
+                l.debug(f'cnc report before: {repr(self.cnc_analyzer.report)}')
+                await BotRunner.analyzer_executor_pool.analyze_packet(self.excutor_id,
+                                                                      self.attack_analyzer_id,
+                                                                      packet)
+                l.debug(f'cnc report after: {repr(self.cnc_analyzer.report)}')
+        # let the caller handle all the exceptions
         finally:
-            l.debug('_observe_attack finalized')
-            #  pass
+            l.debug('_find_cnc finalized')
+            pass
 
     def dormant_duration(self):
         if self.dormant_time == INIT_TIME_STAMP:
@@ -207,45 +222,49 @@ class BotRunner:
             # set default nwfiter
             self.sandbox.apply_nwfilter(self.sandbox_ctx.default_nwfilter)
 
+            # open packet executor
+            self.executor_id = BotRunner.analyzer_executor_pool.open_executor()
+
             # find cnc server
             try:
                 await asyncio.wait_for(self._find_cnc_task(own_ip, [self.bot_repo_ip]),
                                        timeout=self.cnc_probing_time)
             except asyncio.TimeoutError:
                 l.warning("Cnc probing timeout...")
-                if self.cnc_analyzer.report.is_ready():
-                    cnc_info = self.cnc_analyzer.report.get()
-                    ip_port = cnc_info[0].split(':')
-                    domain = ''
-                    if 'DNS_Name' in cnc_info[1]:
-                        domain = cnc_info[1]['DNS_Name']
+                cnc_info = await BotRunner.analyzer_executor_pool.get_result(self.excutor_id,
+                                                                             self.cnc_analyzer_id)
+                k, v = next(iter(cnc_info.items())) # should have only one key
+                ip_port = k.split(':')
+                domain = ''
+                if 'DNS_Name' in v:
+                    domain = v['DNS_Name']
 
-                    # TODO: skip asn and location here
-                    # we can support multiple CnCs, but now only use 1
-                    self.cnc_info.append(CnCInfo(ip_port[0], int(ip_port[1]),
-                                                 self.bot_info.bot_id, domain, 0, ''))
-                    l.info(f"Find CnC:{ip_port[0]}:{ip_port[1]}")
+                # TODO: skip asn and location here
+                # we can support multiple CnCs, but now only use 1
+                self.cnc_info.append(CnCInfo(ip_port[0], int(ip_port[1]),
+                                             self.bot_info.bot_id, domain, 0, ''))
+                l.info(f"Find CnC:{ip_port[0]}:{ip_port[1]}")
 
-                    # check if this cnc already exist for this bot in previous
-                    # measurement, only insert if new CnC is found
-                    cnc_info_in_db = await self.db_store.load_cnc_info(None,
-                                                                       self.cnc_info[0].ip,
-                                                                       self.cnc_info[0].port)
-                    cnc_dup = False
-                    for cnc in cnc_info_in_db:
-                        if cnc.bot_id != self.bot_info.bot_id:
-                            l.warning(f'Bot already exists for the botnet!')
-                            self.notify_dup = True;
-                            await self.destroy()
-                            return
-                        else:
-                            l.warning(f'This is a previous discovered CnC server!')
-                            cnc_dup = True
+                # check if this cnc already exist for this bot in previous
+                # measurement, only insert if new CnC is found
+                cnc_info_in_db = await self.db_store.load_cnc_info(None,
+                                                                   self.cnc_info[0].ip,
+                                                                   self.cnc_info[0].port)
+                cnc_dup = False
+                for cnc in cnc_info_in_db:
+                    if cnc.bot_id != self.bot_info.bot_id:
+                        l.warning(f'Bot already exists for the botnet!')
+                        self.notify_dup = True;
+                        await self.destroy()
+                        return
+                    else:
+                        l.warning(f'This is a previous discovered CnC server!')
+                        cnc_dup = True
 
-                    # newly discovered cnc server
-                    if not cnc_dup:
-                        l.warning(f'This is a newly discovered CnC server!')
-                        await self.db_store.add_cnc_info(self.cnc_info[0])
+                # newly discovered cnc server
+                if not cnc_dup:
+                    l.warning(f'This is a newly discovered CnC server!')
+                    await self.db_store.add_cnc_info(self.cnc_info[0])
 
             if self.cnc_info is None or len(self.cnc_info) == 0:
                 l.warning("Cnc not find, stop bot runner...")
@@ -295,6 +314,14 @@ class BotRunner:
                 await self.iface_monitor.unregister(self.cnc_info[0].ip)
 
             self.sandbox.destroy()
+
+            # close all analyzer and executor
+            await BotRunner.analyzer_executor_pool.finalize_analyzer(self.excutor_id,
+                                                                     self.cnc_analyzer_id)
+            await BotRunner.analyzer_executor_pool.finalize_analyzer(self.excutor_id,
+                                                                     self.attack_analyzer_id)
+            BotRunner.analyzer_executor_pool.close_executor(self.excutor_id)
+
             if self.live_capture is not None:
                 await self.live_capture.close_async()
             self.destroyed = True
