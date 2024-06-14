@@ -26,7 +26,7 @@ class BotRunner:
             BotRunner.analyzer_executor_pool = \
                 AnalyzerExecutorPool(max_analyzing_workers)
             l.info('Initialized analyzer executor with %d workers',
-                    max_analyzing_workers)
+                   max_analyzing_workers)
 
         self.bot_info = bot_info
         self.bot_repo_ip = bot_repo_ip
@@ -48,7 +48,7 @@ class BotRunner:
         self.staged_time = INIT_TIME_STAMP
         self.destroyed = False
         self.iface_monitor = iface_monitor
-        self.excutor_id = None
+        self.executor_id = None
         self.cnc_analyzer_id = None
         self.attack_analyzer_id = None
 
@@ -61,7 +61,7 @@ class BotRunner:
     def _init_capture(self, port_dev):
         if self.live_capture is None:
             iface = port_dev
-            bpf_filter = "not stp and not arp" # filter out background traffic
+            bpf_filter = "not stp and not arp"  # filter out background traffic
             output_file = self.log_dir + os.sep + "capture.pcap"
             self.live_capture = AsyncLiveCapture(interface=iface,
                                                  bpf_filter=bpf_filter,
@@ -78,12 +78,9 @@ class BotRunner:
 
         try:
             async for packet in self.live_capture.sniff_continuously():
-                #  l.debug(f'packet arrives:\n{packet}')
-                l.debug(f'cnc report before: {repr(self.cnc_analyzer.report)}')
                 await BotRunner.analyzer_executor_pool.analyze_packet(self.excutor_id,
                                                                       self.cnc_analyzer_id,
                                                                       packet)
-                l.debug(f'cnc report after: {repr(self.cnc_analyzer.report)}')
         # let the caller handle all the exceptions
         finally:
             l.debug('_find_cnc finalized')
@@ -116,6 +113,11 @@ class BotRunner:
         # update attack report
         for _, rl in report['attacks'].items():
             for r in rl:
+                total_packets = r['packet_cnt']
+                total_bytes = r['total_bytes']
+                total_secs = r['duration'].total_seconds()
+                pps = total_packets/total_secs
+                bandwidth = total_bytes/total_secs
                 attack_stat = AttackStat(self.bot_info.bot_id,
                                          self.cnc_info[0].ip,
                                          r['attack_type'],
@@ -125,8 +127,10 @@ class BotRunner:
                                          r['protocol'],
                                          r['src_port'],
                                          r['dst_port'],
-                                         r['packet_cnt'],
-                                         r['total_bytes'])
+                                         total_packets,
+                                         total_bytes,
+                                         pps,
+                                         bandwidth)
                 await self.db_store.add_attack_stat(attack_stat)
 
     async def _observe_attack(self, cnc_ip, cnc_port, own_ip):
@@ -139,12 +143,9 @@ class BotRunner:
 
         try:
             async for packet in self.live_capture.sniff_continuously():
-                #  l.debug(f'packet arrives:\n{packet}')
-                l.debug(f'cnc report before: {repr(self.cnc_analyzer.report)}')
                 await BotRunner.analyzer_executor_pool.analyze_packet(self.excutor_id,
                                                                       self.attack_analyzer_id,
                                                                       packet)
-                l.debug(f'cnc report after: {repr(self.cnc_analyzer.report)}')
         # let the caller handle all the exceptions
         finally:
             l.debug('_find_cnc finalized')
@@ -231,9 +232,9 @@ class BotRunner:
                                        timeout=self.cnc_probing_time)
             except asyncio.TimeoutError:
                 l.warning("Cnc probing timeout...")
-                cnc_info = await BotRunner.analyzer_executor_pool.get_result(self.excutor_id,
+                cnc_info = await BotRunner.analyzer_executor_pool.get_result(self.executor_id,
                                                                              self.cnc_analyzer_id)
-                k, v = next(iter(cnc_info.items())) # should have only one key
+                k, v = next(iter(cnc_info.items()))  # should have only one key
                 ip_port = k.split(':')
                 domain = ''
                 if 'DNS_Name' in v:
@@ -316,11 +317,11 @@ class BotRunner:
             self.sandbox.destroy()
 
             # close all analyzer and executor
-            await BotRunner.analyzer_executor_pool.finalize_analyzer(self.excutor_id,
+            await BotRunner.analyzer_executor_pool.finalize_analyzer(self.executor_id,
                                                                      self.cnc_analyzer_id)
-            await BotRunner.analyzer_executor_pool.finalize_analyzer(self.excutor_id,
+            await BotRunner.analyzer_executor_pool.finalize_analyzer(self.executor_id,
                                                                      self.attack_analyzer_id)
-            BotRunner.analyzer_executor_pool.close_executor(self.excutor_id)
+            BotRunner.analyzer_executor_pool.close_executor(self.executor_id)
 
             if self.live_capture is not None:
                 await self.live_capture.close_async()

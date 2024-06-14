@@ -2,7 +2,6 @@ import signal
 from concurrent.futures import ProcessPoolExecutor
 import asyncio
 import os
-from packet_parser import *
 from attack_analyzer import *
 from cnc_analyzer import *
 from log import TaskLogger
@@ -11,7 +10,6 @@ from enum import Enum
 l: TaskLogger = TaskLogger(__name__)
 CUR_DIR = os.path.dirname(os.path.abspath(__file__))
 
-analyzer_context = None
 
 # the AnalyzerContext instance will be serialized and sent to run in executor
 # process remotely
@@ -21,41 +19,48 @@ class AnalyzerContext:
         self.aid_cnt = 0
 
     def init_analyzer(self, analyzer):
-        self.ai_cnt += 1
+        self.aid_cnt += 1
         aid = self.aid_cnt
         self.analyzer_reg[aid] = analyzer
         return aid
 
     def analyze_packet(self, aid, packet):
         if aid in self.analyzer_reg:
-            return self.analyzer[aid].analyze(packet)
-        return None
+            self.analyzer_reg[aid].analyze(packet)
 
     def get_result(self, aid):
         if aid in self.analyzer_reg:
-            return self.analyzer[aid].get_result()
+            return self.analyzer_reg[aid].get_result()
         return None
 
-    def finalize_analyzer(self, analyzer):
+    def finalize_analyzer(self, aid):
         if aid in self.analyzer_reg:
             del self.analyzer_reg[aid]
+
+
+analyzer_context: AnalyzerContext
+
 
 # these functions run in executor process remotely
 def init_analyzer_in_executor(analyzer):
     global analyzer_context
     return analyzer_context.init_analyzer(analyzer)
 
+
 def analyze_packet_in_executor(aid, packet):
     global analyzer_context
-    return analyzer_context.analyze_packet(packet)
+    return analyzer_context.analyze_packet(aid, packet)
 
-def get_analyze_result_in_executor(aid, packet):
+
+def get_analyze_result_in_executor(aid):
     global analyzer_context
     return analyzer_context.get_result(aid)
+
 
 def finalize_analyzer_in_executor(aid):
     global analyzer_context
     return analyzer_context.finalize_analyzer(aid)
+
 
 def init_worker(analyzer_ctx):
     # suppress SIGINT in worker process to cleanly reclaim resource only by
@@ -64,13 +69,15 @@ def init_worker(analyzer_ctx):
     analyzer_context = analyzer_ctx
     signal.signal(signal.SIGINT, signal.SIG_IGN)
 
+
 # following code run locally
 class AnalyzerType(Enum):
     ANALYZER_CNC = 0
     ANALYZER_ATTACK = 1
 
+
 # simple wrapper for ProcessPoolExecutor
-# run task remotely in a speicified executor process with executor id
+# run task remotely in a specified executor process with executor id
 class AnalyzerExecutorPool:
     def __init__(self, max_executors=1):
         self.max_executors = max_executors
@@ -106,12 +113,9 @@ class AnalyzerExecutorPool:
 
     async def init_analyzer(self, eid, which, **kwargs):
         if eid not in self.executor_reg:
-            l.warning(f'Excutor {eid} not exist!')
+            l.warning(f'Executor {eid} not exist!')
 
         e = self.executor_reg[eid][0]
-        loop = asyncio.get_running_loop()
-
-        analzyer = None
         if which == AnalyzerType.ANALYZER_CNC:
             analyzer = CnCAnalyzer(kwargs['own_ip'],
                                    kwargs['excluded_ips'],
@@ -121,11 +125,12 @@ class AnalyzerExecutorPool:
                                       kwargs['cnc_port'],
                                       kwargs['own_ip'])
 
+        loop = asyncio.get_running_loop()
         return await loop.run_in_executor(e, init_analyzer_in_executor, analyzer)
 
     async def analyze_packet(self, eid, aid, packet):
         if eid not in self.executor_reg:
-            l.warning(f'Excutor {eid} not exist!')
+            l.warning(f'Executor {eid} not exist!')
             return
 
         e = self.executor_reg[eid][0]
@@ -133,19 +138,24 @@ class AnalyzerExecutorPool:
         # only send packet summary
         pkt_summary = PacketSummary()
         pkt_summary.extract(packet)
-        await self.loop.run_in_executor(e, analyze_packet_in_executor,
-                                        aid, pkt_summary)
+        #  l.debug(f'packet arrives:\n{pkt_summary}')
+
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(e, analyze_packet_in_executor,
+                                   aid, pkt_summary)
 
     async def get_result(self, eid, aid):
         if eid not in self.executor_reg:
-            l.warning(f'Excutor {eid} not exist!')
+            l.warning(f'Executor {eid} not exist!')
             return
         e = self.executor_reg[eid][0]
-        await self.loop.run_in_executor(e, get_analyze_result_in_executor, aid)
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(e, get_analyze_result_in_executor, aid)
 
-    async def fanalize_analyzer(self, eid, aid):
+    async def finalize_analyzer(self, eid, aid):
         if eid not in self.executor_reg:
-            l.warning(f'Excutor {eid} not exist!')
+            l.warning(f'Executor {eid} not exist!')
             return
         e = self.executor_reg[eid][0]
-        await self.loop.run_in_executor(e, finalize_analyzer_in_executor, aid)
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(e, finalize_analyzer_in_executor, aid)

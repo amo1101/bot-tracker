@@ -1,11 +1,13 @@
 import re
 import pyshark
 
+
 def is_background_traffic(pkt, background_fields):
     for field in background_fields:
         if field in pkt.layers:
             return True
     return False
+
 
 def validate_ip_format(ip_str):
     ip_param = ip_str
@@ -23,6 +25,7 @@ def validate_ip_format(ip_str):
         res = False
     return res
 
+
 def parse_dns(pkt):
     if 'dns' in dir(pkt):
         dns_dir = dir(pkt.dns)
@@ -33,6 +36,7 @@ def parse_dns(pkt):
         elif for_test == 0x8000 and "a" in dns_dir and "qry_name" in dns_dir:  # it's a response and no error
             return pkt.dns.qry_name, pkt.dns.a
     return None, None
+
 
 class PacketSummary:
     def __init__(self):
@@ -47,7 +51,7 @@ class PacketSummary:
         self.tcp_flags_fin = None
         self.tcp_flags_reset = None
         self.udp_len = None
-        self.udp_srcpport = None
+        self.udp_srcport = None
         self.udp_dstport = None
         self.dns_qry_name = None
         self.dns_a = None
@@ -55,12 +59,12 @@ class PacketSummary:
 
     @property
     def len(self):
-        l = self.tcp_len if self.tcp_len is not None else self.udp_len
-        return l
+        dl = self.tcp_len if self.tcp_len is not None else self.udp_len
+        return dl
 
     @property
     def srcport(self):
-        p = self.tcp_srcport if self.tcp_srcport is not None else self.udp_srcpport
+        p = self.tcp_srcport if self.tcp_srcport is not None else self.udp_srcport
         return p
 
     @property
@@ -69,49 +73,46 @@ class PacketSummary:
         return p
 
     @property
-
     @property
     def protocol(self):
-        prot = None
         if 'http' in self.layers:
-            prot = 'http'
+            proto = 'http'
         elif 'ftp' in self.layers:
-            prot = 'ftp'
+            proto = 'ftp'
         elif 'dns' in self.layers:
-            prot = 'dns'
+            proto = 'dns'
         elif 'ntp' in self.layers:
-            prot = 'ntp'
+            proto = 'ntp'
         elif 'tcp' in self.layers:
-            prot = 'tcp'
+            proto = 'tcp'
         elif 'udp' in self.layers:
-            prot = 'udp'
+            proto = 'udp'
         elif 'icmp' in self.layers:
-            prot = 'icmp'
+            proto = 'icmp'
         elif 'igmp' in self.layers:
-            prot = 'igmp'
+            proto = 'igmp'
         else:
-            prot = 'unknown'
-        return prot
+            proto = 'unknown'
+        return proto
 
-    def extract(pkt):
+    def extract(self, pkt):
         self.sniff_time = pkt.sniff_time
-        for l in pkt.layers:
-            self.layers.append(l.layer_name)
+        self.layers = dir(pkt)
+
         if 'ip' in self.layers:
             self.ip_src = pkt.ip.src
             self.ip_dst = pkt.ip.dst
         if 'dns' in self.layers:
             self.dns_qry_name, self.dns_a = parse_dns(pkt)
         if 'tcp' in self.layers:
-            self.tcp_len = self.tcp.len
-            self.tcp_srcport = self.tcp.srcport
-            self.tcp_dstport = self.tcp.dstport
-            self.tcp_flags_syn = self.tcp.flags_syn
-            self.tcp_flags_ack = self.tcp.flags_ack
-            self.tcp_flags_fin = self.tcp.flags_fin
-            self.tcp_flags_reset = self.tcp.flags_reset
+            self.tcp_len = pkt.tcp.len
+            self.tcp_srcport = pkt.tcp.srcport
+            self.tcp_dstport = pkt.tcp.dstport
+            self.tcp_flags_syn = pkt.tcp.flags_syn
+            self.tcp_flags_ack = pkt.tcp.flags_ack
+            self.tcp_flags_fin = pkt.tcp.flags_fin
+            self.tcp_flags_reset = pkt.tcp.flags_reset
         if 'udp' in self.layers:
-            self.udp_len = self.udp.len
-            self.udp_srcport = self.udp.srcport
-            self.udp_dstport = self.udp.dstport
-
+            self.udp_len = pkt.udp.len
+            self.udp_srcport = pkt.udp.srcport
+            self.udp_dstport = pkt.udp.dstport

@@ -44,7 +44,9 @@ CREATE TABLE IF NOT EXISTS attack_stat (
     src_port VARCHAR,
     dst_port VARCHAR,
     packet_num INT,
-    total_bytes INT
+    total_bytes INT,
+    pps INT,
+    bandwidth INT
 );
 
 -- insert records for the test bot

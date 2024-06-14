@@ -36,6 +36,7 @@ class CnCStatus(Enum):
     ALIVE = "alive"
     DISCONNECTED = "disconnected"
 
+
 class AttackType(Enum):
     ATTACK_DP = 'DP Attack'
     ATTACK_RA = 'RA Attack'
@@ -153,6 +154,8 @@ class AttackStat:
     dst_port: str
     packet_num: int
     total_bytes: int
+    pps: int
+    bandwidth: int
 
     def __repr__(self):
         return f'{"bot_id":<16}: {self.bot_id}\n' + \
@@ -165,7 +168,9 @@ class AttackStat:
             f'{"src_port":<16}: {self.src_port}\n' + \
             f'{"dst_port":<16}: {self.dst_port}\n' + \
             f'{"packet_num":<16}: {self.packet_num}\n' + \
-            f'{"total_bytes":<16}: {self.total_bytes}'
+            f'{"total_bytes":<16}: {self.total_bytes}\n' + \
+            f'{"pps":<16}: {self.pps}\n' + \
+            f'{"bandwidth":<16}: {self.bandwidth}'
 
 
 class DBStore:
@@ -366,7 +371,6 @@ class DBStore:
                 async for record in cur:
                     attack_stat.append(AttackStat(*record))
         return attack_stat
-
 
 
 TEST_TS1 = datetime.strptime('2022-02-01 15:00:09', "%Y-%m-%d %H:%M:%S")

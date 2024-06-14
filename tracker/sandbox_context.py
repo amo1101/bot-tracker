@@ -13,6 +13,7 @@ class NetworkMode(Enum):
     BLOCK = 0
     RATE_LIMIT = 1
 
+
 class SandboxNWFilter(Enum):
     BASE = "sandbox-base-filter"
     DEFAULT = "sandbox-default-filter"
@@ -20,11 +21,13 @@ class SandboxNWFilter(Enum):
     CNC = "sandbox-cnc-filter"
     CNC_RATE_LIMIT = "sandbox-cnc-filter-rate-limit"
 
+
 class SandboxScript(Enum):
     PREPARE_FS = "prepare_fs.sh"
     FETCH_LOG = "fetch_log.sh"
     REDIRECT = "redirect.sh"
     DEFAULT_RULE = "default_rule.sh"
+
 
 class SandboxContext:
     def __init__(self,
@@ -208,8 +211,6 @@ class SandboxContext:
 
         return etree.tostring(tree, encoding='unicode')
 
-
-
     def get_sandbox_kernel(self, arch):
         if arch not in self.sandbox_registry:
             return "", ""
@@ -299,7 +300,7 @@ class SandboxContext:
             }
 
         if (filter_name == SandboxNWFilter.DEFAULT or
-            filter_name == SandboxNWFilter.DEFAULT_RATE_LIMIT):
+                filter_name == SandboxNWFilter.DEFAULT_RATE_LIMIT):
             del para_to_check["cnc_ip"]
             del para_to_check["allowed_tcp_ports"]
             del para_to_check["simulated_server"]

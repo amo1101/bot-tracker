@@ -2,10 +2,10 @@ import re
 import pyshark
 from packet_parser import *
 
-
 MIN_OCCURRENCE = 1  # Not interested in scanning or similar activities
 
 background_fields = ["icmpv6", "icmp", "mdns", "dns", "dhcpv6", "dhcp", "arp", "ntp"]
+
 
 class CnCReport:
     def __init__(self):
@@ -35,7 +35,7 @@ class CnCReport:
     # return a tuple ('key',{})
     def get(self):
         if len(self.cnc_info) > 0:
-            return {self.cnc_info[0][0] : self.cnc_info[0][1]}  # return the first tuple with the highest Score
+            return {self.cnc_info[0][0]: self.cnc_info[0][1]}  # return the first tuple with the highest Score
 
         ports_added = []
         dict_all = {}
@@ -74,7 +74,7 @@ class CnCReport:
 
         self.cnc_info = sorted(dict_all.items(), key=lambda kv: kv[1]['Score'], reverse=True)
         if len(self.cnc_info) > 0:
-            return {self.cnc_info[0][0] : self.cnc_info[0][1]}  # return the first tuple with the highest Score
+            return {self.cnc_info[0][0]: self.cnc_info[0][1]}  # return the first tuple with the highest Score
 
 
 # avoiding logging here cuz this will run in another python interpreter

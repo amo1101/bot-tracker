@@ -145,6 +145,7 @@ async def handle_list_cnc_stat(args):
     resp = head + body + foot
     return resp
 
+
 async def handle_list_attack(args):
     l.debug(f'handle_list_attack: {args}')
     resp = ""
@@ -164,7 +165,7 @@ async def handle_list_attack(args):
         resp = repr(attack_stats[0])
         return resp
 
-    head = f"{'bot_id':<24}{'cnc_ip':<20}{'type':<12}{'time':<20}{'duration':<20}"
+    head = f"{'bot_id':<24}{'cnc_ip':<20}{'type':<12}{'time':<20}{'duration':<20}{'pps':<12}{'bandwidth':<12}"
     body = '\n' + len(head) * '-'
     if len(attack_stats) == 0:
         return head + body
@@ -178,6 +179,8 @@ async def handle_list_attack(args):
         body += f"{a.cnc_ip:<20}{a.type:<12}"
         body += f"{a.time:<20}{a.time.strftime('%Y-%m-%d %H:%M:%S'):<20}"
         body += f"{a.duration:<20}{a.duration:<20}"
+        bw = "{:.3f}".format(a.bandwidth / 1000.0) + ' KB/s'
+        body += f"{a.pps:<12}{bw:<12}"
     body += '\n' + len(head) * '-'
     resp = head + body + foot
     return resp
