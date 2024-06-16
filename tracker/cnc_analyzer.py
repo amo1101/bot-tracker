@@ -166,7 +166,7 @@ class CnCAnalyzer:
                         self.report.ip_dict[target][state] = 1
                 else:
                     self.report.ip_dict[target] = {"Total": 1, state: 1}
-        l.info(f'[{self.tag}] current cnc report: {repr(self.report)}')
+        l.debug(f'[{self.tag}] current cnc report: {repr(self.report)}')
         return False # always return false, result will be decided by calling get_result
 
 

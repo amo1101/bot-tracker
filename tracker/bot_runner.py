@@ -259,9 +259,9 @@ class BotRunner:
                     for cnc in cnc_info_in_db:
                         if cnc.bot_id != self.bot_info.bot_id:
                             l.warning(f'Bot already exists for the botnet!')
-                            #  self.notify_dup = True;
-                            #  await self.destroy()
-                            #  return
+                            self.notify_dup = True;
+                            await self.destroy()
+                            return
                         else:
                             l.warning(f'This is a previous discovered CnC server!')
                             cnc_dup = True

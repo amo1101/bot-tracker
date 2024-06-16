@@ -208,9 +208,9 @@ class AttackReport:
 
     def update_attack_info(self, attack):
         i = self._attack_info_idx(attack.attack_type)
-        l.info(f'update attack: from {self.attack_info[i].report()}')
+        l.debug(f'update attack: from {self.attack_info[i].report()}')
         self.attack_info[i].update(attack)
-        l.info(f'update attack: to {self.attack_info[i].report()}')
+        l.debug(f'update attack: to {self.attack_info[i].report()}')
 
     def commit_attack_info(self, attack_type, flush=False):
         i = self._attack_info_idx(attack_type)
@@ -221,7 +221,7 @@ class AttackReport:
                     l.warning('commit attack: interval too short, not committed!')
                     return
             self.attack_info_ready[i] = copy.deepcopy(self.attack_info[i])
-            l.info(f'commit attack: {self.attack_info[i].report()}')
+            l.debug(f'commit attack: {self.attack_info[i].report()}')
         else:
             l.warning(f'commit attack: too few packets, discard: {self.attack_info[i].report()}')
         self.attack_info[i].reset()
@@ -331,7 +331,7 @@ class AttackAnalyzer:
             attack_target = '.'.join(pkt.ip_src.split('.')[:3]) + '/-'
         else:
             return None
-        l.info(f'[{self.tag}] detected ra...')
+        l.debug(f'[{self.tag}] detected ra...')
         return PacketAttackInfo(attack_type, attack_target, pkt.protocol, '-',
                                 pkt.dstport, 'yes', pkt.sniff_time, 1, pkt.len)
 
@@ -353,7 +353,7 @@ class AttackAnalyzer:
         if pkt.ip_src != self.own_ip:
             spoofed = 'yes'
 
-        l.info(f'[{self.tag}] detected dp...')
+        l.debug(f'[{self.tag}] detected dp...')
         return PacketAttackInfo(attack_type, attack_target, proto, '-',
                                 '-', spoofed, pkt.sniff_time, 1, pkt.len)
 
@@ -374,7 +374,7 @@ class AttackAnalyzer:
             pass
         else:
             return None
-        l.info(f'[{self.tag}] detected scan...')
+        l.debug(f'[{self.tag}] detected scan...')
         return PacketAttackInfo(attack_type, '-', pkt.protocol, '-',
                                 pkt.dstport, spoofed, pkt.sniff_time, 1, pkt.len)
 
@@ -417,18 +417,18 @@ class AttackAnalyzer:
         if latest_ts is not None:
             interval = attack.ts - latest_ts
             if interval < self.attack_interval:
-                l.info(f'[{self.tag}] update attack: to latest report {attack}')
+                l.debug(f'[{self.tag}] update attack: to latest report {attack}')
                 self.report.update_attack_info(attack)
                 return False
             else:
                 report_formed = 1
-                l.info(f'[{self.tag}] update attack: commit {attack.attack_type}')
+                l.debug(f'[{self.tag}] update attack: commit {attack.attack_type}')
                 self.report.commit_attack_info(attack.attack_type)
 
         if report_formed == 0:
-            l.info(f'[{self.tag}] update attack: a new attack added {attack}')
+            l.debug(f'[{self.tag}] update attack: a new attack added {attack}')
         else:
-            l.info(f'[{self.tag}] update attack: a new attack added after commit old one {attack}')
+            l.debug(f'[{self.tag}] update attack: a new attack added after commit old one {attack}')
         self.report.update_attack_info(attack)
 
         return report_formed == 1

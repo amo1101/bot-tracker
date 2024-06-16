@@ -188,7 +188,12 @@ class Scheduler:
             l.warning('start_bot command not supported in auto mode')
             return False
 
-        await self._schedule_bots(None, bot_id)
+        # only start 'uknown' and 'interrupted' bots if no bot_id is specified'
+        status_list = None
+        if bot_id is None:
+            status_list = [BotStatus.UNKNOWN.value,
+                           BotStatus.INTERRUPTED.value]
+        await self._schedule_bots(status_list, bot_id)
         return True
 
     async def stop_bot(self, bot_id, force_stop=False):
