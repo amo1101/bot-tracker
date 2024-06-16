@@ -43,6 +43,7 @@ class PacketSummary:
         self.layers = []
         self.ip_src = None
         self.ip_dst = None
+        self.ip_len = None # ip payload length for protocol other than tcp and udp
         self.tcp_len = None
         self.tcp_srcport = None
         self.tcp_dstport = None
@@ -57,9 +58,31 @@ class PacketSummary:
         self.dns_a = None
         self.sniff_time = None
 
+    def __repr__(self):
+        return 'Summary of packet:\n' + \
+               f'layers: {self.layers}\n' + \
+               f'ip_src: {self.ip_src}\n' + \
+               f'ip_dst: {self.ip_dst}\n' + \
+               f'ip_len: {self.ip_len}\n' + \
+               f'tcp_len: {self.tcp_len}\n' + \
+               f'tcp_srcport: {self.tcp_srcport}\n' + \
+               f'tcp_dstport: {self.tcp_dstport}\n' + \
+               f'tcp_flags_syn: {self.tcp_flags_syn}\n' + \
+               f'tcp_flags_ack: {self.tcp_flags_ack}\n' + \
+               f'tcp_flags_fin: {self.tcp_flags_fin}\n' + \
+               f'tcp_flags_reset: {self.tcp_flags_reset}\n' + \
+               f'udp_len: {self.udp_len}\n' + \
+               f'udp_srcport: {self.udp_srcport}\n' + \
+               f'udp_dstport: {self.udp_dstport}\n' + \
+               f'dns_qry_name: {self.dns_qry_name}\n' + \
+               f'dns_a: {self.dns_a}\n' + \
+               f'sniff_time: {self.sniff_time}\n'
+
     @property
     def len(self):
         dl = self.tcp_len if self.tcp_len is not None else self.udp_len
+        if dl is None:
+            dl = self.ip_len
         return dl
 
     @property
@@ -72,7 +95,6 @@ class PacketSummary:
         p = self.tcp_dstport if self.tcp_dstport is not None else self.udp_dstport
         return p
 
-    @property
     @property
     def protocol(self):
         if 'http' in self.layers:
@@ -89,8 +111,8 @@ class PacketSummary:
             proto = 'udp'
         elif 'icmp' in self.layers:
             proto = 'icmp'
-        elif 'igmp' in self.layers:
-            proto = 'igmp'
+        elif 'gre' in self.layers:
+            proto = 'gre'
         else:
             proto = 'unknown'
         return proto
@@ -98,21 +120,25 @@ class PacketSummary:
     def extract(self, pkt):
         self.sniff_time = pkt.sniff_time
         self.layers = dir(pkt)
+        #  print(f'layers: {self.layers}')
 
         if 'ip' in self.layers:
-            self.ip_src = pkt.ip.src
-            self.ip_dst = pkt.ip.dst
+            self.ip_src = str(pkt.ip.src)
+            self.ip_dst = str(pkt.ip.dst)
+            self.ip_len = int(pkt.ip.len) - int(pkt.ip.hdr_len)
         if 'dns' in self.layers:
             self.dns_qry_name, self.dns_a = parse_dns(pkt)
         if 'tcp' in self.layers:
-            self.tcp_len = pkt.tcp.len
-            self.tcp_srcport = pkt.tcp.srcport
-            self.tcp_dstport = pkt.tcp.dstport
-            self.tcp_flags_syn = pkt.tcp.flags_syn
-            self.tcp_flags_ack = pkt.tcp.flags_ack
-            self.tcp_flags_fin = pkt.tcp.flags_fin
-            self.tcp_flags_reset = pkt.tcp.flags_reset
+            #  print(f'tcp: {dir(pkt.tcp)}')
+            self.tcp_len = int(pkt.tcp.len)
+            self.tcp_srcport = str(pkt.tcp.srcport)
+            self.tcp_dstport = str(pkt.tcp.dstport)
+            self.tcp_flags_syn = str(pkt.tcp.flags_syn)
+            self.tcp_flags_ack = str(pkt.tcp.flags_ack)
+            self.tcp_flags_fin = str(pkt.tcp.flags_fin)
+            self.tcp_flags_reset = str(pkt.tcp.flags_reset)
         if 'udp' in self.layers:
-            self.udp_len = pkt.udp.len
-            self.udp_srcport = pkt.udp.srcport
-            self.udp_dstport = pkt.udp.dstport
+            #  print(f'udp: {dir(pkt.udp)}')
+            self.udp_len = int(pkt.udp.length)
+            self.udp_srcport = str(pkt.udp.srcport)
+            self.udp_dstport = str(pkt.udp.dstport)

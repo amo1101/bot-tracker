@@ -2,6 +2,7 @@ from bot_runner import *
 from db_store import *
 from iface_monitor import *
 from sandbox_context import SandboxContext
+from analyzer_executor import *
 
 l: TaskLogger = TaskLogger(__name__)
 
@@ -45,6 +46,7 @@ class Scheduler:
         self.db_store = db_store
         self.iface_monitor = None
         self.iface_monitor_task = None
+        self.analyzer_pool = None
 
         # {running_task: bot-runner obj}
         self.bot_runners_lock = asyncio.Lock()
@@ -59,8 +61,8 @@ class Scheduler:
                     l.debug(f'Task {t.get_name()} has been cancelled')
                 #  await t.destroy()
 
-        if BotRunner.analyzer_executor is not None:
-            BotRunner.analyzer_executor.shutdown()
+        if self.analyzer_pool is not None:
+            self.analyzer_pool.destroy()
 
         if self.iface_monitor_task is not None:
             self.iface_monitor_task.cancel()
@@ -113,8 +115,9 @@ class Scheduler:
                                    self.cnc_probing_duration,
                                    self.sandbox_ctx,
                                    self.db_store,
-                                   self.max_analyzing_workers,
+                                   self.analyzer_pool,
                                    self.iface_monitor)
+
             task = asyncio.create_task(bot_runner.run(),
                                        name=f't_{bot.tag}')
             async with self.bot_runners_lock:
@@ -127,8 +130,8 @@ class Scheduler:
         await self._schedule_bots([BotStatus.UNKNOWN.value,
                                    BotStatus.INTERRUPTED.value])
 
-    async def _update_bot_and_attack_info(self):
-        l.info(f'Update bot and attack info..., bot count: {len(self.bot_runners)}')
+    async def _update_bot_info(self):
+        l.info(f'Update bot info..., bot count: {len(self.bot_runners)}')
         to_del = []
         async with self.bot_runners_lock:
             for t, r in self.bot_runners.items():
@@ -136,13 +139,20 @@ class Scheduler:
                     to_del.append(t)
                 else:
                     await r.update_bot_info()
-                    await r.update_attack_info()
             for t in to_del:
                 del self.bot_runners[t]
                 l.debug(f'remove task {t.get_name()}')
 
+    async def update_attack_report(self):
+        l.info(f'Update attack reports...')
+        async with self.bot_runners_lock:
+            for _, r in self.bot_runners.items():
+                if not r.is_destroyed():
+                    await r.handle_attack_report(True)
+
     async def checkpoint(self):
         try:
+            self.analyzer_pool = AnalyzerExecutorPool(self.max_analyzing_workers)
             # create the inteface monitor task
             iface_monitor_action_type = IfaceMonitorAction.TEAR_DOWN if \
                 self.iface_monitor_action == '0' else IfaceMonitorAction.ALARM

@@ -257,6 +257,8 @@ class IfaceMonitor:
 
     async def unregister(self, cnc_ip):
         async with self.lock:
+            if cnc_ip not in self.cnc_map:
+                return
             del self.cnc_map[cnc_ip]
             if self.network_mode == 0:
                 self.cnc_queue.put((cnc_ip, 0)) # 0 means delete

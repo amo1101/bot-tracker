@@ -1,7 +1,9 @@
 import re
 import pyshark
 from packet_parser import *
+from log import TaskLogger
 
+l: TaskLogger = TaskLogger(__name__)
 MIN_OCCURRENCE = 1  # Not interested in scanning or similar activities
 
 background_fields = ["icmpv6", "icmp", "mdns", "dns", "dhcpv6", "dhcp", "arp", "ntp"]
@@ -33,7 +35,7 @@ class CnCReport:
         return 0
 
     # return a tuple ('key',{})
-    def get(self):
+    def get(self, flush=False):
         if len(self.cnc_info) > 0:
             return {self.cnc_info[0][0]: self.cnc_info[0][1]}  # return the first tuple with the highest Score
 
@@ -75,16 +77,21 @@ class CnCReport:
         self.cnc_info = sorted(dict_all.items(), key=lambda kv: kv[1]['Score'], reverse=True)
         if len(self.cnc_info) > 0:
             return {self.cnc_info[0][0]: self.cnc_info[0][1]}  # return the first tuple with the highest Score
+        return {}
 
 
 # avoiding logging here cuz this will run in another python interpreter
-# don't want to bother logging to the same file, just use print for debugging
+# don't want to bother logging to the same file, just use l.debug for debugging
 class CnCAnalyzer:
     def __init__(self, own_ip, excluded_ips=None, excluded_ports=None):
+        self.tag = None
         self.report = CnCReport()
         self.own_ip = own_ip
         self.excluded_ports = excluded_ports
         self.excluded_ips = excluded_ips
+
+    def set_tag(self, tag):
+        self.tag = tag
 
     def check_dns_address(self, pkt):  # Exception for DNS packets
         if 'dns' in pkt.layers:
@@ -94,10 +101,13 @@ class CnCAnalyzer:
                 self.report.DNS_Mappings[pkt.dns_a] = pkt.dns_qry_name
         return None
 
-    def get_result(self):
-        return self.report.get()
+    def get_result(self, flush=False):
+        return self.report.get(flush)
 
     def analyze(self, pkt):
+        l.debug(f'[{self.tag}] new packet: {repr(pkt)}\n')
+        l.debug(f'[{self.tag}] cnc analyzer params -> own_ip: {self.own_ip}, excluded_ips: ' + \
+                f'{self.excluded_ips}, excluded_ports: {self.excluded_ports}\n')
         self.report.count += 1
         not_found_dns_addr = self.check_dns_address(pkt)
         if not_found_dns_addr:
@@ -119,7 +129,7 @@ class CnCAnalyzer:
                 dst_ip = target.split(":")[0]
                 if (self.excluded_ports and port_num in self.excluded_ports) or \
                         (self.excluded_ips and dst_ip in self.excluded_ips):
-                    return
+                    return False
                 if target not in self.report.ip_dict:  # this is a new IP address contacted by port port_num
                     if port_num in self.report.port_dict:
                         self.report.port_dict[port_num] += 1  # a new host of this port was contacted
@@ -129,23 +139,23 @@ class CnCAnalyzer:
                     if pkt.tcp_flags_ack != "True":
                         state = "SYN"
                     else:
-                        return
+                        return False
                         #  return self.report # don't need to take into account SYN ACK
                 else:
                     if self.own_ip and pkt.ip_dst == self.own_ip or "192.168" not in pkt.ip_src:  # server response
                         if pkt.tcp_flags_reset == 'True':
-                            # print(dir(pkt.tcp))
+                            # l.debug(dir(pkt.tcp))
                             state = "RST"
                         elif pkt.tcp_flags_fin == "True":
                             state = "FIN"  # FIN will later tell us if the connection was really a success
-                        elif pkt.tcp.len != "0":
+                        elif pkt.tcp_len != "0":
                             state = "SUC"  # We are interested in server exchanging data
                         else:
                             state = "OTHER"
                     else:  # otherwise, we don't care about the client behaviors
                         if not self.own_ip:
                             pass
-                            #  print("Determining state is not accurate, own_ip is missing")
+                            #  l.debug("Determining state is not accurate, own_ip is missing")
                         state = "OTHER"
 
                 if target in self.report.ip_dict:
@@ -156,24 +166,35 @@ class CnCAnalyzer:
                         self.report.ip_dict[target][state] = 1
                 else:
                     self.report.ip_dict[target] = {"Total": 1, state: 1}
+        l.info(f'[{self.tag}] current cnc report: {repr(self.report)}')
+        return False # always return false, result will be decided by calling get_result
 
 
 cc_analyzer = None
 
 
 def inspect_packet(pkt):
-    cc_analyzer.analyze(pkt)
+    l.debug(f'pkt: {pkt}\n')
+    pkt_summary = PacketSummary()
+    pkt_summary.extract(pkt)
+    l.debug(f'pkt_summary: {repr(pkt_summary)}\n')
+    cc_analyzer.analyze(pkt_summary)
 
 
-def test_cnc_analyzer(pcap, own_ip):
+def test_cnc_analyzer(pcap, own_ip, excluded_ips, packet_count):
     global cc_analyzer
     if cc_analyzer is not None:
         del cc_analyzer
-    cc_analyzer = CnCAnalyzer(own_ip)
+    cc_analyzer = CnCAnalyzer(own_ip, excluded_ips)
     cap = pyshark.FileCapture(pcap)
-    cap.apply_on_packets(inspect_packet)
-    if cc_analyzer.report.is_ready():
-        result = cc_analyzer.report.get()
-        print(f'result of cnc_analyze: {result}')
-    else:
-        print(f'result of cnc_analyze not ready')
+    cap.apply_on_packets(inspect_packet, packet_count=packet_count)
+    result = cc_analyzer.report.get()
+    l.debug(f'result of cnc_analyze: {result}')
+    l.debug(f'report: {repr(cc_analyzer.report)}')
+
+#  if __name__ == "__main__":
+    #  try:
+        #  test_cnc_analyzer('./capture.pcap','192.168.122.42',['192.168.100.4'],
+                         #  1000)
+    #  except KeyboardInterrupt:
+        #  l.info('Interrupted by user')

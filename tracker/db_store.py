@@ -152,25 +152,28 @@ class AttackStat:
     protocol: str
     src_port: str
     dst_port: str
+    spoofed: str
     packet_num: int
     total_bytes: int
     pps: int
     bandwidth: int
 
     def __repr__(self):
+        bw = "{:.3f}".format(self.bandwidth / 1000.0) + ' KB/s'
         return f'{"bot_id":<16}: {self.bot_id}\n' + \
             f'{"cnc_ip":<16}: {self.cnc_ip}\n' + \
-            f'{"type":<16}: {self.attack_type}\n' + \
+            f'{"attack_type":<16}: {self.attack_type}\n' + \
             f'{"time":<16}: {self.time.strftime("%Y-%m-%d %H:%M:%S")}\n' + \
             f'{"duration":<16}: {self.duration}\n' + \
             f'{"target":<16}: {self.target}\n' + \
             f'{"protocol":<16}: {self.protocol}\n' + \
             f'{"src_port":<16}: {self.src_port}\n' + \
             f'{"dst_port":<16}: {self.dst_port}\n' + \
+            f'{"spoofed":<16}: {self.spoofed}\n' + \
             f'{"packet_num":<16}: {self.packet_num}\n' + \
             f'{"total_bytes":<16}: {self.total_bytes}\n' + \
             f'{"pps":<16}: {self.pps}\n' + \
-            f'{"bandwidth":<16}: {self.bandwidth}'
+            f'{"bandwidth":<16}: {bw}'
 
 
 class DBStore:
@@ -464,12 +467,39 @@ async def test_db_5(db_store):
     await db_store.add_cnc_stat(c)
     await db_store.close()
 
+async def test_db_6(db_store):
+    await db_store.open()
+    a = AttackStat('bot1','192.168.100.5', AttackType.ATTACK_DP.value,
+                   TEST_TS1, INIT_INTERVAL,
+                   '109.123.100.9','tcp','2034','-','no',10000, 120000, 100,10)
+    a1 = AttackStat('bot2','192.168.100.6', AttackType.ATTACK_RA.value,
+                   TEST_TS1, INIT_INTERVAL,
+                   '109.123.100.9','udp','2034','-','yes',10000, 120000, 100,10)
+    print(f'add attackstat:\n{repr(a)}\n')
+    await db_store.add_attack_stat(a)
+    print(f'add attackstat:\n{repr(a1)}\n')
+    await db_store.add_attack_stat(a1)
+    print(f'list all attackstat\n')
+    atts = await db_store.load_attack_stat()
+    for att in atts:
+        print(f'{repr(att)}\n')
+    print(f'list attackstat of bot1\n')
+    atts = await db_store.load_attack_stat('bot1')
+    for att in atts:
+        print(f'{repr(att)}\n')
+    print(f'list attackstat of bot2 with cnc_ip 192.168.100.6\n')
+    atts = await db_store.load_attack_stat('bot2','192.168.100.6')
+    for att in atts:
+        print(f'{repr(att)}\n')
+    await db_store.close()
 
-db_test_cases = {'case 1: BotInfo insert and load': test_db_1,
-                 'case 2: BotInfo primary key conflict': test_db_2,
-                 'case 3: BotInfo all fields insert, update and load with filter': test_db_3,
-                 'case 4: CnCInfo insert and load': test_db_4,
-                 'case 5: CnCStat insert and load': test_db_5}
+
+db_test_cases = {#'case 1: BotInfo insert and load': test_db_1,
+                 #'case 2: BotInfo primary key conflict': test_db_2,
+                 #'case 3: BotInfo all fields insert, update and load with filter': test_db_3,
+                 #'case 4: CnCInfo insert and load': test_db_4,
+                 #'case 5: CnCStat insert and load': test_db_5,
+                 'case 6: AttackStat insert and load': test_db_6}
 
 
 # before doing the test, manually drop tables

@@ -10,6 +10,8 @@ help_outline = "Bot management commands:\n" + \
                "CnC information query:\n" + \
                "    list-cnc                   list cnc information.\n" + \
                "    list-cnc-stat              list cnc status information.\n\n" + \
+               "Attack information query:\n" + \
+               "    list-attack                list attack information.\n\n" + \
                "Bot scheduler setting commands:\n" + \
                "    schedinfo                  show bot scheduler information.\n" + \
                "    set-sched                  set scheduler parameters."

@@ -43,6 +43,7 @@ CREATE TABLE IF NOT EXISTS attack_stat (
     protocol VARCHAR,
     src_port VARCHAR,
     dst_port VARCHAR,
+    spoofed VARCHAR(8),
     packet_num INT,
     total_bytes INT,
     pps INT,

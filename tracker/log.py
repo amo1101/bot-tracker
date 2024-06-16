@@ -45,12 +45,11 @@ class TaskLogger:
     #  _handler = TaskStreamHandler()
     _log_file = CUR_DIR + os.sep + \
                 'bot-tracker-' + \
-                datetime.now().strftime('%Y-%m-%d-%H-%M-%S') + \
-                '.log'
+                datetime.now().strftime('%Y-%m-%d-%H-%M-%S') + '.log'
     _handler = TaskFileHandler(_log_file)
     _handler.setFormatter(logging.Formatter(fmt=log_format))
     _logger.addHandler(_handler)
-    _logger.setLevel(logging.INFO)
+    _logger.setLevel(logging.DEBUG)
 
     def __init__(self, name):
         self._logger = logging.getLogger(name)

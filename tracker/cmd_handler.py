@@ -159,13 +159,15 @@ async def handle_list_attack(args):
     else:
         pass
 
+    # update attack report first
+    await bot_scheduler.update_attack_report()
     attack_stats = await bot_db_store.load_attack_stat(bot_id, cnc_ip)
 
     if len(attack_stats) == 1:
         resp = repr(attack_stats[0])
         return resp
 
-    head = f"{'bot_id':<24}{'cnc_ip':<20}{'type':<12}{'time':<20}{'duration':<20}{'pps':<12}{'bandwidth':<12}"
+    head = f"{'bot_id':<24}{'cnc_ip':<20}{'attack_type':<20}{'time':<24}{'duration':<16}{'pps':<12}{'bandwidth':<12}"
     body = '\n' + len(head) * '-'
     if len(attack_stats) == 0:
         return head + body
@@ -176,11 +178,11 @@ async def handle_list_attack(args):
             body += f"\n{a.bot_id[:16]:<24}"
         else:
             body += f"\n{a.bot_id[:16] + '...':<24}"
-        body += f"{a.cnc_ip:<20}{a.type:<12}"
-        body += f"{a.time:<20}{a.time.strftime('%Y-%m-%d %H:%M:%S'):<20}"
-        body += f"{a.duration:<20}{a.duration:<20}"
+        body += f"{a.cnc_ip:<20}{a.attack_type:<20}"
+        body += f"{a.time.strftime('%Y-%m-%d %H:%M:%S'):<24}"
+        body += f"{str(a.duration):<16}"
         bw = "{:.3f}".format(a.bandwidth / 1000.0) + ' KB/s'
-        body += f"{a.pps:<12}{bw:<12}"
+        body += f"{str(a.pps):<12}{bw:<12}"
     body += '\n' + len(head) * '-'
     resp = head + body + foot
     return resp

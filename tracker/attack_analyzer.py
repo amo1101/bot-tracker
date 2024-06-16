@@ -1,10 +1,14 @@
 import pyshark
+import copy
 from db_store import CnCStatus, AttackType
 from datetime import datetime, timedelta
 from dataclasses import dataclass, is_dataclass, fields, astuple
 from collections import deque
 from packet_parser import *
+from log import TaskLogger
 
+
+l: TaskLogger = TaskLogger(__name__)
 
 @dataclass
 class PacketAttackInfo:
@@ -13,9 +17,10 @@ class PacketAttackInfo:
     protocol: str
     src_port: str
     dst_port: str
+    spoofed: str
+    ts: int
     packet_cnt: int
     total_bytes: int
-    ts: int
 
 
 class AttackInfo:
@@ -27,6 +32,20 @@ class AttackInfo:
         self.protocol = set()
         self.src_port = set()
         self.dst_port = set()
+        self.spoofed = set()
+        self.update_time = None
+        self.packet_cnt = 0
+        self.total_bytes = 0
+
+    def reset(self):
+        self.attack_type = None
+        self.start_time = None
+        self.duration = None
+        self.target.clear()
+        self.protocol.clear()
+        self.src_port.clear()
+        self.dst_port.clear()
+        self.spoofed.clear()
         self.update_time = None
         self.packet_cnt = 0
         self.total_bytes = 0
@@ -40,8 +59,9 @@ class AttackInfo:
         self.protocol.add(attack.protocol)
         self.src_port.add(attack.src_port)
         self.dst_port.add(attack.dst_port)
-        self.packet_cnt += attack.pkt_cnt
-        self.total_bytes += attack.pkt_len
+        self.spoofed.add(attack.spoofed)
+        self.packet_cnt += attack.packet_cnt
+        self.total_bytes += attack.total_bytes
         self.update_time = attack.ts
         self.duration = self.update_time - self.start_time
 
@@ -53,6 +73,7 @@ class AttackInfo:
                 'protocol': ','.join(self.protocol),
                 'src_port': ','.join(self.src_port),
                 'dst_port': ','.join(self.dst_port),
+                'spoofed': ','.join(self.spoofed),
                 'packet_cnt': self.packet_cnt,
                 'total_bytes': self.total_bytes}
 
@@ -66,24 +87,42 @@ class PacketSlidingWindow:
         self.purity_dst = 0
         self.purity_dst_net = 0
         self.total_bytes = 0
+        self.residual = True
         self.packet_win = deque()
         self.src_dict = {}
         self.dst_dict = {}
         self.src_net_dict = {}
         self.dst_net_dict = {}
 
-    def _reset(self):
+    def reset(self):
         self.pps = 0
         self.purity_src = 0
         self.purity_src_net = 0
         self.purity_dst = 0
         self.purity_dst_net = 0
         self.total_bytes = 0
+        self.residual = False
         self.packet_win.clear()
         self.src_dict.clear()
         self.dst_dict.clear()
         self.src_net_dict.clear()
         self.dst_net_dict.clear()
+
+    def __repr__(self):
+         return f'\npps: {self.pps}\n' + \
+                f'purity_src: {self.purity_src}\n' + \
+                f'purity_dst: {self.purity_dst}\n' + \
+                f'purity_src_net: {self.purity_src_net}\n' + \
+                f'purity_dst_net: {self.purity_dst_net}\n' + \
+                f'residual: {self.residual}\n' + \
+                f'total_bytes: {self.total_bytes}\n' + \
+                f'packet_win: {self.packet_win}\n'
+
+    def residual_packets(self):
+        if not self.residual:
+            return 0, 0
+        else:
+            return self.win_size, self.total_bytes
 
     def _update_stat(self, op, src=None, dst=None, pkt_len=None, ts=None):
         def _update_dict(d, key, delta, default=1, del_when=0):
@@ -95,14 +134,22 @@ class PacketSlidingWindow:
             if d[key] == del_when:
                 del d[key]
 
+        def _update_purity(d, old):
+            new = 1.0 * (self.win_size + 1 - len(d)) / self.win_size
+            # residual available if stat turn pure
+            self.residual |= (True if (old < 1 and new == 1) else False)
+            return new
+
         if op == 0:
-            # update purities
-            self.purity_src = 1.0 * (self.win_size + 1 - len(self.src_dict)) / self.win_size
-            self.purity_src_net = 1.0 * (self.win_size + 1 - len(self.src_net_dict)) / self.win_size
-            self.purity_dst = 1.0 * (self.win_size + 1 - len(self.dst_dict)) / self.win_size
-            self.purity_dst_net = 1.0 * (self.win_size + 1 - len(self.dst_net_dict)) / self.win_size
+            # reset residual first for this round of stat update
+            self.residual = False
+            # update purities and residual
+            self.purity_src = _update_purity(self.src_dict, self.purity_src)
+            self.purity_src_net = _update_purity(self.src_net_dict, self.purity_src_net)
+            self.purity_dst = _update_purity(self.dst_dict, self.purity_dst)
+            self.purity_dst_net = _update_purity(self.dst_net_dict, self.purity_dst_net)
             # update pps: moving average
-            td = (self.packet_win[-1][2] - self.packet_win[0][2])
+            td = (self.packet_win[-1][3] - self.packet_win[0][3]).total_seconds()
             self.pps = 1.0 * self.win_size / td
         else:
             dt = 1 if op == 1 else -1
@@ -133,19 +180,19 @@ class PacketSlidingWindow:
 
 
 class AttackReport:
-    def __init__(self, cnc_ip, cnc_port, attack_interval):
+    def __init__(self, cnc_ip, cnc_port,
+                 attack_interval,
+                 min_attack_packets):
         self.cnc_status = CnCStatus.UNKNOWN.value
         self.cnc_ready = False
-        self.attack_ready = False
         self.cnc_ip = cnc_ip
         self.cnc_port = cnc_port
         self.cnc_update_at = None
-        # 3 deques for each attack type
-        self.attack_info = [deque(), deque(), deque()]
+        # 3 attack info for each attack type
+        self.attack_info = [AttackInfo(),AttackInfo(),AttackInfo()]
+        self.attack_info_ready = [AttackInfo(),AttackInfo(),AttackInfo()]
         self.attack_interval = attack_interval
-
-    def is_ready(self):
-        return self.cnc_ready
+        self.min_attack_packets = min_attack_packets
 
     def _attack_info_idx(self, attack_type):
         if attack_type == AttackType.ATTACK_RA.value:
@@ -157,57 +204,52 @@ class AttackReport:
 
     def get_latest_attack_time(self, attack_type):
         i = self._attack_info_idx(attack_type)
-        if len(self.attack_info[i]) == 0:
-            return None
-        else:
-            return self.attack_info[i][-1].update_time
-
-    def add_attack_info(self, attack):
-        i = self._attack_info_idx(attack.attack_type)
-        self.attack_info[i].append(AttackInfo())
-        self.attack_info[i][-1].update(attack)
+        return self.attack_info[i].update_time
 
     def update_attack_info(self, attack):
         i = self._attack_info_idx(attack.attack_type)
-        self.attack_info[i][-1].update(attack)
+        l.info(f'update attack: from {self.attack_info[i].report()}')
+        self.attack_info[i].update(attack)
+        l.info(f'update attack: to {self.attack_info[i].report()}')
 
-    def get(self):
+    def commit_attack_info(self, attack_type, flush=False):
+        i = self._attack_info_idx(attack_type)
+        if self.attack_info[i].packet_cnt >= self.min_attack_packets:
+            if flush:
+                iv = datetime.now() - self.get_latest_attack_time(attack_type)
+                if iv < self.attack_interval:
+                    l.warning('commit attack: interval too short, not committed!')
+                    return
+            self.attack_info_ready[i] = copy.deepcopy(self.attack_info[i])
+            l.info(f'commit attack: {self.attack_info[i].report()}')
+        else:
+            l.warning(f'commit attack: too few packets, discard: {self.attack_info[i].report()}')
+        self.attack_info[i].reset()
+
+    def attack_ready(self, attack_type):
+        i = self._attack_info_idx(attack_type)
+        return self.attack_info_ready[i].update_time != None
+
+    def get(self, flush=False):
+        cnc_ready = self.cnc_ready
         if self.cnc_ready:
             self.cnc_ready = False
 
-        attack_report = {}  # {attack_type: [{},{},{}]}
+        attack_report = {}  # {attack_type: {}}
         k = [AttackType.ATTACK_RA.value,
              AttackType.ATTACK_DP.value,
              AttackType.ATTACK_SCAN.value]
 
         for i in range(3):
-            q_len = len(self.attack_info[i])
-            if q_len == 0:
-                continue
+            if not self.attack_ready(k[i]):
+                if flush:
+                    self.commit_attack_info(k[i], flush)
+                if not self.attack_ready(k[i]):
+                    continue
+            attack_report[k[i]] = self.attack_info_ready[i].report()
+            self.attack_info_ready[i].reset()
 
-            rl = []
-            latest = self.attack_info[i].pop()
-            can_del_latest = False
-
-            if datetime.now() - latest.update_time > self.attack_interval:
-                # the latest attack is done, report it and remove it
-                rl.append(latest.report())
-                can_del_latest = True
-            try:
-                for j in range(q_len - 1):
-                    a = self.attack_info[i].pop()
-                    rl.append(a.report())
-            except IndexError:
-                pass
-
-            # restore the latest attack info if it is ongoing
-            if can_del_latest is False:
-                self.attack_info[i].append(latest)
-
-            if len(rl) > 0:
-                attack_report[k[i]] = rl
-
-        return {'cnc_ready': self.cnc_ready,
+        return {'cnc_ready': cnc_ready,
                 'cnc_ip': self.cnc_ip,
                 'cnc_port': self.cnc_port,
                 'cnc_status': self.cnc_status,
@@ -215,31 +257,46 @@ class AttackReport:
                 'attacks': attack_report}
 
     def __repr__(self):
-        return f'cnc_status: {self.cnc_status}, ' + \
-            f'cnc_ready: {self.cnc_ready}, ' + \
-            f'attack_ready: {self.attack_ready}, ' + \
-            f'cnc_ip: {self.cnc_ip},' + \
-            f'attacks: {self.attack_info}'
+        return f'\ncnc_status: {self.cnc_status}\n' + \
+            f'cnc_ready: {self.cnc_ready}\n' + \
+            f'cnc_ip: {self.cnc_ip}\n' + \
+            f'cnc_port: {self.cnc_port}\n' + \
+            f'attacks[0]: {self.attack_info[0].report()}\n' + \
+            f'attacks[1]: {self.attack_info[1].report()}\n' + \
+            f'attacks[2]: {self.attack_info[2].report()}\n' + \
+            f'attacks_ready[0]: {self.attack_info_ready[0].report()}\n' + \
+            f'attacks_ready[1]: {self.attack_info_ready[1].report()}\n' + \
+            f'attacks_ready[2]: {self.attack_info_ready[2].report()}\n'
 
 
 # avoiding logging here cuz this will run in another python interpreter
 # don't want to bother logging to the same file, just use print for debugging
 class AttackAnalyzer:
-    def __init__(self, cnc_ip, cnc_port, own_ip):
+    def __init__(self, cnc_ip, cnc_port, own_ip, excluded_ips):
+        self.tag = None
         self.cnc_ip = cnc_ip
         self.cnc_port = cnc_port
         self.own_ip = own_ip
+        self.excluded_ips = excluded_ips
         self.packet_win_size = 5
-        self.pps_threshold = 25  # 25 packets per second indicating an attack
-        self.attack_interval = 30  # attack interval in seconds
+        self.pps_threshold = 0.01 # packets per second indicating an attack
+        self.attack_interval = timedelta(seconds=30)  # attack interval in seconds
+        self.min_attack_packets = 30 # minimum packets count as an attack
         self.packet_win = PacketSlidingWindow(self.packet_win_size)
-        self.report = AttackReport(cnc_ip, cnc_port, self.attack_interval)
+        self.report = AttackReport(cnc_ip, cnc_port,
+                                   self.attack_interval,
+                                   self.min_attack_packets)
 
-    def get_result(self):
-        return self.report.get()
+    def set_tag(self, tag):
+        self.tag = tag
+
+    def get_result(self, flush=False):
+        l.debug(f'[{self.tag}] getting report...')
+        return self.report.get(flush)
 
     def _analyze_cnc_status(self, pkt):
-        if 'tcp' in dir(pkt):
+        l.debug(f'[{self.tag}] analyzing cnc status...')
+        if 'tcp' in pkt.layers:
             # we only monitor sync_ack or fin_ack from server -> client
             if pkt.ip_src == self.cnc_ip and pkt.ip_dst == self.own_ip:
                 if pkt.tcp_flags_fin == 'True':
@@ -256,6 +313,7 @@ class AttackAnalyzer:
                             self.report.cnc_status = CnCStatus.ALIVE.value
                             self.report.cnc_ready = True
                             self.report.cnc_update_at = datetime.now()
+        return self.report.cnc_ready
 
     def _detect_ra(self, pkt):
         attack_type = AttackType.ATTACK_RA.value
@@ -265,52 +323,80 @@ class AttackAnalyzer:
             return None
         if pkt.len == 0:
             return None
-        if self.packet_win.purity_src > 0.99:  # 100% pure
+        if self.packet_win.purity_src > \
+           1.0 * (self.packet_win_size - 1) / self.packet_win_size:
             attack_target = pkt.ip_src
-        elif self.packet_win.purity_src_net > 0.99:
+        elif self.packet_win.purity_src_net > \
+             1.0 * (self.packet_win_size - 1) / self.packet_win_size:
             attack_target = '.'.join(pkt.ip_src.split('.')[:3]) + '/-'
         else:
             return None
+        l.info(f'[{self.tag}] detected ra...')
         return PacketAttackInfo(attack_type, attack_target, pkt.protocol, '-',
-                                pkt.dstport, pkt.sniff_time, pkt.len, 1)
+                                pkt.dstport, 'yes', pkt.sniff_time, 1, pkt.len)
 
     def _detect_dp(self, pkt):
         attack_type = AttackType.ATTACK_DP.value
         attack_target = None
+        proto = pkt.protocol
+        spoofed = 'no'
         if pkt.len == 0:
             return None
-        if self.packet_win.purity_dst > 0.99:
+        if self.packet_win.purity_dst > \
+           1.0 * (self.packet_win_size - 1) / self.packet_win_size:
             attack_target = pkt.ip_dst
-        elif self.packet_win.purity_dst_net > 0.99:
+        elif self.packet_win.purity_dst_net > \
+             1.0 * (self.packet_win_size - 1) / self.packet_win_size:
             attack_target = '.'.join(pkt.ip_dst.split('.')[:3]) + '/-'
         else:
             return None
-        return PacketAttackInfo(attack_type, attack_target, pkt.protocol, '-',
-                                '-', pkt.sniff_time, pkt.len, 1)
+        if pkt.ip_src != self.own_ip:
+            spoofed = 'yes'
+
+        l.info(f'[{self.tag}] detected dp...')
+        return PacketAttackInfo(attack_type, attack_target, proto, '-',
+                                '-', spoofed, pkt.sniff_time, 1, pkt.len)
 
     def _detect_scan(self, pkt):
         attack_type = AttackType.ATTACK_SCAN.value
-        if pkt.ip_src != self.own_ip:
+        spoofed = 'no'
+        # src should be identical
+        if self.packet_win.purity_src <= \
+           1.0 * (self.packet_win_size - 1) / self.packet_win_size:
             return None
+        # even src could be spoofed?
+        if pkt.ip_src != self.own_ip:
+            spoofed = 'yes'
+        # payload should be 0 ?
         if pkt.len != 0:
             return None
-        if self.packet_win.purity_dst < 2 / self.packet_win_size:  # all unique
+        if self.packet_win.purity_dst < 2.0 / self.packet_win_size:  # all unique
             pass
         else:
             return None
+        l.info(f'[{self.tag}] detected scan...')
         return PacketAttackInfo(attack_type, '-', pkt.protocol, '-',
-                                pkt.dstport, pkt.sniff_time, pkt.len, 1)
+                                pkt.dstport, spoofed, pkt.sniff_time, 1, pkt.len)
 
     def _analyze_attack(self, pkt):
+        l.debug(f'[{self.tag}] analyzing attack of packet: {repr(pkt)}')
+        if 'tcp' not in pkt.layers and \
+           'udp' not in pkt.layers and \
+           'ip' not in pkt.layers:
+            return False
+
         background_fields = ["mdns", "dhcpv6", "dhcp", "arp"]
         if is_background_traffic(pkt, background_fields):
-            return
+            return False
 
         # only check outgoing packets and ignore c2 traffic
-        if pkt.ip_dst == self.cnc_ip or pkt.ip_dst == self.own_ip:
-            return
+        if pkt.ip_dst == self.cnc_ip or \
+           pkt.ip_dst == self.own_ip or \
+           pkt.ip_dst in self.excluded_ips:
+            return False
 
         self.packet_win.push(pkt)
+        l.debug(f'[{self.tag}] packet window stat updated:{repr(self.packet_win)}')
         attack = None
         if self.packet_win.pps > self.pps_threshold:
             attack = self._detect_ra(pkt)
@@ -319,25 +405,39 @@ class AttackAnalyzer:
                 if attack is None:
                     attack = self._detect_scan(pkt)
         if attack is None:
-            return
+            return False
 
+        # new attack, add residual stat from the sliding window
+        res_packets, res_bytes = self.packet_win.residual_packets()
+        attack.packet_cnt = max(attack.packet_cnt, res_packets)
+        attack.total_bytes = max(attack.total_bytes, res_bytes)
+
+        report_formed = 0
         latest_ts = self.report.get_latest_attack_time(attack.attack_type)
         if latest_ts is not None:
             interval = attack.ts - latest_ts
             if interval < self.attack_interval:
+                l.info(f'[{self.tag}] update attack: to latest report {attack}')
                 self.report.update_attack_info(attack)
-                return
+                return False
+            else:
+                report_formed = 1
+                l.info(f'[{self.tag}] update attack: commit {attack.attack_type}')
+                self.report.commit_attack_info(attack.attack_type)
 
-        # new attack, add residual stat from the sliding window
-        attack.packet_cnt = self.packet_win_size
-        attack.total_bytes = self.packet_win.total_bytes
-        self.report.add_attack_info(attack)
+        if report_formed == 0:
+            l.info(f'[{self.tag}] update attack: a new attack added {attack}')
+        else:
+            l.info(f'[{self.tag}] update attack: a new attack added after commit old one {attack}')
+        self.report.update_attack_info(attack)
+
+        return report_formed == 1
 
     def analyze(self, pkt):
-        self._analyze_cnc_status(pkt)
         # TODO: slowlori attack may escape
-        self._analyze_attack(pkt)
-        return self.report
+        cnc_ready = self._analyze_cnc_status(pkt)
+        attack_ready = self._analyze_attack(pkt)
+        return cnc_ready or attack_ready
 
 
 att_analyzer: AttackAnalyzer
@@ -345,7 +445,7 @@ att_analyzer: AttackAnalyzer
 
 def inspect_packet(pkt):
     att_analyzer.analyze(pkt)
-    print(f'result of att_analyze: {att_analyzer.report.get()}')
+    l.debug(f'result of att_analyze: {att_analyzer.report.get()}')
 
 
 def test_att_analyzer(pcap, cnc_ip, cnc_port, own_ip):
