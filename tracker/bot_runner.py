@@ -11,6 +11,27 @@ l: TaskLogger = TaskLogger(__name__)
 CUR_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
+@dataclass
+class CnCStat:
+    ip: str
+    port: int
+    bot_id: str
+    # could be: alive/disconnected
+    status: str
+    update_at: datetime
+
+    def __repr__(self):
+        return f'{"ip":<9}: {self.ip}\n' + \
+            f'{"port":<9}: {self.port}\n' + \
+            f'{"bot_id":<9}: {self.bot_id}\n' + \
+            f'{"status":<9}: {self.status}\n' + \
+            f'{"update_at":<9}: {self.update_at.strftime("%Y-%m-%d %H:%M:%S")}'
+
+    def persist(self, f, mode='a'):
+        with open(f, mode) as file:
+            file.write(repr(self))
+
+
 class BotRunner:
     def __init__(self, bot_info,
                  bot_repo_ip, bot_repo_user, bot_repo_path,
@@ -30,6 +51,7 @@ class BotRunner:
         self.live_capture = None
         self.log_base = CUR_DIR + os.sep + "log"
         self.log_dir = self.log_base + os.sep + bot_info.tag
+        self.cnc_stats_file = self.log_dir + os.sep + 'cnc_stats.log'
         self.cnc_info = []
         self.cnc_probing_time = cnc_probing_duration
         self.notify_unstage = False
@@ -37,6 +59,7 @@ class BotRunner:
         self.notify_dup = False
         self.dormant_time = INIT_TIME_STAMP
         self.staged_time = INIT_TIME_STAMP
+        self.last_observe_duration = bot_info.observe_duration # accumulate observe duration
         self.destroyed = False
         self.iface_monitor = iface_monitor
         self.analyzer_pool = analyzer_pool
@@ -105,7 +128,7 @@ class BotRunner:
             cnc_stat = CnCStat(report['cnc_ip'], report['cnc_port'],
                                self.bot_info.bot_id, cnc_status,
                                report['cnc_update_at'])
-            await self.db_store.add_cnc_stat(cnc_stat)
+            cnc_stat.persist(self.cnc_stats_file)
 
         # update attack report
         for _, r in report['attacks'].items():
@@ -114,7 +137,7 @@ class BotRunner:
             total_secs = r['duration'].total_seconds()
             pps = total_packets/total_secs
             bandwidth = total_bytes/total_secs
-            attack_stat = AttackStat(self.bot_info.bot_id,
+            attack_info = AttackInfo(self.bot_info.bot_id,
                                      self.cnc_info[0].ip,
                                      r['attack_type'],
                                      r['start_time'],
@@ -128,7 +151,7 @@ class BotRunner:
                                      total_bytes,
                                      pps,
                                      bandwidth)
-            await self.db_store.add_attack_stat(attack_stat)
+            await self.db_store.add_attack_info(attack_info)
 
     async def _observe_attack(self, cnc_ip, cnc_port, own_ip):
         try:
@@ -168,6 +191,7 @@ class BotRunner:
         if status is None:
             # merely update timing info
             self.bot_info.observe_duration = self.observe_duration()
+            self.bot_info.observe_duration += self.last_observe_duration
             if self.bot_info.status == BotStatus.DORMANT.value:
                 self.bot_info.dormant_duration = self.dormant_duration()
 

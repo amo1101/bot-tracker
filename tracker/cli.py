@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime
 
 welcome_ui = "Welcome to bot-tracker command line.\n\n" + \
              "Type:  'help' for help with commands\n" + \
@@ -8,8 +9,7 @@ help_outline = "Bot management commands:\n" + \
                "    start-bot                  start running bot.\n" + \
                "    stop-bot                   stop running bot.\n\n" + \
                "CnC information query:\n" + \
-               "    list-cnc                   list cnc information.\n" + \
-               "    list-cnc-stat              list cnc status information.\n\n" + \
+               "    list-cnc                   list cnc information.\n\n" + \
                "Attack information query:\n" + \
                "    list-attack                list attack information.\n\n" + \
                "Bot scheduler setting commands:\n" + \
@@ -32,20 +32,29 @@ help_list_bot = "NAME\n" + \
 help_start_bot = "NAME\n" + \
                  "  start-bot - start running bot.\n" + \
                  "\nSYNOPSIS\n" + \
-                 "  start-bot <bot_id> [--all]\n" + \
+                 "  start-bot [bot_id] [--all] [--status]\n" + \
                  "\nDESCRIPTION\n" + \
-                 "  Start running bot with specified bot_id or all bots, supported in manual scheduler mode." + \
+                 "  Start running bot with specified bot_id or all bots or bots with specified status.\n" + \
+                 "  Supported in manual scheduler mode." + \
                  "\nOPTIONS\n" + \
-                 "  [--all]: start all bots which are not currently running"
+                 "  [--all]: start all bots which are not currently running and not in 'error',\n" + \
+                 "           'duplicated' or 'unstaged' state\n" + \
+                 "  [--status]=<status>: bot status, could be one of 'unknown','staged','dormant',\n" + \
+                 "             'active','interrupted','unstaged','error', or 'duplicate'"
 
 help_stop_bot = "NAME\n" + \
                 "  stop-bot - stop running bot.\n" + \
                 "\nSYNOPSIS\n" + \
-                "  stop-bot <bot_id> [--all]\n" + \
+                "  stop-bot [bot_id] [--all] [--status] [--unstage]\n" + \
                 "\nDESCRIPTION\n" + \
-                "  Stop running bot with specified bot_id or all bots, supported in manual scheduler mode." + \
+                "  Stop running bot with specified bot_id or all bots or bots with specified status.\n" + \
+                "  Supported in manual scheduler mode." + \
                 "\nOPTIONS\n" + \
-                "  [--all]: stop all bots which are currently running"
+                "  [--all]: stop all bots which are currently running\n" + \
+                "  [--status]=<status>: bot status, could be one of 'unknown','staged','dormant',\n" + \
+                "             'active','interrupted','unstaged','error', or 'duplicate'\n" + \
+                "  [--unstage]=<yes/no>: unstage the bot or not, unstaged bots will not be scheduled\n" + \
+                "              in auto schduler mode."
 
 help_list_cnc = "NAME\n" + \
                 "  list-cnc - list CnC information.\n" + \
@@ -56,29 +65,20 @@ help_list_cnc = "NAME\n" + \
                 "  If no option specified, list all CnC information.\n" + \
                 "\nOPTIONS\n" + \
                 "  [--bot_id]=<bot_id>: bot id\n" + \
-                "  [--ip]=<ip>: CnC IP"
-
-help_list_cnc_stat = "NAME\n" + \
-                     "  list-cnc-stat - list CnC status.\n" + \
-                     "\nSYNOPSIS\n" + \
-                     "  list-cnc-stat [--ip] [--bot_id]\n" + \
-                     "\nDESCRIPTION\n" + \
-                     "  List CnC status information with specified bot_id or CnC IP.\n" + \
-                     "  If no option specified, list all CnC status information.\n" + \
-                     "\nOPTIONS\n" + \
-                     "  [--bot_id]=<bot_id>: bot id\n" + \
-                     "  [--ip]=<ip>: CnC IP\n"
+                "  [--ip]=<ip>: CnC IP."
 
 help_list_attack = "NAME\n" + \
                      "  list-attack - list attacks.\n" + \
                      "\nSYNOPSIS\n" + \
-                     "  list-attack [--cnc_ip] [--bot_id]\n" + \
+                     "  list-attack [--cnc_ip] [--bot_id] [--time]\n" + \
                      "\nDESCRIPTION\n" + \
-                     "  List attack information with specified bot_id or CnC IP.\n" + \
+                     "  List attack information with specified bot_id or CnC IP or time range.\n" + \
                      "  If no option specified, list all attacks information.\n" + \
                      "\nOPTIONS\n" + \
                      "  [--bot_id]=<bot_id>: bot id\n" + \
-                     "  [--cnc_ip]=<ip>: CnC IP\n"
+                     "  [--cnc_ip]=<ip>: CnC IP\n" + \
+                     "  [--time]=<start,end>: list attack from start time to end time\n" + \
+                     "           time format YYYY:MM:DD HH:MI:SS."
 
 help_schedinfo = "NAME\n" + \
                  "  schedinfo - show bot scheduler information.\n" + \
@@ -106,10 +106,34 @@ cmd_help = {'list-bot': help_list_bot,
             'start-bot': help_start_bot,
             'stop-bot': help_stop_bot,
             'list-cnc': help_list_cnc,
-            'list-cnc-stat': help_list_cnc_stat,
             'list-attack': help_list_attack,
             'schedinfo': help_schedinfo,
             'set-sched': help_set_sched}
+
+bot_status_list = ['unknown',
+                   'staged',
+                   'dormant',
+                   'active',
+                   'interrupted',
+                   'unstaged',
+                   'error',
+                   'duplicate']
+
+def get_datetime_range_from_str(t_str):
+    try:
+        if t_str == '' or t_str is None:
+            return ()
+        t_range = t_str.split(',')
+        if len(t_range) != 2:
+            return ()
+
+        s = datetime.strptime(t_range[0], '%Y-%m-%d %H:%M:%S')
+        e = datetime.strptime(t_range[1], '%Y-%m-%d %H:%M:%S')
+        if s > e:
+            return ()
+        return s, e
+    except ValueError:
+        return ()
 
 cmd_config = {
     'help': ([0, 1], {
@@ -117,7 +141,6 @@ cmd_config = {
                              'start-bot',
                              'stop-bot',
                              'list-cnc',
-                             'list-cnc-stat',
                              'list-attack',
                              'schedinfo',
                              'set-sched']}),
@@ -125,27 +148,25 @@ cmd_config = {
     'list-bot': ([0, 1], {
         '_': lambda v: True,
         'all': lambda v: True,
-        'status': lambda v: v in ['unknown',
-                                  'staged',
-                                  'dormant',
-                                  'active',
-                                  'interrupted',
-                                  'unstaged',
-                                  'error',
-                                  'duplicate']}),
+        'status': lambda v: v in bot_status_list}),
 
-    'start-bot': ([1, 1], {'_': lambda v: True, 'all': lambda v: True}),
-    'stop-bot': ([1, 1], {'_': lambda v: True, 'all': lambda v: True}),
+    'start-bot': ([1, 1], {
+        '_': lambda v: True,
+        'all': lambda v: True,
+        'status': lambda v: v in bot_status_list}),
+
+    'stop-bot': ([1, 2], {
+        '_': lambda v: True,
+        'all': lambda v: True,
+        'unstage': lambda v: v in ['yes', 'no'],
+        'status': lambda v: v in bot_status_list}),
 
     'list-cnc': ([0, 1], {
         'ip': lambda v: True,
         'bot_id': lambda v: True}),
 
-    'list-cnc-stat': ([0, 1], {
-        'ip': lambda v: True,
-        'bot_id': lambda v: True}),
-
     'list-attack': ([0, 1], {
+        'time': lambda v: len(get_datetime_range_from_str(v)) == 2,
         'cnc_ip': lambda v: True,
         'bot_id': lambda v: True}),
 

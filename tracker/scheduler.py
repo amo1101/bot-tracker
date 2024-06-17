@@ -143,12 +143,16 @@ class Scheduler:
                 del self.bot_runners[t]
                 l.debug(f'remove task {t.get_name()}')
 
-    async def update_attack_report(self):
+    async def update_attack_report(self, bot_id=None):
         l.info(f'Update attack reports...')
         async with self.bot_runners_lock:
             for _, r in self.bot_runners.items():
-                if not r.is_destroyed():
-                    await r.handle_attack_report(True)
+                if bot_id is None or \
+                   r.bot_info.bot_id == bot_id:
+                    if not r.is_destroyed():
+                        await r.handle_attack_report(True)
+                    if bot_id is not None:
+                        break
 
     async def checkpoint(self):
         try:
@@ -161,7 +165,7 @@ class Scheduler:
                 l.debug(f'Iface monitor action triggered, action={self.iface_monitor_action}!')
                 if self.iface_monitor_action != '1':
                     l.warning('Stopping all bots!')
-                    await self.stop_bot(None, True)
+                    await self.stop_bot(None, None, 'no', True)
 
             self.iface_monitor = IfaceMonitor(self.sandbox_ctx.network_mode,
                                               self.iface_monitor_iface,
@@ -183,32 +187,27 @@ class Scheduler:
             pass
 
     # following APIs are for manual scheduling
-    async def start_bot(self, bot_id):
+    async def start_bot(self, bot_id=None, status_list=None):
         if self.mode == SCHEDULER_MODE_AUTO:
             l.warning('start_bot command not supported in auto mode')
             return False
 
-        # will not start 'error' or 'unstaged' or 'duplicate' bots if no bot_id is specified'
-        status_list = None
-        if bot_id is None:
-            status_list = [BotStatus.UNKNOWN.value,
-                           BotStatus.INTERRUPTED.value,
-                           BotStatus.STAGED.value,
-                           BotStatus.DORMANT.value,
-                           BotStatus.ACTIVE.value]
         await self._schedule_bots(status_list, bot_id)
         return True
 
-    async def stop_bot(self, bot_id, force_stop=False):
+    async def stop_bot(self, bot_id=None, status_list=None, unstage='no', force_stop=False):
         if self.mode == SCHEDULER_MODE_AUTO and not force_stop:
             l.warning('stop_bot command not supported in auto mode')
             return False
 
         async with self.bot_runners_lock:
             for t, r in self.bot_runners.items():
-                # bot_id is None means stop all bots
-                if r.bot_info.bot_id == bot_id or bot_id is None:
-                    t.cancel()
+                if (bot_id is None or r.bot_info.bot_id == bot_id) and \
+                   (status_list is None or r.bot_info.status in status_list):
+                    if not r.is_destroyed():
+                        if unstage == 'yes':
+                            r.notify_unstage = True
+                        t.cancel()
                     if bot_id is not None:
                         break
 

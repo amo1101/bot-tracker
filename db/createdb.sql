@@ -25,15 +25,7 @@ CREATE TABLE IF NOT EXISTS cnc_info (
     location VARCHAR (32)
 );
 
-CREATE TABLE IF NOT EXISTS cnc_stat (
-    ip VARCHAR (32),
-    port INT,
-    bot_id VARCHAR (128),
-    status VARCHAR (16),
-    update_at TIMESTAMPTZ
-);
-
-CREATE TABLE IF NOT EXISTS attack_stat (
+CREATE TABLE IF NOT EXISTS attack_info (
     bot_id VARCHAR (128),
     cnc_ip VARCHAR (32),
     attack_type VARCHAR (32),
@@ -54,7 +46,7 @@ CREATE TABLE IF NOT EXISTS attack_stat (
 DO $$
 DECLARE
     bid INTEGER := 1;
-    cnt INTEGER := 30;
+    cnt INTEGER := 15;
 BEGIN
     FOR bid IN 1..cnt LOOP
         INSERT INTO bot_info (

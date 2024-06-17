@@ -44,11 +44,6 @@ class AttackType(Enum):
 
 
 @dataclass
-class TrackerInfo:
-    id: str
-
-
-@dataclass
 class CnCInfo:
     ip: str
     port: int
@@ -125,24 +120,7 @@ class BotInfo:
 
 
 @dataclass
-class CnCStat:
-    ip: str
-    port: int
-    bot_id: str
-    # could be: alive/disconnected
-    status: str
-    update_at: datetime
-
-    def __repr__(self):
-        return f'{"ip":<9}: {self.ip}\n' + \
-            f'{"port":<9}: {self.port}\n' + \
-            f'{"bot_id":<9}: {self.bot_id}\n' + \
-            f'{"status":<9}: {self.status}\n' + \
-            f'{"update_at":<9}: {self.update_at.strftime("%Y-%m-%d %H:%M:%S")}'
-
-
-@dataclass
-class AttackStat:
+class AttackInfo:
     bot_id: str
     cnc_ip: str
     attack_type: str
@@ -216,9 +194,6 @@ class DBStore:
             await self._insert('bot_info', bot)
         except psycopg.errors.UniqueViolation:
             l.error('add_bot failed due to UniqueViolation')
-
-    async def add_tracker(self, tracker):
-        await self._insert('tracker_info', tracker)
 
     async def load_bot_info(self, status_list=None, bot_id=None, count=None,
                             tracker=None):
@@ -313,42 +288,12 @@ class DBStore:
         cnc = await self.load_cnc_info(None, ip, port)
         return len(cnc) != 0
 
-    async def add_cnc_stat(self, cnc_stat):
-        await self._insert('cnc_stat', cnc_stat)
+    async def add_attack_info(self, attack):
+        await self._insert('attack_info', attack)
 
-    async def load_cnc_stat(self, bot_id=None, ip=None):
-        cnc_stat = []
-        para = ()
-
-        sql = "SELECT * FROM cnc_stat"
-        filters = []
-        if bot_id is not None:
-            para += (bot_id,)
-            filters.append('bot_id = %s')
-        if ip is not None:
-            para += (ip,)
-            filters.append('ip = %s')
-
-        filter_str = ' AND '.join(f for f in filters)
-        if len(filters) > 0:
-            sql += ' WHERE '
-            sql += filter_str
-
-        l.debug(f"sql: {sql}")
-        l.debug(f"para: {para}")
-
-        if self.conn is not None:
-            async with self.conn.cursor() as cur:
-                await cur.execute(sql, para)
-                async for record in cur:
-                    cnc_stat.append(CnCStat(*record))
-        return cnc_stat
-
-    async def add_attack_stat(self, attack):
-        await self._insert('attack_stat', attack)
-
-    async def load_attack_stat(self, bot_id=None, cnc_ip=None):
-        attack_stat = []
+    async def load_attack_info(self, bot_id=None, cnc_ip=None,
+                               time_range=None):
+        attack_info = []
         para = ()
 
         sql = "SELECT * FROM attack_stat"
@@ -359,6 +304,9 @@ class DBStore:
         if cnc_ip is not None:
             para += (cnc_ip,)
             filters.append('cnc_ip = %s')
+        if time_range is not None:
+            para += (time_range,)
+            filters.append('time between %s and %s')
 
         filter_str = ' AND '.join(f for f in filters)
         if len(filters) > 0:
@@ -372,8 +320,8 @@ class DBStore:
             async with self.conn.cursor() as cur:
                 await cur.execute(sql, para)
                 async for record in cur:
-                    attack_stat.append(AttackStat(*record))
-        return attack_stat
+                    attack_info.append(AttackInfo(*record))
+        return attack_info
 
 
 TEST_TS1 = datetime.strptime('2022-02-01 15:00:09', "%Y-%m-%d %H:%M:%S")
@@ -460,35 +408,34 @@ async def test_db_4(db_store):
     await db_store.close()
 
 
-async def test_db_5(db_store):
-    await db_store.open()
-    c = CnCStat('109.123.1.1', 123, '00000051', 'alive', TEST_TS4)
-    print(f'add cncstat:\n{repr(c)}\n')
-    await db_store.add_cnc_stat(c)
-    await db_store.close()
-
 async def test_db_6(db_store):
     await db_store.open()
-    a = AttackStat('bot1','192.168.100.5', AttackType.ATTACK_DP.value,
+    a = AttackInfo('bot1','192.168.100.5', AttackType.ATTACK_DP.value,
                    TEST_TS1, INIT_INTERVAL,
                    '109.123.100.9','tcp','2034','-','no',10000, 120000, 100,10)
-    a1 = AttackStat('bot2','192.168.100.6', AttackType.ATTACK_RA.value,
+    a1 = AttackInfo('bot2','192.168.100.6', AttackType.ATTACK_RA.value,
                    TEST_TS1, INIT_INTERVAL,
                    '109.123.100.9','udp','2034','-','yes',10000, 120000, 100,10)
-    print(f'add attackstat:\n{repr(a)}\n')
-    await db_store.add_attack_stat(a)
-    print(f'add attackstat:\n{repr(a1)}\n')
-    await db_store.add_attack_stat(a1)
-    print(f'list all attackstat\n')
-    atts = await db_store.load_attack_stat()
+    print(f'add AttackInfo:\n{repr(a)}\n')
+    await db_store.add_attack_info(a)
+    print(f'add AttackInfo:\n{repr(a1)}\n')
+    await db_store.add_attack_info(a1)
+    print(f'list all AttackInfo\n')
+    atts = await db_store.load_attack_info()
     for att in atts:
         print(f'{repr(att)}\n')
-    print(f'list attackstat of bot1\n')
-    atts = await db_store.load_attack_stat('bot1')
+    print(f'list AttackInfo of bot1\n')
+    atts = await db_store.load_attack_info('bot1')
     for att in atts:
         print(f'{repr(att)}\n')
-    print(f'list attackstat of bot2 with cnc_ip 192.168.100.6\n')
-    atts = await db_store.load_attack_stat('bot2','192.168.100.6')
+    print(f'list AttackInfo of bot2 with cnc_ip 192.168.100.6\n')
+    atts = await db_store.load_attack_info('bot2','192.168.100.6')
+    for att in atts:
+        print(f'{repr(att)}\n')
+    print(f'list AttackInfo of with time range\n')
+    atts = await db_store.load_attack_info(None,None,
+                                           ('2022-02-01 15:00:09',
+                                            '2022-02-01 16:00:09'))
     for att in atts:
         print(f'{repr(att)}\n')
     await db_store.close()
@@ -498,8 +445,7 @@ db_test_cases = {#'case 1: BotInfo insert and load': test_db_1,
                  #'case 2: BotInfo primary key conflict': test_db_2,
                  #'case 3: BotInfo all fields insert, update and load with filter': test_db_3,
                  #'case 4: CnCInfo insert and load': test_db_4,
-                 #'case 5: CnCStat insert and load': test_db_5,
-                 'case 6: AttackStat insert and load': test_db_6}
+                 'case 6: AttackInfo insert and load': test_db_6}
 
 
 # before doing the test, manually drop tables

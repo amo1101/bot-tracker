@@ -44,13 +44,20 @@ async def handle_list_bot(args):
 async def handle_start_bot(args):
     l.debug(f'handle_start_bot: {args}')
     resp = ""
+    status = None
     bot_id = None
     if '_' in args:
         bot_id = args['_']
-    elif 'all' in args:
-        bot_id = None
+    if 'status' in args:
+        status = [args['status']]
+    else:
+        status = [BotStatus.UNKNOWN.value,
+                  BotStatus.INTERRUPTED.value,
+                  BotStatus.STAGED.value,
+                  BotStatus.DORMANT.value,
+                  BotStatus.ACTIVE.value]
 
-    ret = await bot_scheduler.start_bot(bot_id)
+    ret = await bot_scheduler.start_bot(bot_id, status)
     if ret:
         resp = "Bot started"
     else:
@@ -62,12 +69,18 @@ async def handle_stop_bot(args):
     l.debug(f'handle_stop_bot: {args}')
     resp = ""
     bot_id = None
+    status = None
+    unstage = None
     if '_' in args:
         bot_id = args['_']
-    elif 'all' in args:
-        bot_id = None
+    if 'status' in args:
+        status = [args['status']]
+    if 'unstage' in args:
+        unstage = args['unstage']
+    else:
+        unstage = 'no'
 
-    ret = await bot_scheduler.stop_bot(bot_id)
+    ret = await bot_scheduler.stop_bot(bot_id, status, unstage)
     if ret:
         resp = "Bot stopped"
     else:
@@ -109,50 +122,17 @@ async def handle_list_cnc(args):
     return resp
 
 
-async def handle_list_cnc_stat(args):
-    l.debug(f'handle_list_cnc_stat: {args}')
-    resp = ""
-    ip = None
-    bot_id = None
-
-    if 'ip' in args:
-        ip = args['ip']
-    elif 'bot_id' in args:
-        bot_id = args['bot_id']
-    else:
-        pass
-
-    cnc_stats = await bot_db_store.load_cnc_stat(bot_id, ip)
-
-    if len(cnc_stats) == 1:
-        resp = repr(cnc_stats[0])
-        return resp
-
-    head = f"{'ip':<20}{'port':<12}{'bot_id':<24}{'status':<20}{'update_at':<20}"
-    body = '\n' + len(head) * '-'
-    if len(cnc_stats) == 0:
-        return head + body
-
-    foot = f"\n{'count:':>{len(head) - 10}} {len(cnc_stats)}\n"
-    for c in cnc_stats:
-        body += f"\n{c.ip:<20}{c.port:<12}"
-        if len(c.bot_id) <= 16:
-            body += f"{c.bot_id[:16]:<24}"
-        else:
-            body += f"{c.bot_id[:16] + '...':<24}"
-        body += f"{c.status:<20}{c.update_at.strftime('%Y-%m-%d %H:%M:%S'):<20}"
-    body += '\n' + len(head) * '-'
-    resp = head + body + foot
-    return resp
-
-
 async def handle_list_attack(args):
     l.debug(f'handle_list_attack: {args}')
     resp = ""
+    time_range = None
     cnc_ip = None
     bot_id = None
 
-    if 'cnc_ip' in args:
+    if 'time' in args:
+        t_str = args['time'].split(',')
+        time_range = (t_str[0], t_str[1])
+    elif 'cnc_ip' in args:
         cnc_ip = args['cnc_ip']
     elif 'bot_id' in args:
         bot_id = args['bot_id']
@@ -160,20 +140,21 @@ async def handle_list_attack(args):
         pass
 
     # update attack report first
-    await bot_scheduler.update_attack_report()
-    attack_stats = await bot_db_store.load_attack_stat(bot_id, cnc_ip)
+    await bot_scheduler.update_attack_report(bot_id)
+    attack_info = await bot_db_store.load_attack_info(bot_id, cnc_ip,
+                                                      time_range)
 
-    if len(attack_stats) == 1:
-        resp = repr(attack_stats[0])
+    if len(attack_info) == 1:
+        resp = repr(attack_info[0])
         return resp
 
     head = f"{'bot_id':<24}{'cnc_ip':<20}{'attack_type':<20}{'time':<24}{'duration':<16}{'pps':<12}{'bandwidth':<12}"
     body = '\n' + len(head) * '-'
-    if len(attack_stats) == 0:
+    if len(attack_info) == 0:
         return head + body
 
-    foot = f"\n{'count:':>{len(head) - 10}} {len(attack_stats)}\n"
-    for a in attack_stats:
+    foot = f"\n{'count:':>{len(head) - 10}} {len(attack_info)}\n"
+    for a in attack_info:
         if len(a.bot_id) <= 16:
             body += f"\n{a.bot_id[:16]:<24}"
         else:
@@ -210,7 +191,6 @@ cmd_registry = {
     'start-bot': handle_start_bot,
     'stop-bot': handle_stop_bot,
     'list-cnc': handle_list_cnc,
-    'list-cnc-stat': handle_list_cnc_stat,
     'list-attack': handle_list_attack,
     'schedinfo': handle_schedinfo,
     'set-sched': handle_set_sched
