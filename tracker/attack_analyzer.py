@@ -221,7 +221,7 @@ class AttackReport:
                     l.warning('commit attack: interval too short, not committed!')
                     return
             self.attack_info_ready[i] = copy.deepcopy(self.attack_info[i])
-            l.debug(f'commit attack: {self.attack_info[i].report()}')
+            l.info(f'commit attack: {self.attack_info[i].report()}')
         else:
             l.warning(f'commit attack: too few packets, discard: {self.attack_info[i].report()}')
         self.attack_info[i].reset()

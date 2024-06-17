@@ -158,7 +158,7 @@ class Scheduler:
                 self.iface_monitor_action == '0' else IfaceMonitorAction.ALARM
 
             async def iface_monitor_action():
-                l.warning(f'Iface monitor action triggered, action={self.iface_monitor_action}!')
+                l.debug(f'Iface monitor action triggered, action={self.iface_monitor_action}!')
                 if self.iface_monitor_action != '1':
                     l.warning('Stopping all bots!')
                     await self.stop_bot(None, True)
@@ -188,11 +188,14 @@ class Scheduler:
             l.warning('start_bot command not supported in auto mode')
             return False
 
-        # only start 'uknown' and 'interrupted' bots if no bot_id is specified'
+        # will not start 'error' or 'unstaged' or 'duplicate' bots if no bot_id is specified'
         status_list = None
         if bot_id is None:
             status_list = [BotStatus.UNKNOWN.value,
-                           BotStatus.INTERRUPTED.value]
+                           BotStatus.INTERRUPTED.value,
+                           BotStatus.STAGED.value,
+                           BotStatus.DORMANT.value,
+                           BotStatus.ACTIVE.value]
         await self._schedule_bots(status_list, bot_id)
         return True
 
