@@ -296,7 +296,7 @@ class DBStore:
         attack_info = []
         para = ()
 
-        sql = "SELECT * FROM attack_stat"
+        sql = "SELECT * FROM attack_info"
         filters = []
         if bot_id is not None:
             para += (bot_id,)
@@ -305,7 +305,7 @@ class DBStore:
             para += (cnc_ip,)
             filters.append('cnc_ip = %s')
         if time_range is not None:
-            para += (time_range,)
+            para += (time_range[0], time_range[1])
             filters.append('time between %s and %s')
 
         filter_str = ' AND '.join(f for f in filters)
@@ -434,8 +434,8 @@ async def test_db_6(db_store):
         print(f'{repr(att)}\n')
     print(f'list AttackInfo of with time range\n')
     atts = await db_store.load_attack_info(None,None,
-                                           ('2022-02-01 15:00:09',
-                                            '2022-02-01 16:00:09'))
+                                           ('20220201T150009',
+                                            '20220201T160009'))
     for att in atts:
         print(f'{repr(att)}\n')
     await db_store.close()
@@ -456,3 +456,8 @@ async def test_db():
         print(k)
         await v(db_store)
     print('done running db test cases')
+
+#  import asyncio
+#  if __name__ == "__main__":
+    #  asyncio.run(test_db())
+

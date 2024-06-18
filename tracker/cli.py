@@ -78,7 +78,7 @@ help_list_attack = "NAME\n" + \
                      "  [--bot_id]=<bot_id>: bot id\n" + \
                      "  [--cnc_ip]=<ip>: CnC IP\n" + \
                      "  [--time]=<start,end>: list attack from start time to end time\n" + \
-                     "           time format YYYY:MM:DD HH:MI:SS."
+                     "           time format yyyymmddThhmmss."
 
 help_schedinfo = "NAME\n" + \
                  "  schedinfo - show bot scheduler information.\n" + \
@@ -127,8 +127,8 @@ def get_datetime_range_from_str(t_str):
         if len(t_range) != 2:
             return ()
 
-        s = datetime.strptime(t_range[0], '%Y-%m-%d %H:%M:%S')
-        e = datetime.strptime(t_range[1], '%Y-%m-%d %H:%M:%S')
+        s = datetime.strptime(t_range[0], '%Y%m%dT%H%M%S')
+        e = datetime.strptime(t_range[1], '%Y%m%dT%H%M%S')
         if s > e:
             return ()
         return s, e
@@ -208,7 +208,7 @@ def check_args(cmd, params):
 
     argc = len(params)
     if argc < cmd_config[cmd][0][0] or argc > cmd_config[cmd][0][1]:
-        print('Command parameter error')
+        print(f'Command parameter error, {cmd}: {params}')
         return False
 
     for k, v in params.items():

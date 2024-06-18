@@ -23,7 +23,7 @@ class PacketAttackInfo:
     total_bytes: int
 
 
-class AttackInfo:
+class AttackStat:
     def __init__(self):
         self.attack_type = None
         self.start_time = None
@@ -189,12 +189,12 @@ class AttackReport:
         self.cnc_port = cnc_port
         self.cnc_update_at = None
         # 3 attack info for each attack type
-        self.attack_info = [AttackInfo(),AttackInfo(),AttackInfo()]
-        self.attack_info_ready = [AttackInfo(),AttackInfo(),AttackInfo()]
+        self.attack_stat = [AttackStat(),AttackStat(),AttackStat()]
+        self.attack_stat_ready = [AttackStat(),AttackStat(),AttackStat()]
         self.attack_interval = attack_interval
         self.min_attack_packets = min_attack_packets
 
-    def _attack_info_idx(self, attack_type):
+    def _attack_stat_idx(self, attack_type):
         if attack_type == AttackType.ATTACK_RA.value:
             return 0
         elif attack_type == AttackType.ATTACK_DP.value:
@@ -203,32 +203,32 @@ class AttackReport:
             return 2
 
     def get_latest_attack_time(self, attack_type):
-        i = self._attack_info_idx(attack_type)
-        return self.attack_info[i].update_time
+        i = self._attack_stat_idx(attack_type)
+        return self.attack_stat[i].update_time
 
-    def update_attack_info(self, attack):
-        i = self._attack_info_idx(attack.attack_type)
-        l.debug(f'update attack: from {self.attack_info[i].report()}')
-        self.attack_info[i].update(attack)
-        l.debug(f'update attack: to {self.attack_info[i].report()}')
+    def update_attack_stat(self, attack):
+        i = self._attack_stat_idx(attack.attack_type)
+        l.debug(f'update attack: from {self.attack_stat[i].report()}')
+        self.attack_stat[i].update(attack)
+        l.debug(f'update attack: to {self.attack_stat[i].report()}')
 
-    def commit_attack_info(self, attack_type, flush=False):
-        i = self._attack_info_idx(attack_type)
-        if self.attack_info[i].packet_cnt >= self.min_attack_packets:
+    def commit_attack_stat(self, attack_type, flush=False):
+        i = self._attack_stat_idx(attack_type)
+        if self.attack_stat[i].packet_cnt >= self.min_attack_packets:
             if flush:
                 iv = datetime.now() - self.get_latest_attack_time(attack_type)
                 if iv < self.attack_interval:
                     l.warning('commit attack: interval too short, not committed!')
                     return
-            self.attack_info_ready[i] = copy.deepcopy(self.attack_info[i])
-            l.info(f'commit attack: {self.attack_info[i].report()}')
+            self.attack_stat_ready[i] = copy.deepcopy(self.attack_stat[i])
+            l.info(f'commit attack: {self.attack_stat[i].report()}')
         else:
-            l.warning(f'commit attack: too few packets, discard: {self.attack_info[i].report()}')
-        self.attack_info[i].reset()
+            l.warning(f'commit attack: too few packets, discard: {self.attack_stat[i].report()}')
+        self.attack_stat[i].reset()
 
     def attack_ready(self, attack_type):
-        i = self._attack_info_idx(attack_type)
-        return self.attack_info_ready[i].update_time != None
+        i = self._attack_stat_idx(attack_type)
+        return self.attack_stat_ready[i].update_time != None
 
     def get(self, flush=False):
         cnc_ready = self.cnc_ready
@@ -243,11 +243,11 @@ class AttackReport:
         for i in range(3):
             if not self.attack_ready(k[i]):
                 if flush:
-                    self.commit_attack_info(k[i], flush)
+                    self.commit_attack_stat(k[i], flush)
                 if not self.attack_ready(k[i]):
                     continue
-            attack_report[k[i]] = self.attack_info_ready[i].report()
-            self.attack_info_ready[i].reset()
+            attack_report[k[i]] = self.attack_stat_ready[i].report()
+            self.attack_stat_ready[i].reset()
 
         return {'cnc_ready': cnc_ready,
                 'cnc_ip': self.cnc_ip,
@@ -261,12 +261,12 @@ class AttackReport:
             f'cnc_ready: {self.cnc_ready}\n' + \
             f'cnc_ip: {self.cnc_ip}\n' + \
             f'cnc_port: {self.cnc_port}\n' + \
-            f'attacks[0]: {self.attack_info[0].report()}\n' + \
-            f'attacks[1]: {self.attack_info[1].report()}\n' + \
-            f'attacks[2]: {self.attack_info[2].report()}\n' + \
-            f'attacks_ready[0]: {self.attack_info_ready[0].report()}\n' + \
-            f'attacks_ready[1]: {self.attack_info_ready[1].report()}\n' + \
-            f'attacks_ready[2]: {self.attack_info_ready[2].report()}\n'
+            f'attacks[0]: {self.attack_stat[0].report()}\n' + \
+            f'attacks[1]: {self.attack_stat[1].report()}\n' + \
+            f'attacks[2]: {self.attack_stat[2].report()}\n' + \
+            f'attacks_ready[0]: {self.attack_stat_ready[0].report()}\n' + \
+            f'attacks_ready[1]: {self.attack_stat_ready[1].report()}\n' + \
+            f'attacks_ready[2]: {self.attack_stat_ready[2].report()}\n'
 
 
 # avoiding logging here cuz this will run in another python interpreter
@@ -418,18 +418,18 @@ class AttackAnalyzer:
             interval = attack.ts - latest_ts
             if interval < self.attack_interval:
                 l.debug(f'[{self.tag}] update attack: to latest report {attack}')
-                self.report.update_attack_info(attack)
+                self.report.update_attack_stat(attack)
                 return False
             else:
                 report_formed = 1
                 l.debug(f'[{self.tag}] update attack: commit {attack.attack_type}')
-                self.report.commit_attack_info(attack.attack_type)
+                self.report.commit_attack_stat(attack.attack_type)
 
         if report_formed == 0:
             l.debug(f'[{self.tag}] update attack: a new attack added {attack}')
         else:
             l.debug(f'[{self.tag}] update attack: a new attack added after commit old one {attack}')
-        self.report.update_attack_info(attack)
+        self.report.update_attack_stat(attack)
 
         return report_formed == 1
 

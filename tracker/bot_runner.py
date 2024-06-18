@@ -125,10 +125,10 @@ class BotRunner:
             elif cnc_status == CnCStatus.DISCONNECTED.value:
                 await self.update_bot_info(BotStatus.DORMANT)
 
-            cnc_stat = CnCStat(report['cnc_ip'], report['cnc_port'],
-                               self.bot_info.bot_id, cnc_status,
-                               report['cnc_update_at'])
-            cnc_stat.persist(self.cnc_stats_file)
+            #  cnc_stat = CnCStat(report['cnc_ip'], report['cnc_port'],
+                               #  self.bot_info.bot_id, cnc_status,
+                               #  report['cnc_update_at'])
+            #  cnc_stat.persist(self.cnc_stats_file)
 
         # update attack report
         for _, r in report['attacks'].items():
@@ -152,6 +152,7 @@ class BotRunner:
                                      pps,
                                      bandwidth)
             await self.db_store.add_attack_info(attack_info)
+            l.debug(f'attack inserted: {attack_info}')
 
     async def _observe_attack(self, cnc_ip, cnc_port, own_ip):
         try:
@@ -296,7 +297,7 @@ class BotRunner:
                         await self.db_store.add_cnc_info(self.cnc_info[0])
 
             if self.cnc_info is None or len(self.cnc_info) == 0:
-                l.warning("Cnc not find, stop bot runner...")
+                l.warning("Cnc not found, stop bot runner...")
                 self.notify_error = True
                 await self.destroy()
                 return
@@ -351,9 +352,11 @@ class BotRunner:
             if self.cnc_analyzer_id is not None:
                 await self.analyzer_pool.finalize_analyzer(self.executor_id,
                                                            self.cnc_analyzer_id)
+                self.cnc_analyzer_id = None
             if self.attack_analyzer_id is not None:
                 await self.analyzer_pool.finalize_analyzer(self.executor_id,
                                                            self.attack_analyzer_id)
+                self.attack_analyzer_id = None
             self.analyzer_pool.close_executor(self.executor_id)
 
             if self.live_capture is not None:
