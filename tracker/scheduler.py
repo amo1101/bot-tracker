@@ -23,8 +23,9 @@ class Scheduler:
                  sandbox_vcpu_quota,
                  max_sandbox_num,
                  max_dormant_duration,
-                 max_packet_analyzing_workers,
                  cnc_probing_duration,
+                 max_packet_analyzing_workers,
+                 enable_attack_detection,
                  sandbox_ctx,
                  db_store):
         self.tracker_id = tracker_id  # reserved for supporting multiple trackers.
@@ -40,8 +41,9 @@ class Scheduler:
         self.max_sandbox_num = max_sandbox_num
         self.max_dormant_hours = max_dormant_duration
         self.max_dormant_duration = timedelta(hours=self.max_dormant_hours)
-        self.max_analyzing_workers = max_packet_analyzing_workers
         self.cnc_probing_duration = cnc_probing_duration
+        self.max_analyzing_workers = max_packet_analyzing_workers
+        self.enable_attack_detection = True if enable_attack_detection == 'yes' else False
         self.sandbox_ctx = sandbox_ctx
         self.db_store = db_store
         self.iface_monitor = None
@@ -116,6 +118,7 @@ class Scheduler:
                                    self.sandbox_ctx,
                                    self.db_store,
                                    self.analyzer_pool,
+                                   self.enable_attack_detection,
                                    self.iface_monitor)
 
             task = asyncio.create_task(bot_runner.run(),
@@ -156,7 +159,8 @@ class Scheduler:
 
     async def checkpoint(self):
         try:
-            self.analyzer_pool = AnalyzerExecutorPool(self.max_analyzing_workers)
+            self.analyzer_pool = \
+            AnalyzerExecutorPool(self.max_analyzing_workers)
             # create the inteface monitor task
             iface_monitor_action_type = IfaceMonitorAction.TEAR_DOWN if \
                 self.iface_monitor_action == '0' else IfaceMonitorAction.ALARM

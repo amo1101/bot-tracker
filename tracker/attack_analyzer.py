@@ -2,13 +2,13 @@ import pyshark
 import copy
 from db_store import CnCStatus, AttackType
 from datetime import datetime, timedelta
-from dataclasses import dataclass, is_dataclass, fields, astuple
+from dataclasses import dataclass
 from collections import deque
 from packet_parser import *
 from log import TaskLogger
 
-
 l: TaskLogger = TaskLogger(__name__)
+
 
 @dataclass
 class PacketAttackInfo:
@@ -109,14 +109,14 @@ class PacketSlidingWindow:
         self.dst_net_dict.clear()
 
     def __repr__(self):
-         return f'\npps: {self.pps}\n' + \
-                f'purity_src: {self.purity_src}\n' + \
-                f'purity_dst: {self.purity_dst}\n' + \
-                f'purity_src_net: {self.purity_src_net}\n' + \
-                f'purity_dst_net: {self.purity_dst_net}\n' + \
-                f'residual: {self.residual}\n' + \
-                f'total_bytes: {self.total_bytes}\n' + \
-                f'packet_win: {self.packet_win}\n'
+        return f'\npps: {self.pps}\n' + \
+            f'purity_src: {self.purity_src}\n' + \
+            f'purity_dst: {self.purity_dst}\n' + \
+            f'purity_src_net: {self.purity_src_net}\n' + \
+            f'purity_dst_net: {self.purity_dst_net}\n' + \
+            f'residual: {self.residual}\n' + \
+            f'total_bytes: {self.total_bytes}\n' + \
+            f'packet_win: {self.packet_win}\n'
 
     def residual_packets(self):
         if not self.residual:
@@ -189,8 +189,8 @@ class AttackReport:
         self.cnc_port = cnc_port
         self.cnc_update_at = None
         # 3 attack info for each attack type
-        self.attack_stat = [AttackStat(),AttackStat(),AttackStat()]
-        self.attack_stat_ready = [AttackStat(),AttackStat(),AttackStat()]
+        self.attack_stat = [AttackStat(), AttackStat(), AttackStat()]
+        self.attack_stat_ready = [AttackStat(), AttackStat(), AttackStat()]
         self.attack_interval = attack_interval
         self.min_attack_packets = min_attack_packets
 
@@ -228,7 +228,7 @@ class AttackReport:
 
     def attack_ready(self, attack_type):
         i = self._attack_stat_idx(attack_type)
-        return self.attack_stat_ready[i].update_time != None
+        return self.attack_stat_ready[i].update_time is not None
 
     def get(self, flush=False):
         cnc_ready = self.cnc_ready
@@ -272,16 +272,18 @@ class AttackReport:
 # avoiding logging here cuz this will run in another python interpreter
 # don't want to bother logging to the same file, just use print for debugging
 class AttackAnalyzer:
-    def __init__(self, cnc_ip, cnc_port, own_ip, excluded_ips):
+    def __init__(self, cnc_ip, cnc_port, own_ip, excluded_ips,
+                 enable_attack_detection=True):
         self.tag = None
         self.cnc_ip = cnc_ip
         self.cnc_port = cnc_port
         self.own_ip = own_ip
         self.excluded_ips = excluded_ips
+        self.enable_attack_detection = enable_attack_detection
         self.packet_win_size = 5
-        self.pps_threshold = 0.01 # packets per second indicating an attack
+        self.pps_threshold = 0.01  # packets per second indicating an attack
         self.attack_interval = timedelta(seconds=30)  # attack interval in seconds
-        self.min_attack_packets = 30 # minimum packets count as an attack
+        self.min_attack_packets = 30  # minimum packets count as an attack
         self.packet_win = PacketSlidingWindow(self.packet_win_size)
         self.report = AttackReport(cnc_ip, cnc_port,
                                    self.attack_interval,
@@ -291,7 +293,7 @@ class AttackAnalyzer:
         self.tag = tag
 
     def get_result(self, flush=False):
-        l.debug(f'[{self.tag}] getting report...')
+        l.debug(f'[{self.tag}] getting report, attack detecion enabled: {self.enable_attack_detection}...')
         return self.report.get(flush)
 
     def _analyze_cnc_status(self, pkt):
@@ -324,10 +326,10 @@ class AttackAnalyzer:
         if pkt.len == 0:
             return None
         if self.packet_win.purity_src > \
-           1.0 * (self.packet_win_size - 1) / self.packet_win_size:
+                1.0 * (self.packet_win_size - 1) / self.packet_win_size:
             attack_target = pkt.ip_src
         elif self.packet_win.purity_src_net > \
-             1.0 * (self.packet_win_size - 1) / self.packet_win_size:
+                1.0 * (self.packet_win_size - 1) / self.packet_win_size:
             attack_target = '.'.join(pkt.ip_src.split('.')[:3]) + '/-'
         else:
             return None
@@ -343,10 +345,10 @@ class AttackAnalyzer:
         if pkt.len == 0:
             return None
         if self.packet_win.purity_dst > \
-           1.0 * (self.packet_win_size - 1) / self.packet_win_size:
+                1.0 * (self.packet_win_size - 1) / self.packet_win_size:
             attack_target = pkt.ip_dst
         elif self.packet_win.purity_dst_net > \
-             1.0 * (self.packet_win_size - 1) / self.packet_win_size:
+                1.0 * (self.packet_win_size - 1) / self.packet_win_size:
             attack_target = '.'.join(pkt.ip_dst.split('.')[:3]) + '/-'
         else:
             return None
@@ -362,7 +364,7 @@ class AttackAnalyzer:
         spoofed = 'no'
         # src should be identical
         if self.packet_win.purity_src <= \
-           1.0 * (self.packet_win_size - 1) / self.packet_win_size:
+                1.0 * (self.packet_win_size - 1) / self.packet_win_size:
             return None
         # even src could be spoofed?
         if pkt.ip_src != self.own_ip:
@@ -381,8 +383,8 @@ class AttackAnalyzer:
     def _analyze_attack(self, pkt):
         l.debug(f'[{self.tag}] analyzing attack of packet: {repr(pkt)}')
         if 'tcp' not in pkt.layers and \
-           'udp' not in pkt.layers and \
-           'ip' not in pkt.layers:
+                'udp' not in pkt.layers and \
+                'ip' not in pkt.layers:
             return False
 
         background_fields = ["mdns", "dhcpv6", "dhcp", "arp"]
@@ -391,8 +393,8 @@ class AttackAnalyzer:
 
         # only check outgoing packets and ignore c2 traffic
         if pkt.ip_dst == self.cnc_ip or \
-           pkt.ip_dst == self.own_ip or \
-           pkt.ip_dst in self.excluded_ips:
+                pkt.ip_dst == self.own_ip or \
+                pkt.ip_dst in self.excluded_ips:
             return False
 
         self.packet_win.push(pkt)
@@ -436,22 +438,7 @@ class AttackAnalyzer:
     def analyze(self, pkt):
         # TODO: slowlori attack may escape
         cnc_ready = self._analyze_cnc_status(pkt)
-        attack_ready = self._analyze_attack(pkt)
+        attack_ready = False
+        if self.enable_attack_detection:
+            attack_ready = self._analyze_attack(pkt)
         return cnc_ready or attack_ready
-
-
-att_analyzer: AttackAnalyzer
-
-
-def inspect_packet(pkt):
-    att_analyzer.analyze(pkt)
-    l.debug(f'result of att_analyze: {att_analyzer.report.get()}')
-
-
-def test_att_analyzer(pcap, cnc_ip, cnc_port, own_ip):
-    global att_analyzer
-    if att_analyzer is not None:
-        del att_analyzer
-    att_analyzer = AttackAnalyzer(cnc_ip, cnc_port, own_ip)
-    cap = pyshark.FileCapture(pcap)
-    cap.apply_on_packets(inspect_packet)

@@ -38,6 +38,7 @@ class BotRunner:
                  sandbox_vcpu_quota,
                  cnc_probing_duration, sandbox_ctx, db_store,
                  analyzer_pool,
+                 enable_attack_detection,
                  iface_monitor):
 
         self.bot_info = bot_info
@@ -59,10 +60,11 @@ class BotRunner:
         self.notify_dup = False
         self.dormant_time = INIT_TIME_STAMP
         self.staged_time = INIT_TIME_STAMP
-        self.last_observe_duration = bot_info.observe_duration # accumulate observe duration
+        self.last_observe_duration = bot_info.observe_duration  # accumulate observe duration
         self.destroyed = False
         self.iface_monitor = iface_monitor
         self.analyzer_pool = analyzer_pool
+        self.enable_attack_detection = enable_attack_detection
         self.executor_id = None
         self.cnc_analyzer_id = None
         self.attack_analyzer_id = None
@@ -126,8 +128,8 @@ class BotRunner:
                 await self.update_bot_info(BotStatus.DORMANT)
 
             #  cnc_stat = CnCStat(report['cnc_ip'], report['cnc_port'],
-                               #  self.bot_info.bot_id, cnc_status,
-                               #  report['cnc_update_at'])
+            #  self.bot_info.bot_id, cnc_status,
+            #  report['cnc_update_at'])
             #  cnc_stat.persist(self.cnc_stats_file)
 
         # update attack report
@@ -135,8 +137,8 @@ class BotRunner:
             total_packets = r['packet_cnt']
             total_bytes = r['total_bytes']
             total_secs = r['duration'].total_seconds()
-            pps = total_packets/total_secs
-            bandwidth = total_bytes/total_secs
+            pps = total_packets / total_secs
+            bandwidth = total_bytes / total_secs
             attack_info = AttackInfo(self.bot_info.bot_id,
                                      self.cnc_info[0].ip,
                                      r['attack_type'],
@@ -164,7 +166,8 @@ class BotRunner:
                                                                              cnc_ip=cnc_ip,
                                                                              cnc_port=cnc_port,
                                                                              own_ip=own_ip,
-                                                                             excluded_ips=excluded_ips)
+                                                                             excluded_ips=excluded_ips,
+                                                                             enable_attack_detection=self.enable_attack_detection)
             l.info(f'attack analyzer initialized as: {self.attack_analyzer_id}')
 
             async for packet in self.live_capture.sniff_continuously():
@@ -284,7 +287,7 @@ class BotRunner:
                     for cnc in cnc_info_in_db:
                         if cnc.bot_id != self.bot_info.bot_id:
                             l.warning(f'Bot already exists for the botnet!')
-                            self.notify_dup = True;
+                            self.notify_dup = True
                             await self.destroy()
                             return
                         else:

@@ -124,7 +124,7 @@ class AnalyzerExecutorPool:
             l.warning(f'Executor {eid} not exist!')
             return None
 
-        l.info(f'Initialzing analyzer at executor {eid} ...')
+        l.info(f'Initializing analyzer at executor {eid} ...')
         e = self.executor_reg[eid]
         if which == AnalyzerType.ANALYZER_CNC:
             analyzer = CnCAnalyzer(kwargs['own_ip'],
@@ -134,7 +134,8 @@ class AnalyzerExecutorPool:
             analyzer = AttackAnalyzer(kwargs['cnc_ip'],
                                       kwargs['cnc_port'],
                                       kwargs['own_ip'],
-                                      kwargs['excluded_ips'])
+                                      kwargs['excluded_ips'],
+                                      kwargs['enable_attack_detection'])
 
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(e, init_analyzer_in_executor, analyzer)
@@ -149,7 +150,7 @@ class AnalyzerExecutorPool:
         # only send packet summary
         pkt_summary = PacketSummary()
         pkt_summary.extract(packet)
-        l.debug(f'Analzying new packet at {eid}-{aid}:\n{repr(pkt_summary)}')
+        l.debug(f'Analyzing new packet at {eid}-{aid}:\n{repr(pkt_summary)}')
 
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(e, analyze_packet_in_executor,
@@ -160,7 +161,7 @@ class AnalyzerExecutorPool:
             l.warning(f'Executor {eid} not exist!')
             return None
         e = self.executor_reg[eid]
-        l.debug(f'Geting result at {eid}-{aid}...')
+        l.debug(f'Getting result at {eid}-{aid}...')
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(e, get_analyze_result_in_executor,
                                           aid, flush)
@@ -177,17 +178,18 @@ class AnalyzerExecutorPool:
 
 from packet_capture import AsyncFileCapture
 
+
 async def test_executor_cnc_analyzer(pcap, own_ip, excluded_ips, packet_count,
-                                    executor_cnt=1, task_cnt=1):
+                                     executor_cnt=1, task_cnt=1):
     executor_pool = AnalyzerExecutorPool(executor_cnt)
     eid = [0] * 5
     aid = [0] * 5
     for i in range(task_cnt):
         eid[i] = executor_pool.open_executor()
         aid[i] = await executor_pool.init_analyzer(eid[i], AnalyzerType.ANALYZER_CNC,
-                                                own_ip=own_ip,
-                                                excluded_ips=excluded_ips,
-                                                excluded_ports=None)
+                                                   own_ip=own_ip,
+                                                   excluded_ips=excluded_ips,
+                                                   excluded_ports=None)
         cap = AsyncFileCapture(pcap)
         try:
             async for packet in cap.sniff_continuously(packet_count):
@@ -204,6 +206,7 @@ async def test_executor_cnc_analyzer(pcap, own_ip, excluded_ips, packet_count,
         executor_pool.close_executor(eid[i])
 
     executor_pool.destroy()
+
 
 async def test_executor_attack_analyzer(pcap, cnc_ip, own_ip, excluded_ips, packet_count):
     executor_pool = AnalyzerExecutorPool(2)

@@ -53,8 +53,9 @@ async def async_main(arguments=None):
                           int(config['scheduler']['sandbox_vcpu_quota']),
                           int(config['scheduler']['max_sandbox_num']),
                           int(config['scheduler']['max_dormant_duration']),
-                          int(config['scheduler']['max_packet_analyzing_workers']),
                           int(config['scheduler']['cnc_probing_duration']),
+                          int(config['scheduler.packet_analyzer']['max_analyzing_workers']),
+                          config['scheduler.packet_analyzer']['enable_attack_detection'],
                           sandbox_ctx,
                           db_store)
 
