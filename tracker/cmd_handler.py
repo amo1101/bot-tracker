@@ -48,14 +48,15 @@ async def handle_start_bot(args):
     bot_id = None
     if '_' in args:
         bot_id = args['_']
-    if 'status' in args:
-        status = [args['status']]
     else:
-        status = [BotStatus.UNKNOWN.value,
-                  BotStatus.INTERRUPTED.value,
-                  BotStatus.STAGED.value,
-                  BotStatus.DORMANT.value,
-                  BotStatus.ACTIVE.value]
+        if 'status' in args:
+            status = [args['status']]
+        else:
+            status = [BotStatus.UNKNOWN.value,
+                      BotStatus.INTERRUPTED.value,
+                      BotStatus.STAGED.value,
+                      BotStatus.DORMANT.value,
+                      BotStatus.ACTIVE.value]
 
     ret = await bot_scheduler.start_bot(bot_id, status)
     if ret:

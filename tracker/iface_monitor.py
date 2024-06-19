@@ -250,6 +250,7 @@ class IfaceMonitor:
         self.cnc_map = {}
         self.log_dir = CUR_DIR + os.sep + 'iface_monitor_log'
         self.report_file = self.log_dir + os.sep + f'iface-monitor-report-{self.iface}.log'
+        self.report_file_handle = None
 
     # bots call the api to register monitoring
     async def register(self, cnc_ip, bot_id):
@@ -306,12 +307,14 @@ class IfaceMonitor:
     def report_incidence(self, src_ip, dst_ip,
                          protocol, src_port, dst_port,
                          policy, traffic_type):
-        with open(self.report_file, 'a') as file:
-            action = self.action_type.value \
+        if self.report_file_handle is None:
+            self.report_file_handle = open(self.report_file, 'a')
+        action = self.action_type.value \
                     if traffic_type == IfaceMonitorTraffic.MALICIOUS else 'None'
-            report = self._get_report(src_ip, dst_ip, protocol, src_port,
-                                      dst_port, policy, traffic_type, action)
-            file.write(report)
+        report = self._get_report(src_ip, dst_ip, protocol, src_port,
+                                  dst_port, policy, traffic_type, action)
+        self.report_file_handle.write(report)
+        self.report_file_handle.flush()
 
     async def fetch_trace_output(self):
         while True:
@@ -356,6 +359,8 @@ class IfaceMonitor:
         except Exception as e:
             l.warning(f'An error occured {e}!')
         finally:
+            if self.report_file_handle is not None:
+                self.report_file_handle.close()
             self.stop_event.set()
             self.ebpf_process.join()
             l.info('Iface monitor process quit')

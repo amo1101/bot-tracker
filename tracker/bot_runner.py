@@ -269,6 +269,11 @@ class BotRunner:
                 cnc_info = await self.analyzer_pool.get_result(self.executor_id,
                                                                self.cnc_analyzer_id)
                 l.info(f"get cnc info {cnc_info}...")
+
+                await self.analyzer_pool.finalize_analyzer(self.executor_id,
+                                                           self.cnc_analyzer_id)
+                self.cnc_analyzer_id = None
+
                 if cnc_info is not None and len(cnc_info) > 0:
                     k, v = next(iter(cnc_info.items()))  # should have only one key
                     ip_port = k.split(':')
