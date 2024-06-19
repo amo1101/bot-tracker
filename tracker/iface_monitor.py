@@ -1,3 +1,4 @@
+import signal
 import asyncio
 import os
 from datetime import datetime
@@ -166,6 +167,8 @@ def run_ebpf(network_mode,
     global g_cnc_queue
     global g_policy_table
 
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+
     g_trace_queue = trace_queue
     g_cnc_queue = cnc_queue
 
@@ -202,10 +205,9 @@ def run_ebpf(network_mode,
 
     try:
         while not stop_event.is_set():
-            b.perf_buffer_poll()
-    except KeyboardInterrupt:
-        pass
-    except BaseException as e:
+            b.perf_buffer_poll(100)
+        l.info('Stopped by stop event.')
+    except Exception as e:
         l.warning(f'An error occured {e} on iface monitor process!')
     finally:
         l.info("Detaching eBPF program...")
@@ -351,9 +353,10 @@ class IfaceMonitor:
                                           dst_port, policy, traffic_type)
         except asyncio.CancelledError:
             l.info('Iface monitor cancelled.')
-        except BaseException as e:
+        except Exception as e:
             l.warning(f'An error occured {e}!')
         finally:
             self.stop_event.set()
             self.ebpf_process.join()
+            l.info('Iface monitor process quit')
 
