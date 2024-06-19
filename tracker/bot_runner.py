@@ -268,9 +268,16 @@ class BotRunner:
                 l.warning("Cnc probing timeout...")
                 cnc_info = await self.analyzer_pool.get_result(self.executor_id,
                                                                self.cnc_analyzer_id)
-                if len(cnc_info) > 0:
+                l.info(f"get cnc info {cnc_info}...")
+                if cnc_info is not None and len(cnc_info) > 0:
                     k, v = next(iter(cnc_info.items()))  # should have only one key
                     ip_port = k.split(':')
+                    if len(ip_port) < 2:
+                        l.error(f'invalid ip:port format {k}')
+                        self.notify_error = True
+                        await self.destroy()
+                        return
+
                     domain = ''
                     if 'DNS_Name' in v:
                         domain = v['DNS_Name']
@@ -286,7 +293,7 @@ class BotRunner:
                     cnc_info_in_db = await self.db_store.load_cnc_info(None,
                                                                        self.cnc_info[0].ip,
                                                                        self.cnc_info[0].port)
-                    cnc_dup = False
+                    cnc_old = False
                     for cnc in cnc_info_in_db:
                         if cnc.bot_id != self.bot_info.bot_id:
                             l.warning(f'Bot already exists for the botnet!')
@@ -295,10 +302,10 @@ class BotRunner:
                             return
                         else:
                             l.warning(f'This is a previous discovered CnC server!')
-                            cnc_dup = True
+                            cnc_old = True
 
                     # newly discovered cnc server
-                    if not cnc_dup:
+                    if not cnc_old:
                         l.warning(f'This is a newly discovered CnC server!')
                         await self.db_store.add_cnc_info(self.cnc_info[0])
 

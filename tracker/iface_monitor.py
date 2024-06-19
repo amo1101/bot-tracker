@@ -303,9 +303,9 @@ class IfaceMonitor:
 
         return report
 
-    def report_incidence(self, src_ip, dst_ip, protocol, src_port, dst_port,
-                         policy,
-                         traffic_type):
+    def report_incidence(self, src_ip, dst_ip,
+                         protocol, src_port, dst_port,
+                         policy, traffic_type):
         with open(self.report_file, 'a') as file:
             action = self.action_type.value \
                     if traffic_type == IfaceMonitorTraffic.MALICIOUS else 'None'
