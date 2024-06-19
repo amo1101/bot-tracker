@@ -132,10 +132,10 @@ def process_skb_event(cpu, data, size):
             ip_key = ct.c_uint32(ip_int)
             if op == 1:
                 g_policy_table[ip_key] = ct.c_uint32(1) # block
-                #  print(f'cnc_ip {ip_str} inserted')
+                #  l.info(f'cnc_ip {ip_str} inserted')
             else:
                 del g_policy_table[ip_key]
-                #  print(f'cnc_ip {ip_str} deleted')
+                #  l.info(f'cnc_ip {ip_str} deleted')
             g_policy_table.update()
 
     class SkbEvent(ct.Structure):
@@ -193,20 +193,22 @@ def run_ebpf(network_mode,
         ipr.tc("del", "clsact", idx)
     except pyroute2.netlink.exceptions.NetlinkError:
         pass
-        #  print('pyroute2.netlink.exceptions.NetlinkError occurred, ignored')
+        #  l.info('pyroute2.netlink.exceptions.NetlinkError occurred, ignored')
 
     ipr.tc("add", "clsact", idx)
     ipr.tc("add-filter", "bpf", idx, ":1", fd=fn.fd, name=fn.name, parent="ffff:fff3", classid=1, direct_action=True)
     b["skb_events"].open_perf_buffer(process_skb_event)
-    print(f"eBPF program loaded and attached to interface {iface}")
+    l.info(f"eBPF program loaded and attached to interface {iface}")
 
     try:
         while not stop_event.is_set():
             b.perf_buffer_poll()
     except KeyboardInterrupt:
         pass
+    except BaseException as e:
+        l.warning(f'An error occured {e} on iface monitor process!')
     finally:
-        print("Detaching eBPF program...")
+        l.info("Detaching eBPF program...")
         ipr.tc("del", "clsact", idx)
 
 
@@ -349,5 +351,9 @@ class IfaceMonitor:
                                           dst_port, policy, traffic_type)
         except asyncio.CancelledError:
             l.info('Iface monitor cancelled.')
+        except BaseException as e:
+            l.warning(f'An error occured {e}!')
+        finally:
             self.stop_event.set()
             self.ebpf_process.join()
+
