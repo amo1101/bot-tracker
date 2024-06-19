@@ -310,7 +310,7 @@ class AttackAnalyzer:
                 else:
                     # if sync ack from server, or data exchange from server
                     if (pkt.tcp_flags_syn == 'True' and pkt.tcp_flags_ack == 'True') \
-                            or (pkt.tcp_len != '0'):
+                            or (pkt.tcp_len != 0):
                         if self.report.cnc_status != CnCStatus.ALIVE.value:
                             self.report.cnc_status = CnCStatus.ALIVE.value
                             self.report.cnc_ready = True

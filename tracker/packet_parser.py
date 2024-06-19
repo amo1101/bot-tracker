@@ -133,10 +133,10 @@ class PacketSummary:
             self.tcp_len = int(pkt.tcp.len)
             self.tcp_srcport = str(pkt.tcp.srcport)
             self.tcp_dstport = str(pkt.tcp.dstport)
-            self.tcp_flags_syn = str(pkt.tcp.flags_syn)
-            self.tcp_flags_ack = str(pkt.tcp.flags_ack)
-            self.tcp_flags_fin = str(pkt.tcp.flags_fin)
-            self.tcp_flags_reset = str(pkt.tcp.flags_reset)
+            self.tcp_flags_syn = 'True' if str(pkt.tcp.flags_syn) in ['1', 'True'] else 'False'
+            self.tcp_flags_ack = 'True' if str(pkt.tcp.flags_ack) in ['1', 'True'] else 'False'
+            self.tcp_flags_fin = 'True' if str(pkt.tcp.flags_fin) in ['1', 'True'] else 'False'
+            self.tcp_flags_reset = 'True' if str(pkt.tcp.flags_reset) in ['1', 'True'] else 'False'
         if 'udp' in self.layers:
             #  print(f'udp: {dir(pkt.udp)}')
             self.udp_len = int(pkt.udp.length)

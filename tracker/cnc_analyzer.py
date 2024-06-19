@@ -148,7 +148,7 @@ class CnCAnalyzer:
                             state = "RST"
                         elif pkt.tcp_flags_fin == "True":
                             state = "FIN"  # FIN will later tell us if the connection was really a success
-                        elif pkt.tcp_len != "0":
+                        elif pkt.tcp_len != 0:
                             state = "SUC"  # We are interested in server exchanging data
                         else:
                             state = "OTHER"

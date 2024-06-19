@@ -61,6 +61,7 @@ class BotRunner:
         self.dormant_time = INIT_TIME_STAMP
         self.staged_time = INIT_TIME_STAMP
         self.last_observe_duration = bot_info.observe_duration  # accumulate observe duration
+        self.last_dormant_duration = bot_info.dormant_duration  # accumulate dormant duration
         self.destroyed = False
         self.iface_monitor = iface_monitor
         self.analyzer_pool = analyzer_pool
@@ -198,6 +199,7 @@ class BotRunner:
             self.bot_info.observe_duration += self.last_observe_duration
             if self.bot_info.status == BotStatus.DORMANT.value:
                 self.bot_info.dormant_duration = self.dormant_duration()
+                self.bot_info.dormant_duration += self.last_dormant_duration
 
         if status == BotStatus.STAGED:
             self.bot_info.status = BotStatus.STAGED.value
@@ -214,6 +216,7 @@ class BotRunner:
             self.dormant_time = INIT_TIME_STAMP
             self.bot_info.dormant_at = INIT_TIME_STAMP
             self.bot_info.dormant_duration = INIT_INTERVAL
+            self.last_dormant_duration = INIT_INTERVAL
 
         if status == BotStatus.INTERRUPTED:
             if self.notify_unstage:
