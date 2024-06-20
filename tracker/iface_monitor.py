@@ -125,20 +125,6 @@ def process_skb_event(cpu, data, size):
     global g_cnc_queue
     global g_policy_table
 
-    # should not block
-    if g_cnc_queue is not None:
-        while not g_cnc_queue.empty():
-            ip_str, op = g_cnc_queue.get(False)
-            ip_int = str_ip_to_int(ip_str)
-            ip_key = ct.c_uint32(ip_int)
-            if op == 1:
-                g_policy_table[ip_key] = ct.c_uint32(1) # block
-                #  l.info(f'cnc_ip {ip_str} inserted')
-            else:
-                del g_policy_table[ip_key]
-                #  l.info(f'cnc_ip {ip_str} deleted')
-            g_policy_table.update()
-
     class SkbEvent(ct.Structure):
         _fields_ = [("src_ip", ct.c_uint32),
                     ("dst_ip", ct.c_uint32),
@@ -148,14 +134,31 @@ def process_skb_event(cpu, data, size):
                     ("policy", ct.c_uint8),
                     ("mark", ct.c_uint8)]
 
-    skb_event = ct.cast(data, ct.POINTER(SkbEvent)).contents
-    g_trace_queue.put((int_ip_to_str(skb_event.src_ip),
-                      int_ip_to_str(skb_event.dst_ip),
-                      ct.c_uint8(skb_event.mark).value,
-                      ct.c_uint8(skb_event.policy).value,
-                      protocols.get(skb_event.protocol, str(skb_event.protocol)),
-                      ct.c_uint16(skb_event.src_port).value,
-                      ct.c_uint16(skb_event.dst_port).value))
+    try:
+        # should not block
+        if g_cnc_queue is not None:
+            while not g_cnc_queue.empty():
+                ip_str, op = g_cnc_queue.get(False)
+                ip_int = str_ip_to_int(ip_str)
+                ip_key = ct.c_uint32(ip_int)
+                if op == 1:
+                    g_policy_table[ip_key] = ct.c_uint32(1) # block
+                    #  l.info(f'cnc_ip {ip_str} inserted')
+                else:
+                    del g_policy_table[ip_key]
+                    #  l.info(f'cnc_ip {ip_str} deleted')
+                g_policy_table.update()
+
+        skb_event = ct.cast(data, ct.POINTER(SkbEvent)).contents
+        g_trace_queue.put((int_ip_to_str(skb_event.src_ip),
+                          int_ip_to_str(skb_event.dst_ip),
+                          ct.c_uint8(skb_event.mark).value,
+                          ct.c_uint8(skb_event.policy).value,
+                          protocols.get(skb_event.protocol, str(skb_event.protocol)),
+                          ct.c_uint16(skb_event.src_port).value,
+                          ct.c_uint16(skb_event.dst_port).value))
+    except Exception as e:
+        l.error(f'An error occurred {e} in SkbEvent cb')
 
 def run_ebpf(network_mode,
              iface,
@@ -250,7 +253,6 @@ class IfaceMonitor:
         self.cnc_map = {}
         self.log_dir = CUR_DIR + os.sep + 'iface_monitor_log'
         self.report_file = self.log_dir + os.sep + f'iface-monitor-report-{self.iface}.log'
-        self.report_file_handle = None
 
     # bots call the api to register monitoring
     async def register(self, cnc_ip, bot_id):
@@ -307,14 +309,12 @@ class IfaceMonitor:
     def report_incidence(self, src_ip, dst_ip,
                          protocol, src_port, dst_port,
                          policy, traffic_type):
-        if self.report_file_handle is None:
-            self.report_file_handle = open(self.report_file, 'a')
-        action = self.action_type.value \
-                    if traffic_type == IfaceMonitorTraffic.MALICIOUS else 'None'
-        report = self._get_report(src_ip, dst_ip, protocol, src_port,
-                                  dst_port, policy, traffic_type, action)
-        self.report_file_handle.write(report)
-        self.report_file_handle.flush()
+        with open(self.report_file, 'a') as file:
+            action = self.action_type.value \
+                        if traffic_type == IfaceMonitorTraffic.MALICIOUS else 'None'
+            report = self._get_report(src_ip, dst_ip, protocol, src_port,
+                                      dst_port, policy, traffic_type, action)
+            file.write(report)
 
     async def fetch_trace_output(self):
         while True:
@@ -359,8 +359,6 @@ class IfaceMonitor:
         except Exception as e:
             l.warning(f'An error occured {e}!')
         finally:
-            if self.report_file_handle is not None:
-                self.report_file_handle.close()
             self.stop_event.set()
             self.ebpf_process.join()
             l.info('Iface monitor process quit')
