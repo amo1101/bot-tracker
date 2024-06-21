@@ -142,12 +142,14 @@ def process_skb_event(cpu, data, size):
                 ip_int = str_ip_to_int(ip_str)
                 ip_key = ct.c_uint32(ip_int)
                 if op == 1:
-                    g_policy_table[ip_key] = ct.c_uint32(1) # block
-                    #  l.info(f'cnc_ip {ip_str} inserted')
+                    g_policy_table[ip_key] = ct.c_uint32(1)  # allow cnc ip
+                    l.info(f'adding policy {ip_str}: 1')
                 else:
-                    del g_policy_table[ip_key]
-                    #  l.info(f'cnc_ip {ip_str} deleted')
+                    if ip_key in g_policy_table:
+                        del g_policy_table[ip_key]
+                        l.info(f'deleting policy of {ip_str}')
                 g_policy_table.update()
+                l.info('policy table updated')
 
         skb_event = ct.cast(data, ct.POINTER(SkbEvent)).contents
         g_trace_queue.put((int_ip_to_str(skb_event.src_ip),
@@ -157,6 +159,7 @@ def process_skb_event(cpu, data, size):
                           protocols.get(skb_event.protocol, str(skb_event.protocol)),
                           ct.c_uint16(skb_event.src_port).value,
                           ct.c_uint16(skb_event.dst_port).value))
+        del skb_event
     except Exception as e:
         l.error(f'An error occurred {e} in SkbEvent cb')
 
@@ -184,6 +187,7 @@ def run_ebpf(network_mode,
     # 0: block all in block network mode except excluded ips and cnc
     # 1: allow all in rate-limit network mode
     default_policy_key = ct.c_uint32(0)
+    l.info('Initializing policy table...')
     g_policy_table[default_policy_key] = ct.c_uint32(1) # allow, 0 is key for default policy
     if network_mode == 0:
         g_policy_table[default_policy_key] = ct.c_uint32(0)
@@ -191,6 +195,8 @@ def run_ebpf(network_mode,
             ip_int = str_ip_to_int(ip_str)
             ip_key = ct.c_uint32(ip_int)
             g_policy_table[ip_key] = ct.c_uint32(1) # allow
+            l.info(f'adding policy {ip_str}: 1...')
+    l.info(f'default policy {g_policy_table[default_policy_key].value}...')
 
     ipr = pyroute2.IPRoute()
     idx = ipr.link_lookup(ifname=iface)[0]
@@ -280,12 +286,13 @@ class IfaceMonitor:
         self.stop_event = multiprocessing.Event()
 
     def _get_report(self, src_ip, dst_ip, protocol, src_port, dst_port, policy,
-                    traffic_type, action):
+                    traffic_type, action, q_size):
         desc = traffic_type.value
         if dst_ip in self.cnc_map:
             desc = f"{desc} (bot_id: {self.cnc_map[dst_ip]})"
 
         report = f"{'timestamp':<16}:{datetime.now()}\n" + \
+                 f"{'qsize':<16}:{q_size}\n" + \
                  f"{'src_ip':<16}:{src_ip}\n" + \
                  f"{'dst_ip':<16}:{dst_ip}\n" + \
                  f"{'protocol':<16}:{protocol}\n" + \
@@ -308,21 +315,24 @@ class IfaceMonitor:
 
     def report_incidence(self, src_ip, dst_ip,
                          protocol, src_port, dst_port,
-                         policy, traffic_type):
+                         policy, traffic_type, q_size):
         with open(self.report_file, 'a') as file:
             action = self.action_type.value \
                         if traffic_type == IfaceMonitorTraffic.MALICIOUS else 'None'
             report = self._get_report(src_ip, dst_ip, protocol, src_port,
-                                      dst_port, policy, traffic_type, action)
+                                      dst_port, policy, traffic_type, action,
+                                      q_size)
             file.write(report)
 
     async def fetch_trace_output(self):
         while True:
             while not self.trace_queue.empty():
+                q_size = self.trace_queue.qsize()
                 src_ip, dst_ip, mark, policy, protocol, src_port, dst_port = self.trace_queue.get()
                 l.debug(f'Dubious packet detected: {src_ip} -> {dst_ip}, mark: {mark}, policy {policy}')
-                yield src_ip, dst_ip, mark, policy, protocol, src_port, dst_port
+                yield src_ip, dst_ip, mark, policy, protocol, src_port, dst_port, q_size
             await asyncio.sleep(0.5)
+
 
     async def run(self):
         l.info('Iface monitor task started...')
@@ -337,7 +347,8 @@ class IfaceMonitor:
         self.ebpf_process.start()
 
         try:
-            async for src_ip, dst_ip, mark, policy, protocol, src_port, dst_port \
+            #  cnt = 0
+            async for src_ip, dst_ip, mark, policy, protocol, src_port, dst_port, q_size \
                     in self.fetch_trace_output():
                 async with self.lock:
                     traffic_type = IfaceMonitorTraffic.MALICIOUS
@@ -353,7 +364,14 @@ class IfaceMonitor:
                         await self.action()
 
                     self.report_incidence(src_ip, dst_ip, protocol, src_port,
-                                          dst_port, policy, traffic_type)
+                                          dst_port, policy, traffic_type,
+                                          q_size)
+#                  if cnt == 10:
+                    #  await self.register('192.168.100.4','bot1')
+                #  if cnt == 20:
+                    #  await self.unregister('192.168.100.4')
+#                  cnt += 1
+
         except asyncio.CancelledError:
             l.info('Iface monitor cancelled.')
         except Exception as e:
@@ -363,3 +381,11 @@ class IfaceMonitor:
             self.ebpf_process.join()
             l.info('Iface monitor process quit')
 
+
+#  if __name__ == "__main__":
+    #  try:
+        #  iface_monitor = IfaceMonitor(0, 'enp0s3', '10.11.45.53',
+                                     #  IfaceMonitorAction.ALARM, None)
+        #  asyncio.run(iface_monitor.run(), debug=True)
+    #  except KeyboardInterrupt:
+#          l.info('Interrupted by user')
