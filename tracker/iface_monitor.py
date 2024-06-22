@@ -108,7 +108,7 @@ protocols = {
     132: "SCTP",
 }
 
-g_trace_queue = None
+g_trace_pipe = None
 g_cnc_queue = None # only for block network mode
 g_policy_table = None
 
@@ -121,7 +121,7 @@ def str_ip_to_int(ip_str):
     return int.from_bytes(ip_int, sys.byteorder)
 
 def process_skb_event(cpu, data, size):
-    global g_trace_queue
+    global g_trace_pipe
     global g_cnc_queue
     global g_policy_table
 
@@ -152,7 +152,7 @@ def process_skb_event(cpu, data, size):
                 l.info('policy table updated')
 
         skb_event = ct.cast(data, ct.POINTER(SkbEvent)).contents
-        g_trace_queue.put((int_ip_to_str(skb_event.src_ip),
+        g_trace_pipe.send((int_ip_to_str(skb_event.src_ip),
                           int_ip_to_str(skb_event.dst_ip),
                           ct.c_uint8(skb_event.mark).value,
                           ct.c_uint8(skb_event.policy).value,
@@ -166,16 +166,16 @@ def process_skb_event(cpu, data, size):
 def run_ebpf(network_mode,
              iface,
              excluded_ips,
-             trace_queue,
+             trace_pipe,
              cnc_queue,
              stop_event):
-    global g_trace_queue
+    global g_trace_pipe
     global g_cnc_queue
     global g_policy_table
 
     signal.signal(signal.SIGINT, signal.SIG_IGN)
 
-    g_trace_queue = trace_queue
+    g_trace_pipe = trace_pipe
     g_cnc_queue = cnc_queue
 
     b = BPF(text=bpf_program)
@@ -252,7 +252,7 @@ class IfaceMonitor:
         self.action_type = action_type
         self.action = action
         self.cnc_queue = None
-        self.trace_queue = None
+        self.trace_pipe = None
         self.stop_event = None
         self.ebpf_process = None
         self.lock = asyncio.Lock()
@@ -280,19 +280,18 @@ class IfaceMonitor:
     def _init_monitor(self):
         if not os.path.exists(self.log_dir):
             os.makedirs(self.log_dir)
-        self.trace_queue = multiprocessing.Queue()
+        self.trace_pipe = multiprocessing.Pipe()
         if self.network_mode == 0:
             self.cnc_queue = multiprocessing.Queue()
         self.stop_event = multiprocessing.Event()
 
     def _get_report(self, src_ip, dst_ip, protocol, src_port, dst_port, policy,
-                    traffic_type, action, q_size):
+                    traffic_type, action):
         desc = traffic_type.value
         if dst_ip in self.cnc_map:
             desc = f"{desc} (bot_id: {self.cnc_map[dst_ip]})"
 
         report = f"{'timestamp':<16}:{datetime.now()}\n" + \
-                 f"{'qsize':<16}:{q_size}\n" + \
                  f"{'src_ip':<16}:{src_ip}\n" + \
                  f"{'dst_ip':<16}:{dst_ip}\n" + \
                  f"{'protocol':<16}:{protocol}\n" + \
@@ -315,24 +314,22 @@ class IfaceMonitor:
 
     def report_incidence(self, src_ip, dst_ip,
                          protocol, src_port, dst_port,
-                         policy, traffic_type, q_size):
+                         policy, traffic_type):
         with open(self.report_file, 'a') as file:
             action = self.action_type.value \
                         if traffic_type == IfaceMonitorTraffic.MALICIOUS else 'None'
             report = self._get_report(src_ip, dst_ip, protocol, src_port,
-                                      dst_port, policy, traffic_type, action,
-                                      q_size)
+                                      dst_port, policy, traffic_type, action)
             file.write(report)
 
     async def fetch_trace_output(self):
         while True:
-            while not self.trace_queue.empty():
-                q_size = self.trace_queue.qsize()
-                src_ip, dst_ip, mark, policy, protocol, src_port, dst_port = self.trace_queue.get()
+            while self.trace_pipe[0].poll():
+                src_ip, dst_ip, mark, policy, protocol, src_port, dst_port = \
+                    self.trace_pipe[0].recv()
                 l.debug(f'Dubious packet detected: {src_ip} -> {dst_ip}, mark: {mark}, policy {policy}')
-                yield src_ip, dst_ip, mark, policy, protocol, src_port, dst_port, q_size
+                yield src_ip, dst_ip, mark, policy, protocol, src_port, dst_port
             await asyncio.sleep(0.5)
-
 
     async def run(self):
         l.info('Iface monitor task started...')
@@ -341,14 +338,14 @@ class IfaceMonitor:
                                                     args=(self.network_mode,
                                                           self.iface,
                                                           self.excluded_ips,
-                                                          self.trace_queue,
+                                                          self.trace_pipe[1],
                                                           self.cnc_queue,
                                                           self.stop_event))
         self.ebpf_process.start()
 
         try:
-            #  cnt = 0
-            async for src_ip, dst_ip, mark, policy, protocol, src_port, dst_port, q_size \
+            cnt = 0
+            async for src_ip, dst_ip, mark, policy, protocol, src_port, dst_port \
                     in self.fetch_trace_output():
                 async with self.lock:
                     traffic_type = IfaceMonitorTraffic.MALICIOUS
@@ -364,13 +361,12 @@ class IfaceMonitor:
                         await self.action()
 
                     self.report_incidence(src_ip, dst_ip, protocol, src_port,
-                                          dst_port, policy, traffic_type,
-                                          q_size)
-#                  if cnt == 10:
-                    #  await self.register('192.168.100.4','bot1')
-                #  if cnt == 20:
-                    #  await self.unregister('192.168.100.4')
-#                  cnt += 1
+                                          dst_port, policy, traffic_type)
+                if cnt == 10:
+                    await self.register('192.168.100.4','bot1')
+                if cnt == 20:
+                    await self.unregister('192.168.100.4')
+                cnt += 1
 
         except asyncio.CancelledError:
             l.info('Iface monitor cancelled.')
@@ -382,10 +378,10 @@ class IfaceMonitor:
             l.info('Iface monitor process quit')
 
 
-#  if __name__ == "__main__":
-    #  try:
-        #  iface_monitor = IfaceMonitor(0, 'enp0s3', '10.11.45.53',
-                                     #  IfaceMonitorAction.ALARM, None)
-        #  asyncio.run(iface_monitor.run(), debug=True)
-    #  except KeyboardInterrupt:
-#          l.info('Interrupted by user')
+if __name__ == "__main__":
+    try:
+        iface_monitor = IfaceMonitor(0, 'enp0s3', '10.11.45.53',
+                                     IfaceMonitorAction.ALARM, None)
+        asyncio.run(iface_monitor.run(), debug=True)
+    except KeyboardInterrupt:
+        l.info('Interrupted by user')

@@ -9,6 +9,8 @@ import socket
 import ctypes as ct
 import multiprocessing
 import sys
+import psutil
+import time
 #  from log import TaskLogger
 
 #  l: TaskLogger = TaskLogger(__name__)
@@ -159,14 +161,14 @@ def process_skb_event(cpu, data, size):
 def run_ebpf(network_mode,
              iface,
              excluded_ips,
-             trace_queue,
+             trace_pipe,
              cnc_queue,
              stop_event):
     global g_trace_queue
     global g_cnc_queue
     global g_policy_table
 
-    g_trace_queue = trace_queue
+    g_trace_pipe = trace_pipe
     g_cnc_queue = cnc_queue
 
     b = BPF(text=bpf_program)
@@ -201,6 +203,16 @@ def run_ebpf(network_mode,
     print(f"eBPF program loaded and attached to interface {iface}")
 
     try:
+        process = psutil.Process(os.getpid())
+        print(f'===> before put: mem_pct {round(process.memory_percent(), 2)}% ')
+        for i in range(20000000):
+            msg = f'0000000000000000000000000000000000000000000000000000000000000333333333333331111111111'
+            g_trace_pipe.send((i,msg))
+            if i%1000000 == 0:
+                print(f"===>put {i}: {msg}")
+
+        time.sleep(15)
+        print(f'===> after get: mem_pct {round(process.memory_percent(), 2)}% ')
         while not stop_event.is_set():
             b.perf_buffer_poll()
     except KeyboardInterrupt:
@@ -265,7 +277,7 @@ class IfaceMonitor:
     def _init_monitor(self):
         if not os.path.exists(self.log_dir):
             os.makedirs(self.log_dir)
-        self.trace_queue = multiprocessing.Queue()
+        self.trace_pipe = multiprocessing.Pipe()
         if self.network_mode == 0:
             self.cnc_queue = multiprocessing.Queue()
         self.stop_event = multiprocessing.Event()
@@ -321,36 +333,44 @@ class IfaceMonitor:
                                                     args=(self.network_mode,
                                                           self.iface,
                                                           self.excluded_ips,
-                                                          self.trace_queue,
+                                                          self.trace_pipe[1],
                                                           self.cnc_queue,
                                                           self.stop_event))
         self.ebpf_process.start()
 
         try:
-            cnt = 0
-            async for src_ip, dst_ip, mark, policy, protocol, src_port, dst_port \
-                    in self.fetch_trace_output():
-                async with self.lock:
-                    traffic_type = IfaceMonitorTraffic.MALICIOUS
-                    if dst_ip in self.cnc_map:
-                        traffic_type = IfaceMonitorTraffic.C2_COMM
-                    elif dst_ip in self.excluded_ips:
-                        traffic_type = IfaceMonitorTraffic.EXCLUSIVE
-                    else:
-                        pass
+            for _ in range(20000000):
+                while True:
+                    if self.trace_pipe[0].poll(0.5):
+                        i, msg = self.trace_pipe[0].recv()
+                        if i % 1000000 == 0:
+                            print(f'getting_q {i}:{msg}')
 
-                    if traffic_type == IfaceMonitorTraffic.MALICIOUS and \
-                       self.action is not None:
-                        await self.action()
 
-                    self.report_incidence(src_ip, dst_ip, protocol, src_port,
-                                          dst_port, policy, traffic_type)
+           #   cnt = 0
+            #  async for src_ip, dst_ip, mark, policy, protocol, src_port, dst_port \
+                    #  in self.fetch_trace_output():
+                #  async with self.lock:
+                    #  traffic_type = IfaceMonitorTraffic.MALICIOUS
+                    #  if dst_ip in self.cnc_map:
+                        #  traffic_type = IfaceMonitorTraffic.C2_COMM
+                    #  elif dst_ip in self.excluded_ips:
+                        #  traffic_type = IfaceMonitorTraffic.EXCLUSIVE
+                    #  else:
+                        #  pass
 
-                cnt += 1
-                if cnt == 5:
-                    await self.register('192.168.100.4', 'bot12345')
-                if cnt == 15:
-                    await self.unregister('192.168.100.4')
+                    #  if traffic_type == IfaceMonitorTraffic.MALICIOUS and \
+                       #  self.action is not None:
+                        #  await self.action()
+
+                    #  self.report_incidence(src_ip, dst_ip, protocol, src_port,
+                                          #  dst_port, policy, traffic_type)
+
+                #  cnt += 1
+                #  if cnt == 5:
+                    #  await self.register('192.168.100.4', 'bot12345')
+                #  if cnt == 15:
+                    #  await self.unregister('192.168.100.4')
 
         except asyncio.CancelledError:
             print('Iface monitor cancelled.')
@@ -360,7 +380,7 @@ class IfaceMonitor:
 if __name__ == "__main__":
     try:
         #  asyncio.get_event_loop().run_until_complete(main_task())
-        ifm = IfaceMonitor(0,'ens160','8.8.8.8',IfaceMonitorAction.TEAR_DOWN, None)
+        ifm = IfaceMonitor(0,'enp0s3','8.8.8.8',IfaceMonitorAction.TEAR_DOWN, None)
         asyncio.run(ifm.run(), debug=True)
         #  run_direct('ens160')
     except KeyboardInterrupt:
