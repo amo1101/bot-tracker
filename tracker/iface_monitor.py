@@ -344,7 +344,6 @@ class IfaceMonitor:
         self.ebpf_process.start()
 
         try:
-            cnt = 0
             async for src_ip, dst_ip, mark, policy, protocol, src_port, dst_port \
                     in self.fetch_trace_output():
                 async with self.lock:
@@ -362,12 +361,6 @@ class IfaceMonitor:
 
                     self.report_incidence(src_ip, dst_ip, protocol, src_port,
                                           dst_port, policy, traffic_type)
-                if cnt == 10:
-                    await self.register('192.168.100.4','bot1')
-                if cnt == 20:
-                    await self.unregister('192.168.100.4')
-                cnt += 1
-
         except asyncio.CancelledError:
             l.info('Iface monitor cancelled.')
         except Exception as e:
@@ -377,11 +370,3 @@ class IfaceMonitor:
             self.ebpf_process.join()
             l.info('Iface monitor process quit')
 
-
-if __name__ == "__main__":
-    try:
-        iface_monitor = IfaceMonitor(0, 'enp0s3', '10.11.45.53',
-                                     IfaceMonitorAction.ALARM, None)
-        asyncio.run(iface_monitor.run(), debug=True)
-    except KeyboardInterrupt:
-        l.info('Interrupted by user')
