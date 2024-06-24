@@ -42,14 +42,14 @@ class AttackStat:
     def update(self, attack_type, pkt, spoofed):
         if self.packet_cnt == 0:
             self.attack_type = attack_type
-            self.start_time = pkt.ts
+            self.start_time = pkt.sniff_time
 
         if attack_type == AttackType.ATTACK_SCAN.value:
             self.src.add(pkt.ip_src)
-            self.dst_port.add(pkt.dst_port)
+            self.dst_port.add(pkt.dstport)
         if attack_type == AttackType.ATTACK_RA.value:
             self.target.add(pkt.ip_src)
-            self.dst_port.add(pkt.dst_port)
+            self.dst_port.add(pkt.dstport)
         if attack_type == AttackType.ATTACK_DP.value:
             self.target.add(pkt.ip_dst)
 
@@ -57,7 +57,7 @@ class AttackStat:
         self.spoofed.add(spoofed)
         self.packet_cnt += 1
         self.total_bytes += pkt.len
-        self.update_time = pkt.ts
+        self.update_time = pkt.sniff_time
         self.duration = self.update_time - self.start_time
 
     def report(self):
@@ -70,6 +70,7 @@ class AttackStat:
         return {'attack_type': self.attack_type,
                 'start_time': self.start_time,
                 'duration': self.duration,
+                'src': ','.join(self.src),
                 'target': target,
                 'protocol': ','.join(self.protocol),
                 'src_port': ','.join(self.src_port),
@@ -87,27 +88,27 @@ class AttackDetector:
         self.attack_gap = attack_gap
         self.min_attack_packets = min_attack_packets
         self.own_ip = own_ip
-        self.pkey_getter = None
-        self.skey_getter = None
 
-    def _set_key_getter(pkey_getter, skey_getter)
-        self.pkey_getter = pkey_getter
-        self.skey_getter = skey_getter
+    def _pkey_getter(self, pkt):
+        pass
+
+    def _skey_getter(self, pkt):
+        pass
 
     def _add_to_group(self, pkt, no_dup=False):
-        key = self.pkey_getter(pkt)
+        key = self._pkey_getter(pkt)
         if key not in self.packet_group:
             self.packet_group[key] = [pkt]
         else:
             if no_dup is True:
-                skey = self.skey_getter(pkt)
+                skey = self._skey_getter(pkt)
                 for p in self.packet_group[key]:
-                    if self.skey_getter(p) == skey:
+                    if self._skey_getter(p) == skey:
                         return
             self.packet_group[key].append(pkt)
 
     def _del_from_group(self, pkt):
-        key = self.pkey_getter(pkt)
+        key = self._pkey_getter(pkt)
         if key not in self.packet_group:
             return
         try:
@@ -118,17 +119,16 @@ class AttackDetector:
             pass
 
     def _update_stat(self, attack_type, pkt):
-        key = self.pkey_getter(pkt)
-
+        key = self._pkey_getter(pkt)
         if key not in self.stats:
             self.stats[key] = AttackStat()
 
         stat = self.stats[key]
         report = None
         if stat.update_time is not None and \
-           pkt.ts - stat.update_time >= self.attack_gap and \
-           stat.min_attack_packets >= self.min_attack_packets:
-            report = stat.report()
+           pkt.sniff_time - stat.update_time >= self.attack_gap:
+            if stat.packet_cnt >= self.min_attack_packets:
+                report = stat.report()
             stat.reset()
 
         spoofed = 'yes' if pkt.ip_src != self.own_ip else 'no'
@@ -137,11 +137,11 @@ class AttackDetector:
         return report
 
     def _flush_stat(self, attack_type):
-        reports = None
+        reports = []
         to_del = []
-        for key, stat in self.stat.items():
+        for key, stat in self.stats.items():
             if datetime.now() - stat.update_time >= self.attack_gap and \
-                stat.min_attack_packets >= self.min_attack_packets:
+                stat.packet_cnt >= self.min_attack_packets:
                 r = stat.report()
                 reports.append(r)
                 to_del.append(key)
@@ -152,12 +152,12 @@ class AttackDetector:
         return reports
 
     def _detect(self, attack_type):
-        reports = None
-        confirmed = None
+        reports = []
+        confirmed = []
         for k, v in self.packet_group.items():
             if len(v) > self.water_mark:
                 for p in v:
-                    r = self._update_stat(attack_type, pkt)
+                    r = self._update_stat(attack_type, p)
                     if r is not None:
                         reports.append(r)
                     confirmed.append(p)
@@ -172,15 +172,15 @@ class ScanDetector(AttackDetector):
     def __init__(self, water_mark, attack_gap, min_attack_packets, own_ip):
         super().__init__(water_mark, attack_gap, min_attack_packets, own_ip)
 
-        def pkey_getter(pkt):
-            return pkt.ip_src
+    def _pkey_getter(self, pkt):
+        return pkt.ip_src
 
-        def skey_getter(pkt):
-            return pkt.ip_dst
-
-        self._set_key_getter(pkey_getter, skey_getter)
+    def _skey_getter(self, pkt):
+        return pkt.ip_dst
 
     def detect(self, pkt):
+        if pkt.len != 0:
+            return [],[]
         self._add_to_group(pkt, True)
         return self._detect(AttackType.ATTACK_SCAN.value)
 
@@ -192,12 +192,12 @@ class RADetector(AttackDetector):
     def __init__(self, water_mark, attack_gap, min_attack_packets, own_ip):
         super().__init__(water_mark, attack_gap, min_attack_packets, own_ip)
 
-        def pkey_getter(pkt):
-            return pkt.src_net
-
-        self._set_key_getter(pkey_getter, None)
+    def _pkey_getter(self, pkt):
+        return pkt.src_net
 
     def detect(self, pkt):
+        if pkt.ip_src == self.own_ip or pkt.len == 0:
+            return [],[]
         self._add_to_group(pkt)
         return self._detect(AttackType.ATTACK_RA.value)
 
@@ -209,21 +209,21 @@ class DPDetector(AttackDetector):
     def __init__(self, water_mark, attack_gap, min_attack_packets, own_ip):
         super().__init__(water_mark, attack_gap, min_attack_packets, own_ip)
 
-        def pkey_getter(pkt):
-            return pkt.dst_net
-
-        self._set_key_getter(pkey_getter, None)
+    def _pkey_getter(self, pkt):
+        return pkt.dst_net
 
     def detect(self, pkt):
+        if pkt.len == 0:
+            return [],[]
         self._add_to_group(pkt)
-        return self._detect(AttackType,ATTACK_DP.value)
+        return self._detect(AttackType.ATTACK_DP.value)
 
     def flush(self):
         return self._flush_stat(AttackType.ATTACK_DP.value)
 
 
 class AttackReport:
-    def __init__(self, cnc_ip, cnc_port)
+    def __init__(self, cnc_ip, cnc_port):
         self.cnc_status = CnCStatus.UNKNOWN.value
         self.cnc_ready = False
         self.cnc_ip = cnc_ip
@@ -263,13 +263,15 @@ class AttackAnalyzer:
         self.own_ip = own_ip
         self.excluded_ips = excluded_ips
         self.enable_attack_detection = enable_attack_detection
-        self.attack_detectors = [ScanDetector(3, timedelta(seconds=attack_gap),
+        self.attack_gap = attack_gap
+        self.min_attack_packets = min_attack_packets
+        self.attack_detectors = [ScanDetector(5, timedelta(seconds=attack_gap),
                                               min_attack_packets,
-                                              owan_ip),
-                                 DPDetector(2, timedelta(seconds=attack_gap),
+                                              own_ip),
+                                 DPDetector(5, timedelta(seconds=attack_gap),
                                             min_attack_packets,
                                             own_ip),
-                                 RADetector(2, timedelta(seconds=attack_gap),
+                                 RADetector(5, timedelta(seconds=attack_gap),
                                             min_attack_packets,
                                             own_ip)]
         self.report = AttackReport(cnc_ip, cnc_port)
@@ -280,10 +282,11 @@ class AttackAnalyzer:
     def get_result(self, flush=False):
         l.debug(f'[{self.tag}] getting report, attack detecion enabled: {self.enable_attack_detection}...')
         if self.enable_attack_detection and flush:
+            self.report.attack_reports.clear()
             for detector in self.attack_detectors:
                 reports = detector.flush()
-                if reports is not None:
-                    self.report.attack_reports.append(reports)
+                if len(reports) > 0:
+                    self.report.attack_reports.extend(reports)
 
         return self.report.get()
 
@@ -310,6 +313,7 @@ class AttackAnalyzer:
 
     def _analyze_attack(self, pkt):
         l.debug(f'[{self.tag}] analyzing attack of packet: {repr(pkt)}')
+
         if 'tcp' not in pkt.layers and \
                 'udp' not in pkt.layers and \
                 'ip' not in pkt.layers:
@@ -325,22 +329,22 @@ class AttackAnalyzer:
                 pkt.ip_dst in self.excluded_ips:
             return False
 
-        reports = None
-        confirmed = None
+        reports = []
+        confirmed = []
         for detector in self.attack_detectors:
             reports, confirmed = detector.detect(pkt)
-            if reports is not None:
+            if len(reports) > 0:
                 self.report.attack_reports = reports
+            if len(confirmed) > 0:
+                break
 
-        if confirmed is not None:
+        if len(confirmed) > 0:
             for detector in self.attack_detectors:
                 detector.del_confirmed(confirmed)
 
-        return reports is not None
-
+        return len(reports) > 0
 
     def analyze(self, pkt):
-        # TODO: slowlori attack may escape
         cnc_ready = self._analyze_cnc_status(pkt)
         attack_ready = False
         if self.enable_attack_detection:
