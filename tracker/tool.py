@@ -75,9 +75,9 @@ async def async_main(args):
                                   args.packet_count)
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Test CnCAnalyzer and AttackAnalyzer.")
+    parser = argparse.ArgumentParser(description="CnC and attack analyze tool.")
     parser.add_argument("-t", "--type", type=int, required=True,
-                        help="analyzer to test: CnCAnalyzer, 1: AttackAnalyzer")
+                        help="choose analyzer, 0: CnCAnalyzer, 1: AttackAnalyzer")
     parser.add_argument("-p", "--pcap", type=str, required=False, default='',
                         help="pcap file to load packets from")
     parser.add_argument("-n", "--packet_count", type=int, required=False, default=0,
