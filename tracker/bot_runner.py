@@ -39,6 +39,8 @@ class BotRunner:
                  cnc_probing_duration, sandbox_ctx, db_store,
                  analyzer_pool,
                  enable_attack_detection,
+                 attack_gap,
+                 min_attack_packets,
                  iface_monitor):
 
         self.bot_info = bot_info
@@ -66,6 +68,8 @@ class BotRunner:
         self.iface_monitor = iface_monitor
         self.analyzer_pool = analyzer_pool
         self.enable_attack_detection = enable_attack_detection
+        self.attack_gap = attack_gap
+        self.min_attack_packets = min_attack_packets
         self.executor_id = None
         self.cnc_analyzer_id = None
         self.attack_analyzer_id = None
@@ -134,7 +138,7 @@ class BotRunner:
             #  cnc_stat.persist(self.cnc_stats_file)
 
         # update attack report
-        for _, r in report['attacks'].items():
+        for r in report['attacks']:
             total_packets = r['packet_cnt']
             total_bytes = r['total_bytes']
             total_secs = r['duration'].total_seconds()
@@ -168,7 +172,9 @@ class BotRunner:
                                                                              cnc_port=cnc_port,
                                                                              own_ip=own_ip,
                                                                              excluded_ips=excluded_ips,
-                                                                             enable_attack_detection=self.enable_attack_detection)
+                                                                             enable_attack_detection=self.enable_attack_detection,
+                                                                             attack_gap=self.attack_gap,
+                                                                             min_attack_packets=self.min_attack_packets)
             l.info(f'attack analyzer initialized as: {self.attack_analyzer_id}')
 
             async for packet in self.live_capture.sniff_continuously():

@@ -117,6 +117,14 @@ class PacketSummary:
             proto = 'unknown'
         return proto
 
+    @property
+    def src_net(self):
+        return '.'.join(self.ip_src.split('.')[:3]) + '.0/24'
+
+    @property
+    def dst_net(self):
+        return '.'.join(self.ip_dst.split('.')[:3]) + '.0/24'
+
     def extract(self, pkt):
         self.sniff_time = pkt.sniff_time
         self.layers = dir(pkt)

@@ -26,6 +26,8 @@ class Scheduler:
                  cnc_probing_duration,
                  max_packet_analyzing_workers,
                  enable_attack_detection,
+                 attack_gap,
+                 min_attack_packets,
                  sandbox_ctx,
                  db_store):
         self.tracker_id = tracker_id  # reserved for supporting multiple trackers.
@@ -44,6 +46,8 @@ class Scheduler:
         self.cnc_probing_duration = cnc_probing_duration
         self.max_analyzing_workers = max_packet_analyzing_workers
         self.enable_attack_detection = True if enable_attack_detection == 'yes' else False
+        self.attack_gap = attack_gap
+        self.min_attack_packets = min_attack_packets
         self.sandbox_ctx = sandbox_ctx
         self.db_store = db_store
         self.iface_monitor = None
@@ -119,6 +123,8 @@ class Scheduler:
                                    self.db_store,
                                    self.analyzer_pool,
                                    self.enable_attack_detection,
+                                   self.attack_gap,
+                                   self.min_attack_packets,
                                    self.iface_monitor)
 
             task = asyncio.create_task(bot_runner.run(),

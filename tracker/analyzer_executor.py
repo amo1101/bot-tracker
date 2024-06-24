@@ -135,7 +135,9 @@ class AnalyzerExecutorPool:
                                       kwargs['cnc_port'],
                                       kwargs['own_ip'],
                                       kwargs['excluded_ips'],
-                                      kwargs['enable_attack_detection'])
+                                      kwargs['enable_attack_detection'],
+                                      kwargs['attack_gap'],
+                                      kwargs['min_attack_packets'])
 
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(e, init_analyzer_in_executor, analyzer)

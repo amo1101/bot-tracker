@@ -56,6 +56,8 @@ async def async_main(arguments=None):
                           int(config['scheduler']['cnc_probing_duration']),
                           int(config['scheduler.packet_analyzer']['max_analyzing_workers']),
                           config['scheduler.packet_analyzer']['enable_attack_detection'],
+                          int(config['scheduler.packet_analyzer']['attack_gap']),
+                          int(config['scheduler.packet_analyzer']['min_attack_packets']),
                           sandbox_ctx,
                           db_store)
 
