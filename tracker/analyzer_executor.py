@@ -131,8 +131,7 @@ class AnalyzerExecutorPool:
                                    kwargs['excluded_ips'],
                                    kwargs['excluded_ports'])
         else:
-            analyzer = AttackAnalyzer(kwargs['cnc_ip'],
-                                      kwargs['cnc_port'],
+            analyzer = AttackAnalyzer(kwargs['cnc_ip_ports'],
                                       kwargs['own_ip'],
                                       kwargs['excluded_ips'],
                                       kwargs['enable_attack_detection'],

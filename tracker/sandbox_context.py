@@ -25,7 +25,7 @@ class SandboxNWFilter(Enum):
 class SandboxScript(Enum):
     PREPARE_FS = "prepare_fs.sh"
     FETCH_LOG = "fetch_log.sh"
-    REDIRECT = "redirect.sh"
+    REDIRECTX = "redirectx.sh"
     DEFAULT_RULE = "default_rule.sh"
 
 
@@ -35,7 +35,7 @@ class SandboxContext:
                  dns_server,
                  network_mode,
                  dns_rate_limit,
-                 allowed_tcp_ports,
+                 redirected_tcp_ports,
                  simulated_server,
                  network_peak,
                  network_average,
@@ -57,7 +57,7 @@ class SandboxContext:
         self._dns_server = dns_server
         self._network_mode = network_mode
         self.dns_rate_limit = dns_rate_limit
-        self._allowed_tcp_ports = allowed_tcp_ports
+        self._redirected_tcp_ports = redirected_tcp_ports
         self._simulated_server = simulated_server
         self.network_peak = network_peak
         self.network_average = network_average
@@ -118,8 +118,8 @@ class SandboxContext:
         return SandboxNWFilter.CNC_RATE_LIMIT
 
     @property
-    def allowed_tcp_ports(self):
-        return self._allowed_tcp_ports
+    def redirected_tcp_ports(self):
+        return self._redirected_tcp_ports
 
     @property
     def simulated_server(self):
@@ -231,8 +231,8 @@ class SandboxContext:
     def get_script(self, name):
         if name == SandboxScript.PREPARE_FS:
             return self.scripts_base + os.sep + SandboxScript.PREPARE_FS.value
-        elif name == SandboxScript.REDIRECT:
-            return self.scripts_base + os.sep + SandboxScript.REDIRECT.value
+        elif name == SandboxScript.REDIRECTX:
+            return self.scripts_base + os.sep + SandboxScript.REDIRECTX.value
         elif name == SandboxScript.FETCH_LOG:
             return self.scripts_base + os.sep + SandboxScript.FETCH_LOG.value
         elif name == SandboxScript.DEFAULT_RULE:
@@ -347,15 +347,19 @@ class SandboxContext:
 
     def _default_rule(self, switch='ON'):
         s = SandboxScript.DEFAULT_RULE
+        sim_server = self.simulated_server if self.network_mode == \
+                        NetworkMode.BLOCK.value else ''
         self.run_script(s, switch,
                         self.subnet,
-                        self.dns_rate_limit)
+                        self.dns_rate_limit,
+                        sim_server,
+                        self.redirected_tcp_ports)
 
     def create_sandbox(self, sandbox_xml):
         return self.conn.createXML(sandbox_xml, libvirt.VIR_DOMAIN_START_VALIDATE)
 
     def apply_nwfilter(self, filter_name, **kwargs):
-        tcp_ports = self._allowed_tcp_ports.split(',')
+        tcp_ports = self.redirected_tcp_ports.split(',')
         binding_xml = self._get_nwfilter_binding(filter_name,
                                                  bridge_ip=self.bridge_ip,
                                                  dns_server=self.dns_server,

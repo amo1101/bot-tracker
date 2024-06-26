@@ -24,7 +24,7 @@ async def async_main(arguments=None):
                                  config['network_control']['dns_server'],
                                  int(config['network_control']['mode']),
                                  config['network_control']['dns_rate_limit'],
-                                 config['network_control.block']['allowed_tcp_ports'],
+                                 config['network_control.block']['redirected_tcp_ports'],
                                  config['network_control.block']['simulated_server'],
                                  config['network_control.rate_limit']['network_peak'],
                                  config['network_control.rate_limit']['network_average'],

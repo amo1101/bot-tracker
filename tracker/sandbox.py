@@ -59,12 +59,17 @@ class Sandbox:
         if os.path.exists(self.fs):
             os.remove(self.fs)
 
-    def redirect_traffic(self, switch, cnc_ip):
+    def redirectx_traffic(self, switch, cnc_ip_ports):
         if self.context.network_mode == NetworkMode.BLOCK.value:
-            s = SandboxScript.REDIRECT
-            self._run_script(s, switch, self.ip,
-                             self.context.allowed_tcp_ports,
-                             self.context.simulated_server, cnc_ip)
+            s = SandboxScript.REDIRECTX
+            cnc_ips = []
+            redirected = self.context.redirected_tcp_ports().split(',')
+            for ip, port in cnc_ip_ports:
+                if port in redirected:
+                    cnc_ips.append(ip)
+            if len(cnc_ips) > 0:
+                all_ips = ','.join(cnc_ips)
+                self._run_script(s, switch, all_ips)
 
     def fetch_log(self, dst, start_time, end_time):
         s = SandboxScript.FETCH_LOG

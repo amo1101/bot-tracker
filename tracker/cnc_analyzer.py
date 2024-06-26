@@ -10,13 +10,14 @@ background_fields = ["icmpv6", "icmp", "mdns", "dns", "dhcpv6", "dhcp", "arp", "
 
 
 class CnCReport:
-    def __init__(self):
+    def __init__(self, max_cnc_candidates):
         self.ip_dict = {}
         self.port_dict = {}
         self.DNS_Mappings = {}
         self.count = 0
         self.Alexa_ranking = 0
         self.cnc_info = []
+        self.max_cnc_candidates = max_cnc_candidates
 
     def is_ready(self):
         if len(self.cnc_info) == 0:
@@ -34,12 +35,12 @@ class CnCReport:
     def rank(self, domain):
         return 0
 
-    # return a tuple ('key',{})
+    # return a list of tuples of potential C2
     def get(self, flush=False):
         if len(self.cnc_info) > 0:
-            return {self.cnc_info[0][0]: self.cnc_info[0][1]}  # return the first tuple with the highest Score
+            return self.cnc_info[:self.max_cnc_candidates]
 
-        ports_added = []
+        #  ports_added = []
         dict_all = {}
 
         for ip in self.ip_dict:
@@ -54,12 +55,12 @@ class CnCReport:
             if should_be_added:
                 ip_port = ip.split(":")
                 if len(ip_port) > 1:  # it's not a DNS address
-                    if ip_port[1] not in ports_added:
-                        ports_added.append(ip_port[1])
-                        self.ip_dict[ip]["Score"] = (1.0 *
-                                                     self.ip_dict[ip]["Total"]) / self.port_dict[ip_port[1]]
-                    else:
-                        should_be_added = False
+                    #  if ip_port[1] not in ports_added:
+                    #  ports_added.append(ip_port[1])
+                    self.ip_dict[ip]["Score"] = (1.0 *
+                                                 self.ip_dict[ip]["Total"]) / self.port_dict[ip_port[1]]
+                    #  else:
+                        #  should_be_added = True  # different from orignal algo,we count this as candidate C2 
                 else:  # there's no port to consider
                     self.ip_dict[ip]["Score"] = (1.0 * self.ip_dict[ip]["Total"])
                 ip_key = ip_port[0]
@@ -75,17 +76,16 @@ class CnCReport:
                     dict_all[ip] = self.ip_dict[ip]
 
         self.cnc_info = sorted(dict_all.items(), key=lambda kv: kv[1]['Score'], reverse=True)
-        if len(self.cnc_info) > 0:
-            return {self.cnc_info[0][0]: self.cnc_info[0][1]}  # return the first tuple with the highest Score
-        return {}
+        return self.cnc_info[:self.max_cnc_candidates]
 
 
 # avoiding logging here cuz this will run in another python interpreter
 # don't want to bother logging to the same file, just use l.debug for debugging
 class CnCAnalyzer:
-    def __init__(self, own_ip, excluded_ips=None, excluded_ports=None):
+    def __init__(self, own_ip, excluded_ips=None, excluded_ports=None,
+                 max_cnc_candidates=100):
         self.tag = None
-        self.report = CnCReport()
+        self.report = CnCReport(max_cnc_candidates)
         self.own_ip = own_ip
         self.excluded_ports = excluded_ports
         self.excluded_ips = excluded_ips

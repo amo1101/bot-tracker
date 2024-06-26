@@ -5,7 +5,7 @@
     <tcp srcipaddr='$SANDBOX_IP' dstipaddr='$CNC_IP'/>
   </rule>
   <rule action='accept' direction='in' priority='700'>
-    <tcp srcipaddr='$CNC_IP'/>
+    <tcp srcipaddr='$CNC_IP[@1]'/>
   </rule>
 
   <!-- allow connection limit -->

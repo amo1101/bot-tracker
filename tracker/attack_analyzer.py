@@ -223,24 +223,35 @@ class DPDetector(AttackDetector):
 
 
 class AttackReport:
-    def __init__(self, cnc_ip, cnc_port):
-        self.cnc_status = CnCStatus.UNKNOWN.value
-        self.cnc_ready = False
-        self.cnc_ip = cnc_ip
-        self.cnc_port = cnc_port
-        self.cnc_update_at = None
+    def __init__(self, cnc_ip_ports):
+        self.curr_cnc = ''
+        self.cnc_status = {}
+        for ip, port in cnc_ip_ports:
+            self.cnc_status[ip]['ready'] = False
+            self.cnc_status[ip]['status'] = CnCStatus.UNKNOWN.value
+            self.cnc_status[ip]['port'] = port
+            self.cnc_status[ip]['update_time'] = None
+
         self.attack_reports = []
 
     def get(self):
-        cnc_ready = self.cnc_ready
-        if self.cnc_ready:
-            self.cnc_ready = False
+        cnc_report = {}
+        if self.curr_cnc != '':
+            if self.curr_cnc in self.cnc_status:
+                cnc_dict = self.cnc_status[self.curr_cnc]
+                cnc_report = {
+                    'cnc_ip': self.curr_cnc,
+                    'cnc_ready': cnc_dict['ready']
+                    'cnc_port': cnc_dict['port'],
+                    'cnc_status': cnc_dict['status'],
+                    'cnc_update_at': cnc_dict['update_time']}
 
-        return {'cnc_ready': cnc_ready,
-                'cnc_ip': self.cnc_ip,
-                'cnc_port': self.cnc_port,
-                'cnc_status': self.cnc_status,
-                'cnc_update_at': self.cnc_update_at,
+                if cnc_dict['ready']:
+                    cnc_dict['port'] = False
+            else:
+                l.warning('current cnc ip not in dict, should not happen.')
+
+        return {'cnc_status': cnc_report,
                 'attacks': self.attack_reports}
 
     def __repr__(self):
@@ -254,12 +265,11 @@ class AttackReport:
 # avoiding logging here cuz this will run in another python interpreter
 # don't want to bother logging to the same file, just use print for debugging
 class AttackAnalyzer:
-    def __init__(self, cnc_ip, cnc_port, own_ip, excluded_ips,
+    def __init__(self, cnc_ip_ports, own_ip, excluded_ips,
                  enable_attack_detection=True, attack_gap=900,
                  min_attack_packets=5):
         self.tag = None
-        self.cnc_ip = cnc_ip
-        self.cnc_port = cnc_port
+        self.cnc_ip_dict = dict(cnc_ip_ports)
         self.own_ip = own_ip
         self.excluded_ips = excluded_ips
         self.enable_attack_detection = enable_attack_detection
@@ -292,24 +302,30 @@ class AttackAnalyzer:
 
     def _analyze_cnc_status(self, pkt):
         l.debug(f'[{self.tag}] analyzing cnc status...')
+        cnc_ready = False
         if 'tcp' in pkt.layers:
             # we only monitor sync_ack or fin_ack from server -> client
-            if pkt.ip_src == self.cnc_ip and pkt.ip_dst == self.own_ip:
+            if pkt.ip_src in self.cnc_ip_dict and pkt.ip_dst == self.own_ip:
+                cnc_ip = pkt.ip_src
+                cnc_dict = self.report.cnc_status[cnc_ip]
+                self.report.curr_cnc = cnc_ip
                 if pkt.tcp_flags_fin == 'True':
                     # server initiate FIN, connection broken
-                    if self.report.cnc_status != CnCStatus.DISCONNECTED.value:
-                        self.report.cnc_status = CnCStatus.DISCONNECTED.value
-                        self.report.cnc_ready = True
-                        self.report.cnc_update_at = datetime.now()
+                    if cnc_dict['status'] != CnCStatus.DISCONNECTED.value:
+                        cnc_dict['status'] = CnCStatus.DISCONNECTED.value
+                        cnc_dict['update_time'] = datetime.now()
+                        cnc_dict['ready'] = True
+                        cnc_ready = True
                 else:
                     # if sync ack from server, or data exchange from server
                     if (pkt.tcp_flags_syn == 'True' and pkt.tcp_flags_ack == 'True') \
                             or (pkt.tcp_len != 0):
-                        if self.report.cnc_status != CnCStatus.ALIVE.value:
-                            self.report.cnc_status = CnCStatus.ALIVE.value
-                            self.report.cnc_ready = True
-                            self.report.cnc_update_at = datetime.now()
-        return self.report.cnc_ready
+                        if cnc_dict['status'] != CnCStatus.ALIVE.value:
+                            cnc_dict['status'] = CnCStatus.ALIVE.value
+                            cnc_dict['update_time'] = datetime.now()
+                            cnc_dict['ready'] = True
+                            cnc_ready = True
+        return cnc_ready
 
     def _analyze_attack(self, pkt):
         l.debug(f'[{self.tag}] analyzing attack of packet: {repr(pkt)}')
