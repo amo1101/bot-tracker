@@ -273,6 +273,7 @@ class DBStore:
         if len(filters) > 0:
             sql += ' WHERE '
             sql += filter_str
+        sql += ' ORDER BY bot_id'
 
         l.debug(f"sql: {sql}")
         l.debug(f"para: {para}")
@@ -312,6 +313,7 @@ class DBStore:
         if len(filters) > 0:
             sql += ' WHERE '
             sql += filter_str
+        sql += ' ORDER BY time'
 
         l.debug(f"sql: {sql}")
         l.debug(f"para: {para}")

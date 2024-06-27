@@ -1,5 +1,4 @@
 import asyncio
-
 import os
 from db_store import *
 from packet_capture import *
@@ -258,7 +257,7 @@ class BotRunner:
                 cnc_dup = False
                 if cnc_info is not None and len(cnc_info) > 0:
                     for ci in cnc_info:
-                        k, v = ci  # should be a tuple of (ip_port: {})
+                        k, v = ci  # should be a tuple of (ip_port, {})
                         ip_port = k.split(':')
                         if len(ip_port) < 2:
                             l.error(f'invalid ip:port format {k}')
@@ -279,7 +278,6 @@ class BotRunner:
                                 l.warning(f'Bot already exists for the botnet!')
                                 cnc_dup = True
                             else:
-                                cnc_dup = False
                                 cnc_old = True
 
                         if not cnc_dup:
@@ -293,6 +291,7 @@ class BotRunner:
                             else:
                                 l.warning(f'This is a previous discovered CnC server!')
 
+                # all cnc are duplicated
                 if cnc_dup and len(self.cnc_info) == 0:
                     self.notify_dup = True
                     await self.destroy()
@@ -311,7 +310,7 @@ class BotRunner:
             # enforce nwfilter
             nwfilter_type = self.sandbox_ctx.cnc_nwfilter
             cnc_ips = [c.ip for c in self.cnc_info]
-            cnc_ip_ports = [(c.ip, c.port) for c in self.cnc_info]
+            cnc_ip_ports = [(c.ip, str(c.port)) for c in self.cnc_info]
             args = {"cnc_ip": cnc_ips}
             self.sandbox.apply_nwfilter(nwfilter_type, **args)
 
@@ -327,8 +326,8 @@ class BotRunner:
 
         except asyncio.CancelledError:
             l.warning("Bot runner cancelled")
-        except BaseException as e:
-            l.error(f"An error occured {e}")
+        except Exception as e:
+            l.error(f"An error occurred {e}")
         finally:
             await self.destroy()
 
@@ -345,7 +344,7 @@ class BotRunner:
             self.sandbox.fetch_log(self.log_dir, str_start_time, str_end_time)
 
             # turn off traffic redirection
-            cnc_ip_ports = [(c.ip, c.port) for c in self.cnc_info]
+            cnc_ip_ports = [(c.ip, str(c.port)) for c in self.cnc_info]
             self.sandbox.redirectx_traffic('OFF', cnc_ip_ports)
             for ci in self.cnc_info:
                 await self.iface_monitor.unregister(ci.ip)
@@ -368,7 +367,7 @@ class BotRunner:
             self.destroyed = True
         except asyncio.CancelledError:
             l.debug('Cancelled error occurred')
-        except BaseException as e:
+        except Exception as e:
             l.debug(f'An error occurred {e}')
         finally:
             pass
