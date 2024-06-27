@@ -222,17 +222,106 @@ class DPDetector(AttackDetector):
         return self._flush_stat(AttackType.ATTACK_DP.value)
 
 
+class CnCStatCollector:
+
+    @dataclass
+    class CnCStat:
+        ip: str
+        port: str
+        packet_cnt: int
+        total_bytes: int
+        syn_cnt: int
+        fin_cnt: int
+        start_time: datetime
+        end_time: datetime
+
+        def report(self):
+            return {'ip': self.ip,
+                    'port': self.port,
+                    'packet_cnt': self.packet_cnt,
+                    'total_bytes': self.total_bytes,
+                    'syn_cnt': self.syn_cnt,
+                    'fin_cnt': self.fin_cnt,
+                    'start_time': self.start_time,
+                    'end_time': self.end_time}
+
+   def __init__(self, cnc_ips, own_ip, min_occurrence=2):
+        self.cnc_ips = cnc_ips
+        self.own_ip = own_ip
+        self.min_occurrence
+        self.stats = {}
+
+    def add(self, pkt):
+        key = ''
+        port = 0
+        fin_cnt = 0
+        syn_cnt = 0
+        if 'tcp' not int pkt.layers:
+            return
+        # count traffic from both sides
+        if pkt.ip_src in self.cnc_ips and \
+           pkt.ip_dst == self.own_ip:
+            key = pkt.ip_src
+            port = pkt.tcp_srcport
+        elif pkt.ip_src == self.own_ip and \
+             pkt.ip_dst in self.cnc_ips:
+            key = pkt.ip_dst
+            port = pkt.tcp_dstport
+        elif pkt.ip_src == self.own_ip:
+            # potential c2 that is not detected by CnCAnalyzer
+            background_fields = ["icmpv6", "icmp", "mdns", "dns", "dhcpv6", "dhcp", "arp", "ntp"]
+            if not is_background_traffic(pkt, background_fields) and \
+               pkt.tcp_flags_syn == 'True' and \
+               pkt.tcp_flags_ack != 'True':
+                key = pkt.ip_dst
+        else:
+            return
+
+        fin_cnt = 1 if pkt.tcp_flags_fin == 'True' and \
+                       pkt.tcp_flags_ack == 'False' else 0
+        syn_cnt = 1 if pkt.tcp_flags_syn == 'True' and \
+                       pkt.tcp_flags_ack == 'False' else 0
+
+        if key not in self.stats:
+            self.stats[key] = CnCStat(key, port,
+                                      1, pkt.tcp_len,
+                                      fin_cnt, syn_cnt,
+                                      pkt.sniff_time,
+                                      pkt.sniff_time)
+        else:
+            self.stats[key].packet_cnt += 1
+            self.stats[key].total_bytes += pkt.tcp_len
+            self.stats[key].syn_cnt += syn_cnt
+            self.stats[key].fin_cnt += fin_cnt
+            self.stats[key].end_time = pkt.sniff_time
+
+    def del(self, pkt):
+        key = pkt.ip_dst
+        if key in self.stats:
+            del self.stats[key]
+
+    def report(self):
+        reports = []
+        for k, v in self.stats.items():
+            if v.packet_cnt < self.min_occurrence:
+                continue
+            reports.append(v.report())
+        return reports
+
+
 class AttackReport:
     def __init__(self, cnc_ip_ports):
         self.curr_cnc = ''
         self.cnc_status = {}
+        self.cnc_stats = []
+        self.attack_reports = []
+
         for ip, port in cnc_ip_ports:
             self.cnc_status[ip]['ready'] = False
             self.cnc_status[ip]['status'] = CnCStatus.UNKNOWN.value
             self.cnc_status[ip]['port'] = port
             self.cnc_status[ip]['update_time'] = None
 
-        self.attack_reports = []
 
     def get(self):
         cnc_report = {}
@@ -252,6 +341,7 @@ class AttackReport:
                 l.warning('current cnc ip not in dict, should not happen.')
 
         return {'cnc_status': cnc_report,
+                'cnc_stats': self.cnc_stats,
                 'attacks': self.attack_reports}
 
     def __repr__(self):
@@ -284,6 +374,7 @@ class AttackAnalyzer:
                                  RADetector(5, timedelta(seconds=attack_gap),
                                             min_attack_packets,
                                             own_ip)]
+        self.cnc_stat_collector = CnCStatCollector(self.cnc_ip_ports, own_ip)
         self.report = AttackReport(cnc_ip, cnc_port)
 
     def set_tag(self, tag):
@@ -297,6 +388,7 @@ class AttackAnalyzer:
                 reports = detector.flush()
                 if len(reports) > 0:
                     self.report.attack_reports.extend(reports)
+            self.report.cnc_stats = self.cnc_stat_collector.report()
 
         return self.report.get()
 
@@ -335,6 +427,9 @@ class AttackAnalyzer:
                 'ip' not in pkt.layers:
             return False
 
+        # collect cnc stats
+        self.cnc_stat_collector.add(pkt)
+
         background_fields = ["mdns", "dhcpv6", "dhcp", "arp"]
         if is_background_traffic(pkt, background_fields):
             return False
@@ -357,6 +452,9 @@ class AttackAnalyzer:
         if len(confirmed) > 0:
             for detector in self.attack_detectors:
                 detector.del_confirmed(confirmed)
+            # also delete noises packet from cnc stat collector
+            for p in confirmed:
+                self.cnc_stat_collector.del(p)
 
         return len(reports) > 0
 

@@ -2,10 +2,23 @@ import asyncio
 import os
 from analyzer_executor import *
 import argparse
+import configparser
 import csv
 from packet_capture import AsyncFileCapture
+from db_store import *
 
 CUR_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = CUR_DIR + os.sep + 'log'
+g_data_dir = {}
+
+# data dir structure: log/bot/measurements
+def read_all_data_dir():
+    for r, d, f in os.walk(DATA_DIR):
+        entry = (d, [])
+        g_data_dir.append(entry)
+        curr_path = os.path.join(r, d)
+        for r1, d1, f1 in os.walk(curr_path):
+            entry[1].append(d1)
 
 
 # data should stored in list of dict
@@ -90,48 +103,80 @@ async def run_attack_analyzer(pcap, cnc_ip, own_ip, excluded_ips, attack_gap,
     write_to_csv(output_files[1], attack_reports)
 
 
-async def async_main(args):
-    if args.type == 0:
-        await run_cnc_analyzer(args.pcap, args.sandbox_ip,
-                               args.excluded_ips.split(','),
-                               args.packet_count)
-    else:
-        await run_attack_analyzer(args.pcap, args.cnc_ip,
-                                  args.sandbox_ip,
-                                  args.excluded_ips.split(','),
-                                  args.attack_gap,
-                                  args.min_attack_packets,
-                                  args.packet_count,
-                                  args.output_file)
+def input_bot_measurement_menu():
+    print('Choose bot:')
+    i = 1
+    for b in g_data_dir:
+        print(f'i: b[0]')
+        i += 1
+    b_idx = int(input()) - 1
+
+    print('Choose measurement:')
+    i = 1
+    for m in g_data_dir[b_idx][1]:
+        print(f'i: m')
+        i += 1
+    m_idx = int(input()) - 1
+    bot = g_data_dir[b_idx][0]
+    m = g_data_dir[b_idx][1][m_idx]
+
+    print('Input packet number to analyze:')
+    packet_cnt = int(input())
+    return bot, m, packet_cnt
+
+
+async def async_data_analysis(args):
+    while True:
+        print('Please choose:
+               1: detect CnC server
+               2: analzye attacks and CnC statistics
+               b: go back')
+        op = input()
+        if op == '1':
+            b, m, packet_cnt = input_bot_measurement_menu()
+            await run_cnc_analyzer(b, m, packet_cnt)
+        elif op == '2':
+            print('Choose:
+                   1: analyze for a specific bot
+                   2: analyze all')
+            choice = input()
+            if choice == '1':
+                b, m, packet_cnt = input_bot_measurement_menu()
+                await run_attack_analyzer(b, m, packet_cnt)
+            elif choice == '2':
+                for b, ms in g_data_dir:
+                    for m in ms:
+                        await run_attack_analyzer(b, m, 0)
+            else:
+                pass
+        elif op == 'b':
+            return
+        else:
+            pass
+
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="CnC and attack analyze tool.")
-    parser.add_argument("-t", "--type", type=int, required=True,
-                        help="choose analyzer, 0: CnCAnalyzer, 1: AttackAnalyzer")
-    parser.add_argument("-p", "--pcap", type=str, required=False, default='',
-                        help="pcap file to load packets from")
-    parser.add_argument("-n", "--packet_count", type=int, required=False, default=0,
-                        help="number of packets to analyze")
-    parser.add_argument("-s", "--sandbox_ip", type=str, required=False, default='',
-                        help="Sandbox IP, required for both analzyers")
-    parser.add_argument("-e", "--excluded_ips", type=str, required=False, default='',
-                        help="Exclueded IPs for CnCAnalyzer, separate with comma")
-    parser.add_argument("-c", "--cnc_ip", type=str, required=False, default='',
-                        help="C2 IP, for AttackAnalyzer")
-    parser.add_argument("-g", "--attack_gap", type=int, required=False,
-                        default=900,
-                        help="Attack gap for AttackAnalyzer")
-    parser.add_argument("-m", "--min_attack_packets", type=int, required=False,
-                        default=30,
-                        help="Minimum attack packets for AttackAnalyzer")
-    parser.add_argument("-o", "--output_file", type=str, required=False,
-                        default='cnc_report.csv,attack_report.csv',
-                        help="Out file in csv format for C2 status and attack \
-                        reports, separated by comma, e.g.,cnc_report.csv,attack_report.csv")
-    args = parser.parse_args()
-
     try:
-        asyncio.run(async_main(args), debug=True)
+        read_all_data_dir()
+        print('Welcome to botnet tracker data processing tool')
+        while True:
+            print('Please choose:
+                   1.data analysis
+                   2.data enrichement
+                   3.data backup
+                   q: quit')
+
+            op = input()
+            if op == '1':
+                asyncio.run(async_data_analysis(), debug=True)
+            elif op == '2':
+                pass
+            elif op == '3':
+                pass
+            elif op == 'q':
+                return
+            else:
+                print('error input!')
     except KeyboardInterrupt:
         print('Interrupted by user')
 
