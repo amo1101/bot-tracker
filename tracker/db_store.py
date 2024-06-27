@@ -208,8 +208,8 @@ class DBStore:
                 para += (status_list,)
                 filters.append('status = ANY(%s)')
         if bot_id is not None:
-            para += (bot_id,)
-            filters.append('bot_id = %s')
+            para += (bot_id + '%',)
+            filters.append('bot_id like %s')
         if tracker is not None:
             para += (tracker,)
             filters.append('tracker = %s')
@@ -260,8 +260,8 @@ class DBStore:
         sql = "SELECT * FROM cnc_info"
         filters = []
         if bot_id is not None:
-            para += (bot_id,)
-            filters.append('bot_id = %s')
+            para += (bot_id + '%',)
+            filters.append('bot_id like %s')
         if ip is not None:
             para += (ip,)
             filters.append('ip = %s')
@@ -299,8 +299,8 @@ class DBStore:
         sql = "SELECT * FROM attack_info"
         filters = []
         if bot_id is not None:
-            para += (bot_id,)
-            filters.append('bot_id = %s')
+            para += (bot_id + '%',)
+            filters.append('bot_id like %s')
         if cnc_ip is not None:
             para += (cnc_ip,)
             filters.append('cnc_ip = %s')

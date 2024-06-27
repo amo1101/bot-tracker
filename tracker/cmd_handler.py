@@ -29,14 +29,17 @@ async def handle_list_bot(args):
     if len(bots) == 1:
         return repr(bots[0])
 
-    head = f"{'bot_id':<68}{'family':<16}{'arch':<16}{'upload_at':<24}{'status':<12}"
+    head = "{'bot_id':<24}{'family':<12}{'arch':<16}{'upload_at':<24}" + \
+           "{'status':<12}{'observe_duration':<26}{'dormant_duration':<26}"
     body = '\n' + len(head) * '-'
     if len(bots) == 0:
         return head + body
 
     foot = f"\n{'count:':>{len(head) - 10}} {len(bots)}"
     for b in bots:
-        body += f"\n{b.bot_id:<68}{b.family:<16}{b.arch_spec:<16}{b.upload_at:<24}{b.status:<12}"
+        bid = b.bot_id if len(b.bot_id) <= 16 else b.bot_id[:16] + '...'
+        body += f"\n{bid:<24}{b.family:<16}{b.arch_spec:<16}{b.upload_at:<24}" + \
+                f"{b.status:<12}{b.observe_duration:<26}{b.dormant_duration:<26}"
     body += '\n' + len(head) * '-'
     return head + body + foot
 
@@ -108,16 +111,19 @@ async def handle_list_cnc(args):
         resp = repr(cncs[0])
         return resp
 
-    head = f"{'ip':<20}{'port':<12}{'bot_id':<64}"
+    head = f"{'ip':<20}{'port':<12}{'domain':<40}{'bot_id':<24}"
     body = '\n' + len(head) * '-'
     if len(cncs) == 0:
         return head + body
 
     foot = f"\n{'count:':>{len(head) - 10}} {len(cncs)}"
     for c in cncs:
+        bid = c.bot_id if len(c.bot_id) <= 16 else c.bot_id[:16] + '...'
+        domain = c.domain if len(c.domain) <= 36 else c.domain[:36] + '...'
         body += f"\n{c.ip:<20}" + \
                 f"{c.port:<12}" + \
-                f"{c.bot_id:<64}"
+                f"{domain:<40}" + \
+                f"{bid:<24}"
     body += '\n' + len(head) * '-'
     resp = head + body + foot
     return resp

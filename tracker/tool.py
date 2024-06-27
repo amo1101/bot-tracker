@@ -7,19 +7,45 @@ import csv
 from packet_capture import AsyncFileCapture
 from db_store import *
 
+
 CUR_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = CUR_DIR + os.sep + 'log'
-g_data_dir = {}
+REPORT_DIR = CUR_DIR + os.sep + 'report'
+g_data_dir = []
+g_tool_config = None
+g_db_store = None
 
 # data dir structure: log/bot/measurements
 def read_all_data_dir():
+    global g_data_dir
     for r, d, f in os.walk(DATA_DIR):
         entry = (d, [])
         g_data_dir.append(entry)
         curr_path = os.path.join(r, d)
         for r1, d1, f1 in os.walk(curr_path):
             entry[1].append(d1)
+    if len(g_data_dir) == 0:
+        print('No data to analyze.')
 
+def read_tool_config():
+    global g_tool_config
+    g_tool_config = configparser.ConfigParser()
+    ini_file = REPORT_DIR + os.sep + 'config.ini'
+    if not os.path.exists(ini_file):
+        l.error('tool config file not exist!')
+        g_tool_config = None
+        return
+    g_tool_config.read(ini_file)
+
+async def connect_db():
+    global g_db_store
+    global g_db_connected
+    g_db_store = DBStore(g_tool_config['database']['host'],
+                         g_tool_config['database']['port'],
+                         g_tool_config['database']['dbname'],
+                         g_tool_config['database']['user'],
+                         g_tool_config['database']['password'])
+    await g_db_store.open()
 
 # data should stored in list of dict
 def write_to_csv(csv_file, data):
@@ -38,9 +64,59 @@ def write_to_csv(csv_file, data):
         writer = csv.DictWriter(file, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(data)
-    print(f"Data written to {csv_file}")
 
-async def run_cnc_analyzer(pcap, own_ip, excluded_ips, packet_count):
+async def get_bot_cnc_info(bot):
+    # e.g.2024_06_26_16_12_38_mirai_5f2ac36f
+    last_ = bot_id.rfind("_")
+    bot_id = bot[last_ + 1:]
+    cncs = await g_db_store.load_cnc_info(bot_id)
+    if len(cncs) == 0:
+        print('Cannot find CnC info for this bot')
+        return None, None
+    bot_id_raw = cncs[0].bot_id
+    cnc_ip_ports = [(c.ip, c.port) for c in cncs]
+    return bot_id_raw, cnc_ip_ports
+
+def get_sandbox_ip(pcap):
+    sandbox_ip = None
+    def inspect_packet(pkt):
+        sandbox_ip = pkt.ip.src
+
+    # filter packets for downloading bot from malware repo
+    display_filter = \
+        f"ip.src=={g_tool_config['data_analysis']['subnet']} and " + \
+        f"ip.dst=={g_tool_config['data_analysis']['malware_repo_ip']} and " + \
+        f"tcp.dstport=22 and tcp.flags.syn=1"
+
+    cap = pyshark.FileCapture(pcap, display_filter=display_filter)
+    cap.apply_on_packets(inspect_packet, packet_count=50)
+    print(f'Get sandbox ip: {sandbox_ip}')
+    return sandbox_ip
+
+def create_report_dir(bot, measurement):
+    b_dir = REPORT_DIR + os.sep + bot
+    m_dir = b_dir + os.sep + measurement
+    if not os.path.exists(b_dir):
+        os.makedirs(b_dir)
+    if not os.path.exists(m_dir):
+        os.makedirs(m_dir)
+
+def get_report_dir(bot, measurement):
+    return REPORT_DIR + os.sep + bot + os.sep + measurement
+
+def get_data_dir(bot, measurement):
+    return DATA_DIR + os.sep + bot + os.sep + measurement
+
+async def run_cnc_analyzer(bot, measurement, packet_cnt):
+    pcap = get_data_dir() + os.sep + 'capture.pcap'
+    own_ip = get_sandbox_ip(pcap)
+    if own_ip is None:
+        print('Sandbox ip not found!')
+        return
+    excluded_ips = g_tool_config['data_analysis']['excluded_ips'].split(',')
+
+    print(f'Start detecting C2 servers...')
+    print(f'pcap file: {pcap}\nsandbox_ip: {sandbox_ip}\npacket_cnt: {packet_cnt}')
     executor_pool = AnalyzerExecutorPool(1)
     eid = executor_pool.open_executor()
     aid = await executor_pool.init_analyzer(eid, AnalyzerType.ANALYZER_CNC,
@@ -48,73 +124,110 @@ async def run_cnc_analyzer(pcap, own_ip, excluded_ips, packet_count):
                                             excluded_ips=excluded_ips,
                                             excluded_ports=None)
     cap = AsyncFileCapture(pcap)
+    cnt = 0
     try:
         async for packet in cap.sniff_continuously(packet_count):
             await executor_pool.analyze_packet(eid, aid, packet)
+            cnt += 1
+            if cnt % 10000 == 0:
+                print(f'{cnt} packets analyzed...')
     finally:
         pass
 
     result = await executor_pool.get_result(eid, aid)
-    print(f'result of cnc_analyze: {result}')
+    print(f'Finished detecting CnC servers:\n{result}')
     await cap.close_async()
-
     await executor_pool.finalize_analyzer(eid, aid)
     executor_pool.close_executor(eid)
     executor_pool.destroy()
 
+async def run_attack_analyzer(bot, measurement, packet_cnt):
+    pcap = get_data_dir() + os.sep + 'capture.pcap'
+    own_ip = get_sandbox_ip(pcap)
+    if own_ip is None:
+        print('Sandbox ip not found!')
+        return
+    excluded_ips = g_tool_config['data_analysis']['excluded_ips'].split(',')
+    attack_gap = int(g_tool_config['data_analysis']['attack_gap'])
+    min_attack_packets = int(g_tool_config['data_analysis']['min_attack_packets'])
+    bot_id, cnc_ip_ports = await get_bot_cnc_info(bot)
+    if cnc_ip_ports is None:
+        print('CnC not exists for this bot!')
+        return
 
-async def run_attack_analyzer(pcap, cnc_ip, own_ip, excluded_ips, attack_gap,
-                              min_attack_packets, packet_count,
-                              output_file):
-    output_files = output_file.split(',')
-    cnc_reports = []
+    print(f'Start analyzing attack and CnC stats...')
+    print(f'pcap file: {pcap}\nsandbox_ip: {sandbox_ip}\npacket_cnt: {packet_cnt}')
+    print(f'CnC info {cnc_ip_ports}\nattack_gap:{attack_gap}')
+    print(f'min_attack_packets: {min_attack_packets}')
+
+    cnc_status = []
+    cnc_stats = []
     attack_reports = []
     executor_pool = AnalyzerExecutorPool(1)
     eid = executor_pool.open_executor()
     aid = await executor_pool.init_analyzer(eid, AnalyzerType.ANALYZER_ATTACK,
-                                            cnc_ip=cnc_ip,
-                                            cnc_port=None,
+                                            cnc_ip_ports=cnc_ip_ports,
                                             own_ip=own_ip,
                                             excluded_ips=excluded_ips,
                                             enable_attack_detection=True,
                                             attack_gap=attack_gap,
                                             min_attack_packets=min_attack_packets)
     cap = AsyncFileCapture(pcap)
+
+    def get_report_result(report):
+        if report['cnc_status']['ready']:
+            cnc_status.append(report['cnc_status'])
+        cnc_stats.extend(report['cnc_stats'])
+        for r in report['attacks']:
+            r['bot_id'] = bot_id
+            r['cnc_ip'] = report['cnc_status']['cnc_ip']
+            attack_reports.append(r)
+
     try:
+        cnt = 0
         async for packet in cap.sniff_continuously(packet_count):
             ret = await executor_pool.analyze_packet(eid, aid, packet)
             if ret is True:
                 report = await executor_pool.get_result(eid, aid)
-                print(f'attack detected: {report}')
-                cnc_reports.append(report['cnc_status'])
-                attack_reports.extend(report['attacks'])
+                get_report_result(report)
+            cnt += 1
+            if cnt % 10000 == 0:
+                print(f'{cnt} packets analyzed...')
     finally:
         report = await executor_pool.get_result(eid, aid, True)
-        cnc_reports.append(report['cnc_status'])
-        attack_reports.extend(report['attacks'])
-        print(f'final attack detected: {report}')
+        get_report_result(report)
+
+    print('Finished analyzing CnC and attack stats')
 
     await executor_pool.finalize_analyzer(eid, aid)
     executor_pool.close_executor(eid)
     executor_pool.destroy()
     await cap.close_async()
 
-    write_to_csv(output_files[0], cnc_reports)
-    write_to_csv(output_files[1], attack_reports)
+    create_report_dir(bot, measurement)
+    str_time = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
+    report_dir = get_report_dir(bot, measurement)
+    f_cnc_status = report_dir + os.sep + 'cnc-status_' + str_time + '.csv'
+    f_cnc_stats = report_dir + os.sep + 'cnc-stats_' + str_time + '.csv'
+    f_attacks = report_dir + os.sep + 'attacks_' + str_time + '.csv'
+    write_to_csv(f_cnc_status, cnc_status)
+    write_to_csv(f_cnc_stats, cnc_stats)
+    write_to_csv(f_attacks, attack_reports)
 
+    print('Analyzing results have been written to files under:\n{report_dir}')
 
 def input_bot_measurement_menu():
     print('Choose bot:')
     i = 1
     for b in g_data_dir:
-        print(f'i: b[0]')
+        print(f'{i}: b[0]')
         i += 1
     b_idx = int(input()) - 1
 
     print('Choose measurement:')
     i = 1
     for m in g_data_dir[b_idx][1]:
-        print(f'i: m')
+        print(f'{i}: m')
         i += 1
     m_idx = int(input()) - 1
     bot = g_data_dir[b_idx][0]
@@ -124,48 +237,42 @@ def input_bot_measurement_menu():
     packet_cnt = int(input())
     return bot, m, packet_cnt
 
-
 async def async_data_analysis(args):
-    while True:
-        print('Please choose:
-               1: detect CnC server
-               2: analzye attacks and CnC statistics
-               b: go back')
-        op = input()
-        if op == '1':
-            b, m, packet_cnt = input_bot_measurement_menu()
-            await run_cnc_analyzer(b, m, packet_cnt)
-        elif op == '2':
-            print('Choose:
-                   1: analyze for a specific bot
-                   2: analyze all')
-            choice = input()
-            if choice == '1':
+    await connect_db()
+    try:
+        while True:
+            print('Please choose:\n1: detect CnC server\n2: analzye attacks and CnC stats')
+            op = input()
+            if op == '1':
                 b, m, packet_cnt = input_bot_measurement_menu()
-                await run_attack_analyzer(b, m, packet_cnt)
-            elif choice == '2':
-                for b, ms in g_data_dir:
-                    for m in ms:
-                        await run_attack_analyzer(b, m, 0)
+                await run_cnc_analyzer(b, m, packet_cnt)
+            elif op == '2':
+                print('Choose:\n1: analyze for a specific bot\n2: analyze all')
+                choice = input()
+                if choice == '1':
+                    b, m, packet_cnt = input_bot_measurement_menu()
+                    await run_attack_analyzer(b, m, packet_cnt)
+                elif choice == '2':
+                    for b, ms in g_data_dir:
+                        for m in ms:
+                            await run_attack_analyzer(b, m, 0)
+                else:
+                    pass
             else:
                 pass
-        elif op == 'b':
-            return
-        else:
-            pass
+    finally:
+        await g_db_store.close()
 
 
 if __name__ == "__main__":
     try:
         read_all_data_dir()
+        read_tool_config()
+        if len(g_data_dir) == 0 or g_tool_config is None:
+            return
         print('Welcome to botnet tracker data processing tool')
         while True:
-            print('Please choose:
-                   1.data analysis
-                   2.data enrichement
-                   3.data backup
-                   q: quit')
-
+            print('Please choose:\n1: data analysis\n2: data enrichment\n3: data backup')
             op = input()
             if op == '1':
                 asyncio.run(async_data_analysis(), debug=True)
@@ -173,10 +280,8 @@ if __name__ == "__main__":
                 pass
             elif op == '3':
                 pass
-            elif op == 'q':
-                return
             else:
-                print('error input!')
+                print('Error input!')
     except KeyboardInterrupt:
-        print('Interrupted by user')
+        print('Have a good day! Bye!')
 
