@@ -21,7 +21,7 @@ if [ "$SWITCH" == "ON" ]; then
 
     # nat table PREROUTING chain for traffic redirection
     if [ -n "$SIM_SERVER" ]; then
-        iptables -N $CHAIN_NAT
+        iptables -N $CHAIN_NAT -t nat
         iptables -t nat -A $CHAIN_NAT -j DNAT --to-destination "$SIM_SERVER"
         read -ra ports <<< "$TCP_PORTS"
         for port in "${ports[@]}"; do
@@ -38,12 +38,12 @@ else
     iptables -X $CHAIN
 
     if [ -n "$SIM_SERVER" ]; then
-        iptables -F $CHAIN_NAT
+        iptables -F $CHAIN_NAT -t nat
         read -ra ports <<< "$TCP_PORTS"
         for port in "${ports[@]}"; do
             iptables -t nat -D PREROUTING -s "$SUBNET" -p TCP --dport "$port" -j $CHAIN_NAT
         done
-        iptables -X $CHAIN_NAT
+        iptables -X $CHAIN_NAT -t nat
     fi
 
     iptables -t mangle -D PREROUTING -s "$SUBNET" -j MARK --set-mark 0xb

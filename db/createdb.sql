@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS cnc_info (
 CREATE TABLE IF NOT EXISTS attack_info (
     bot_id VARCHAR (128),
     cnc_ip VARCHAR (32),
+    cnc_port INT,
     attack_type VARCHAR (32),
     time TIMESTAMPTZ,
     duration INTERVAL,

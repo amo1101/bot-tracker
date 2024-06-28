@@ -1,5 +1,6 @@
 import asyncio
 import os
+import traceback
 from db_store import *
 from packet_capture import *
 from sandbox import Sandbox
@@ -17,9 +18,11 @@ class BotRunner:
                  sandbox_vcpu_quota,
                  cnc_probing_duration, sandbox_ctx, db_store,
                  analyzer_pool,
+                 max_cnc_candidates,
                  enable_attack_detection,
                  attack_gap,
                  min_attack_packets,
+                 attack_detection_watermark,
                  iface_monitor):
 
         self.bot_info = bot_info
@@ -46,9 +49,11 @@ class BotRunner:
         self.destroyed = False
         self.iface_monitor = iface_monitor
         self.analyzer_pool = analyzer_pool
+        self.max_cnc_candidates = max_cnc_candidates
         self.enable_attack_detection = enable_attack_detection
         self.attack_gap = attack_gap
         self.min_attack_packets = min_attack_packets
+        self.attack_detection_watermark = attack_detection_watermark
         self.executor_id = None
         self.cnc_analyzer_id = None
         self.attack_analyzer_id = None
@@ -77,7 +82,9 @@ class BotRunner:
                                                                           AnalyzerType.ANALYZER_CNC,
                                                                           own_ip=own_ip,
                                                                           excluded_ips=excluded_ips,
-                                                                          excluded_ports=None)
+                                                                          excluded_ports=None,
+                                                                          max_cnc_candidates=\
+                                                                          self.max_cnc_candidates)
             l.info(f'cnc analyzer initialized: {self.cnc_analyzer_id}')
             async for packet in self.live_capture.sniff_continuously():
                 await self.analyzer_pool.analyze_packet(self.executor_id,
@@ -105,7 +112,7 @@ class BotRunner:
         # update cnc status
         cnc_report = report['cnc_status']
         if len(cnc_report) > 0:
-            if cnc_report['ready']:
+            if cnc_report['cnc_ready']:
                 cnc_status = cnc_report['cnc_status']
                 if cnc_status == CnCStatus.ALIVE.value:
                     await self.update_bot_info(BotStatus.ACTIVE)
@@ -121,6 +128,7 @@ class BotRunner:
             bandwidth = total_bytes / total_secs
             attack_info = AttackInfo(self.bot_info.bot_id,
                                      cnc_report['cnc_ip'],
+                                     int(cnc_report['cnc_port']),
                                      r['attack_type'],
                                      r['start_time'],
                                      r['duration'],
@@ -146,9 +154,13 @@ class BotRunner:
                                                                              cnc_ip_ports=cnc_ip_ports,
                                                                              own_ip=own_ip,
                                                                              excluded_ips=excluded_ips,
-                                                                             enable_attack_detection=self.enable_attack_detection,
+                                                                             enable_attack_detection=\
+                                                                             self.enable_attack_detection,
                                                                              attack_gap=self.attack_gap,
-                                                                             min_attack_packets=self.min_attack_packets)
+                                                                             min_attack_packets=\
+                                                                             self.min_attack_packets,
+                                                                             attack_detection_watermark=\
+                                                                             self.attack_detection_watermark)
             l.info(f'attack analyzer initialized as: {self.attack_analyzer_id}')
 
             async for packet in self.live_capture.sniff_continuously():
@@ -309,7 +321,7 @@ class BotRunner:
 
             # enforce nwfilter
             nwfilter_type = self.sandbox_ctx.cnc_nwfilter
-            cnc_ips = [c.ip for c in self.cnc_info]
+            cnc_ips = list({c.ip for c in self.cnc_info})
             cnc_ip_ports = [(c.ip, str(c.port)) for c in self.cnc_info]
             args = {"cnc_ip": cnc_ips}
             self.sandbox.apply_nwfilter(nwfilter_type, **args)
@@ -328,6 +340,7 @@ class BotRunner:
             l.warning("Bot runner cancelled")
         except Exception as e:
             l.error(f"An error occurred {e}")
+            traceback.print_exc()
         finally:
             await self.destroy()
 
@@ -369,6 +382,7 @@ class BotRunner:
             l.debug('Cancelled error occurred')
         except Exception as e:
             l.debug(f'An error occurred {e}')
+            traceback.print_exc()
         finally:
             pass
 

@@ -62,11 +62,11 @@ class Sandbox:
     def redirectx_traffic(self, switch, cnc_ip_ports):
         if self.context.network_mode == NetworkMode.BLOCK.value:
             s = SandboxScript.REDIRECTX
-            cnc_ips = []
-            redirected = self.context.redirected_tcp_ports().split(',')
+            cnc_ips = set()
+            redirected = self.context.redirected_tcp_ports.split(',')
             for ip, port in cnc_ip_ports:
                 if port in redirected:
-                    cnc_ips.append(ip)
+                    cnc_ips.add(ip)
             if len(cnc_ips) > 0:
                 all_ips = ','.join(cnc_ips)
                 self._run_script(s, switch, all_ips)

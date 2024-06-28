@@ -89,6 +89,8 @@ class CnCAnalyzer:
 
     def set_tag(self, tag):
         self.tag = tag
+        l.info(f'[{self.tag}] CnCAnalyzer initialzed')
+        l.info(f'[{self.tag}] max_cnc_candidates: {self.report.max_cnc_candidates}')
 
     def check_dns_address(self, pkt):  # Exception for DNS packets
         if 'dns' in pkt.layers:
@@ -103,8 +105,6 @@ class CnCAnalyzer:
 
     def analyze(self, pkt):
         l.debug(f'[{self.tag}] new packet: {repr(pkt)}\n')
-        l.debug(f'[{self.tag}] cnc analyzer params -> own_ip: {self.own_ip}, excluded_ips: ' + \
-                f'{self.excluded_ips}, excluded_ports: {self.excluded_ports}\n')
         self.report.count += 1
         not_found_dns_addr = self.check_dns_address(pkt)
         if not_found_dns_addr:

@@ -123,6 +123,7 @@ class BotInfo:
 class AttackInfo:
     bot_id: str
     cnc_ip: str
+    cnc_port: int
     attack_type: str
     time: datetime
     duration: timedelta
@@ -140,6 +141,7 @@ class AttackInfo:
         bw = "{:.3f}".format(self.bandwidth / 1000.0) + ' KB/s'
         return f'{"bot_id":<16}: {self.bot_id}\n' + \
             f'{"cnc_ip":<16}: {self.cnc_ip}\n' + \
+            f'{"cnc_port":<16}: {self.cnc_port}\n' + \
             f'{"attack_type":<16}: {self.attack_type}\n' + \
             f'{"time":<16}: {self.time.strftime("%Y-%m-%d %H:%M:%S")}\n' + \
             f'{"duration":<16}: {self.duration}\n' + \
@@ -208,8 +210,8 @@ class DBStore:
                 para += (status_list,)
                 filters.append('status = ANY(%s)')
         if bot_id is not None:
-            para += (bot_id + '%',)
-            filters.append('bot_id like %s')
+            para += (bot_id,)
+            filters.append('bot_id = %s')
         if tracker is not None:
             para += (tracker,)
             filters.append('tracker = %s')

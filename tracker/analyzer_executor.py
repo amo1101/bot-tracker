@@ -129,14 +129,16 @@ class AnalyzerExecutorPool:
         if which == AnalyzerType.ANALYZER_CNC:
             analyzer = CnCAnalyzer(kwargs['own_ip'],
                                    kwargs['excluded_ips'],
-                                   kwargs['excluded_ports'])
+                                   kwargs['excluded_ports'],
+                                   kwargs['max_cnc_candidates'])
         else:
             analyzer = AttackAnalyzer(kwargs['cnc_ip_ports'],
                                       kwargs['own_ip'],
                                       kwargs['excluded_ips'],
                                       kwargs['enable_attack_detection'],
                                       kwargs['attack_gap'],
-                                      kwargs['min_attack_packets'])
+                                      kwargs['min_attack_packets'],
+                                      kwargs['attack_detection_watermark'])
 
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(e, init_analyzer_in_executor, analyzer)

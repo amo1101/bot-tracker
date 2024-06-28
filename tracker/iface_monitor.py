@@ -263,6 +263,8 @@ class IfaceMonitor:
     # bots call the api to register monitoring
     async def register(self, cnc_ip, bot_id):
         async with self.lock:
+            if cnc_ip in self.cnc_map:
+                return
             self.cnc_map[cnc_ip] = bot_id
             if self.network_mode == 0:
                 self.cnc_queue.put((cnc_ip, 1)) # 1 means add

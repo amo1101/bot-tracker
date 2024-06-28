@@ -60,8 +60,9 @@ class AsyncLiveCapture(LiveCapture):
 
 
 class AsyncFileCapture(FileCapture):
-    def __init__(self, input_file, debug=True):
+    def __init__(self, input_file, display_filter=None, debug=True):
         super(AsyncFileCapture, self).__init__(input_file=input_file,
+                                               display_filter=display_filter,
                                                debug=debug)
 
     async def sniff_continuously(self, packet_count=0):
