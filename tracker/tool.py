@@ -117,7 +117,7 @@ async def get_sandbox_ip(pcap):
 
     cap = AsyncFileCapture(pcap, display_filter)
     try:
-        async for packet in cap.sniff_continuously(50):
+        async for packet in cap.sniff_continuously(200):
             sandbox_ip = packet.ip.src
     finally:
         pass
