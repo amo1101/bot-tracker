@@ -52,14 +52,16 @@ def read_all_data_dir():
 
 
 def read_tool_config():
+    global REPORT_DIR
     global g_tool_config
     g_tool_config = configparser.ConfigParser()
-    ini_file = REPORT_DIR + os.sep + 'config.ini'
+    ini_file = CUR_DIR + os.sep + 'config' + os.sep + 'tool.ini'
     if not os.path.exists(ini_file):
         l.error('tool config file not exist!')
         g_tool_config = None
         return
     g_tool_config.read(ini_file)
+    REPORT_DIR = g_tool_config['report']['report_dir']
 
 
 async def connect_db():
