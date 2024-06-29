@@ -331,20 +331,20 @@ class AttackReport:
 
     def get(self):
         cnc_report = {}
-        if self.curr_cnc != '':
-            if self.curr_cnc in self.cnc_status:
-                cnc_dict = self.cnc_status[self.curr_cnc]
-                cnc_report = {
-                    'cnc_ip': cnc_dict['ip'],
-                    'cnc_ready': cnc_dict['ready'],
-                    'cnc_port': cnc_dict['port'],
-                    'cnc_status': cnc_dict['status'],
-                    'cnc_update_at': cnc_dict['update_time']}
+        if self.curr_cnc == '':
+            _, cnc_dict = next(iter(self.cnc_status))
+        else:
+            cnc_dict = self.cnc_status[self.curr_cnc]
 
-                if cnc_dict['ready']:
-                    cnc_dict['ready'] = False
-            else:
-                l.warning('current cnc ip not in dict, should not happen.')
+        cnc_report = {
+            'cnc_ip': cnc_dict['ip'],
+            'cnc_ready': cnc_dict['ready'],
+            'cnc_port': cnc_dict['port'],
+            'cnc_status': cnc_dict['status'],
+            'cnc_update_at': cnc_dict['update_time']}
+
+        if cnc_dict['ready']:
+            cnc_dict['ready'] = False
 
         return {'cnc_status': cnc_report,
                 'cnc_stats': self.cnc_stats,
