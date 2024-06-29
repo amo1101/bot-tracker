@@ -79,7 +79,7 @@ class Sandbox:
         self._prepare_kernel()
         self._prepare_fs()
         sandbox_xml = self._get_config()
-        l.info("domain config:\n%s", sandbox_xml)
+        l.debug("domain config:\n%s", sandbox_xml)
 
         self.dom = self.context.create_sandbox(sandbox_xml)
         if self.dom is None:

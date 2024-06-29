@@ -39,6 +39,10 @@ def get_arch_info(bot_file, bot_info):
         else:
             bot_info.endianness = 'B'
         bot_info.bitness = elffile.elfclass
+        # filter out older version abi
+        if bot_info.arch == 'ARM':
+            hex(elffile.header['e_flags']) != '0x4000002'
+                bot_info.arch = 'obsolete-ARM'
     except Exception as e:
         l.error('An error occurred {e}')
         bot_info.arch = 'unknown'
@@ -159,7 +163,21 @@ async def download_recent(remote_repo, local_repo, db_store):
     l.debug('download recent done')
 
 
-async def async_main():
+async def tag_invalid_bots(db_store, local_repo):
+    l.info('Begin to tag invalid bots...')
+    status = ['error','unstaged']
+    bots = db_store.load_bot_info(status)
+    for b in bots:
+        if b.arch == 'ARM':
+            bf = local_repo + os.sep + b.bot_id + '.elf'
+            get_arch_info(bf, b)
+            if b.arch == 'obsolete-ARM':
+                l.debug(f'{b.bot_id} is obsolete!')
+                await db_store.update_bot_info(b)
+    l.info('Finished tagging invalid bots.')
+
+
+async def async_main(tag_invalid=False):
     # await test_db()
     global valid_tags
     global max_batch
@@ -200,6 +218,11 @@ async def async_main():
     await db_store.open()
     l.debug('connecting to db done')
 
+    if tag_invalid:
+        await tag_invalid_bots(db_store, local_repo)
+        await db_store.close()
+        return
+
     # get the base
     await download_base(remote_repo, local_repo, db_store, time_threshold)
 
@@ -218,4 +241,4 @@ if __name__ == "__main__":
     #  print(BANNER)
     #  signal.signal(signal.SIGINT, recv_signal)
     #  print("[Master] Press CTRL+C whenever you want to exit")
-    asyncio.run(async_main(), debug=True)
+    asyncio.run(async_main(True), debug=True)
