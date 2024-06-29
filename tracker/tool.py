@@ -3,6 +3,7 @@ import os
 from analyzer_executor import *
 import configparser
 import csv
+import shutil
 from packet_capture import AsyncFileCapture
 from db_store import *
 from pathlib import Path
@@ -10,6 +11,10 @@ from pathlib import Path
 
 CUR_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = CUR_DIR + os.sep + 'log'
+DUP_DIR = DATA_DIR + os.sep + 'DUP'
+ERROR_DIR = DATA_DIR + os.sep + 'ERROR'
+UNSTAGED_DIR = DATA_DIR + os.sep + 'UNSTAGED'
+
 REPORT_DIR = CUR_DIR + os.sep + 'report'
 g_data_dir = []
 g_tool_config = None
@@ -17,6 +22,7 @@ g_db_store = None
 
 welcome_ui = "Welcome to bot-tracker data tool!"
 main_ui = "\nPlease choose:\n" + \
+          "    0. Triage data\n" + \
           "    1. Analyze data\n" + \
           "    2. Enrich data\n" + \
           "    3. Backup data\n" + \
@@ -32,7 +38,9 @@ data_analysis_ui_1 = "\nPlease choose:\n" + \
 
 def list_directories(directory):
     path = Path(directory)
-    directories = [p.name for p in path.iterdir() if p.is_dir()]
+    directories = [p.name for p in path.iterdir() \
+                   if p.is_dir() and p.name != 'DUP' and \
+                        p.name != 'ERROR' and p.name != 'UNSTAGED']
     directories.sort()
     return directories
 
@@ -95,17 +103,30 @@ def write_to_csv(csv_file, data):
         print(f'Data written to {csv_file}')
 
 
-async def get_bot_cnc_info(bot):
+def get_bot_id_prefix(bot_dir):
     # e.g.2024_06_26_16_12_38_mirai_5f2ac36f
-    last_ = bot.rfind("_")
-    bot_id = bot[last_ + 1:]
-    cncs = await g_db_store.load_cnc_info(bot_id)
+    last_ = bot_dir.rfind("_")
+    return bot_dir[last_ + 1:]
+
+
+async def get_cnc_info(bot_dir):
+    bid_prefix = get_bot_id_prefix(bot_dir)
+    cncs = await g_db_store.load_cnc_info(bid_prefix)
     if len(cncs) == 0:
         print('Cannot find CnC info for this bot')
         return None, None
-    bot_id_raw = cncs[0].bot_id
+    bot_id = cncs[0].bot_id
     cnc_ip_ports = [(c.ip, str(c.port)) for c in cncs]
-    return bot_id_raw, cnc_ip_ports
+    return bot_id, cnc_ip_ports
+
+
+async def get_bot_info(bot_dir):
+    bid_prefix = get_bot_id_prefix(bot_dir)
+    bots = await g_db_store.load_bot_info(None, bid_prefix, 1, None, True)
+    if len(bots) == 0:
+        print(f'Failed to get bot info for {bid_prefix}')
+        return None
+    return bots[0]
 
 
 async def get_sandbox_ip(pcap):
@@ -136,6 +157,23 @@ def create_report_dir(bot, measurement):
         os.makedirs(b_dir)
     if not os.path.exists(m_dir):
         os.makedirs(m_dir)
+
+
+def create_triage_dir(base, bot):
+    b_dir = base + os.sep + bot
+    if not os.path.exists(base):
+        os.makedirs(base)
+    if not os.path.exists(b_dir):
+        os.makedirs(b_dir)
+
+
+def move_to_triage_dir(base, bot, measurement):
+    create_triage_dir(base, bot)
+    from_dir = DATA_DIR + os.sep + bot + os.sep + measurement
+    to_dir = base + os.sep + bot
+    if os.path.exists(to_dir + os.sep + measurement):
+        print('already exists, may cover')
+    shutil.move(from_dir, to_dir)
 
 
 def get_report_dir(bot, measurement):
@@ -196,7 +234,7 @@ async def run_attack_analyzer(bot, measurement, packet_cnt):
     min_attack_packets = int(g_tool_config['data_analysis']['min_attack_packets'])
     attack_detection_watermark = \
         int(g_tool_config['data_analysis']['attack_detection_watermark'])
-    bot_id, cnc_ip_ports = await get_bot_cnc_info(bot)
+    bot_id, cnc_ip_ports = await get_cnc_info(bot)
     if cnc_ip_ports is None:
         print('CnC not exists for this bot!')
         return
@@ -291,6 +329,33 @@ def input_bot_measurement_menu():
     return bot, m, packet_cnt
 
 
+async def async_data_triage():
+    await connect_db()
+    try:
+        for b in g_data_dir:
+            base = ''
+            bi = await get_bot_info(b[0])
+            if bi is None:
+                print(f'{b[0]} not exist in db, please check!')
+                #  shutil.rmtree(DATA_DIR + os.sep + b[0])
+                continue
+            if bi.status == BotStatus.ERROR.value:
+                base = ERROR_DIR
+            elif bi.status == BotStatus.DUPLICATE.value:
+                base = DUP_DIR
+            elif bi.status == BotStatus.UNSTAGED.value:
+                base = UNSTAGED_DIR
+            else:
+                continue
+            for m in b[1]:
+                move_to_triage_dir(base, b[0], m)
+            #  print(f'remove {DATA_DIR + os.sep + b[0]}')
+            os.rmdir(DATA_DIR + os.sep + b[0])
+        print('Triage data done!')
+    finally:
+        await g_db_store.close()
+
+
 async def async_data_analysis():
     await connect_db()
     try:
@@ -328,7 +393,9 @@ if __name__ == "__main__":
         while True:
             print(f'{main_ui}')
             op = input('\ndata-tool # ')
-            if op == '1':
+            if op == '0':
+                asyncio.run(async_data_triage(), debug=True)
+            elif op == '1':
                 asyncio.run(async_data_analysis(), debug=True)
             elif op == '2':
                 pass

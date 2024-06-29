@@ -198,7 +198,7 @@ class DBStore:
             l.error('add_bot failed due to UniqueViolation')
 
     async def load_bot_info(self, status_list=None, bot_id=None, count=None,
-                            tracker=None):
+                            tracker=None, use_bot_id_prefix=False):
         bots = []
         para = ()
 
@@ -210,8 +210,12 @@ class DBStore:
                 para += (status_list,)
                 filters.append('status = ANY(%s)')
         if bot_id is not None:
-            para += (bot_id,)
-            filters.append('bot_id = %s')
+            if use_bot_id_prefix:
+                para += (bot_id + '%',)
+                filters.append('bot_id like %s')
+            else:
+                para += (bot_id,)
+                filters.append('bot_id = %s')
         if tracker is not None:
             para += (tracker,)
             filters.append('tracker = %s')
