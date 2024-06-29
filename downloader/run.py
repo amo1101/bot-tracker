@@ -30,8 +30,8 @@ download_period = 3600  # download hourly
 
 def get_arch_info(bot_file, bot_info):
     # unzipped file name should be sha256
-    fi = open(bot_file, "rb")
     try:
+        fi = open(bot_file, "rb")
         elffile = ELFFile(fi)
         bot_info.arch = elffile.get_machine_arch()
         if elffile.little_endian:
@@ -41,8 +41,8 @@ def get_arch_info(bot_file, bot_info):
         bot_info.bitness = elffile.elfclass
         # filter out older version abi
         if bot_info.arch == 'ARM':
-            hex(elffile.header['e_flags']) != '0x4000002'
-                bot_info.arch = 'obsolete-ARM'
+            if hex(elffile.header['e_flags']) != '0x4000002':
+                bot_info.arch = 'ob-ARM'
     except Exception as e:
         l.error('An error occurred {e}')
         bot_info.arch = 'unknown'
@@ -164,17 +164,21 @@ async def download_recent(remote_repo, local_repo, db_store):
 
 
 async def tag_invalid_bots(db_store, local_repo):
+    total = 0
+    obsolete = 0
     l.info('Begin to tag invalid bots...')
-    status = ['error','unstaged']
-    bots = db_store.load_bot_info(status)
+    status = ['error', 'unstaged', 'unknown']
+    bots = await db_store.load_bot_info(status)
     for b in bots:
         if b.arch == 'ARM':
+            total += 1
             bf = local_repo + os.sep + b.bot_id + '.elf'
             get_arch_info(bf, b)
-            if b.arch == 'obsolete-ARM':
+            if b.arch == 'ob-ARM':
+                obsolete += 1
                 l.debug(f'{b.bot_id} is obsolete!')
-                await db_store.update_bot_info(b)
-    l.info('Finished tagging invalid bots.')
+                #await db_store.update_bot_info(b)
+    l.info(f'Finished tagging invalid bots, total: {total}, obsolete: {obsolete}')
 
 
 async def async_main(tag_invalid=False):
@@ -241,4 +245,4 @@ if __name__ == "__main__":
     #  print(BANNER)
     #  signal.signal(signal.SIGINT, recv_signal)
     #  print("[Master] Press CTRL+C whenever you want to exit")
-    asyncio.run(async_main(True), debug=True)
+    asyncio.run(async_main(), debug=True)
