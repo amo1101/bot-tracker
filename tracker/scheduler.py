@@ -24,6 +24,7 @@ class Scheduler:
                  max_sandbox_num,
                  max_dormant_duration,
                  cnc_probing_duration,
+                 bpf_filter,
                  max_packet_analyzing_workers,
                  max_cnc_candidates,
                  enable_attack_detection,
@@ -46,6 +47,7 @@ class Scheduler:
         self.max_dormant_hours = max_dormant_duration
         self.max_dormant_duration = timedelta(hours=self.max_dormant_hours)
         self.cnc_probing_duration = cnc_probing_duration
+        self.bpf_filter = bpf_filter
         self.max_analyzing_workers = max_packet_analyzing_workers
         self.max_cnc_candidates = max_cnc_candidates
         self.enable_attack_detection = True if enable_attack_detection == 'yes' else False
@@ -126,6 +128,7 @@ class Scheduler:
                                    self.sandbox_ctx,
                                    self.db_store,
                                    self.analyzer_pool,
+                                   self.bpf_filter,
                                    self.max_cnc_candidates,
                                    self.enable_attack_detection,
                                    self.attack_gap,

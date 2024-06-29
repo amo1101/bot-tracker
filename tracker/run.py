@@ -54,6 +54,7 @@ async def async_main(arguments=None):
                           int(config['scheduler']['max_sandbox_num']),
                           int(config['scheduler']['max_dormant_duration']),
                           int(config['scheduler']['cnc_probing_duration']),
+                          config['scheduler.packet_analyzer']['bpf_filter'],
                           int(config['scheduler.packet_analyzer']['max_analyzing_workers']),
                           int(config['scheduler.packet_analyzer']['max_cnc_candidates']),
                           config['scheduler.packet_analyzer']['enable_attack_detection'],

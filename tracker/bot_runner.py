@@ -18,6 +18,7 @@ class BotRunner:
                  sandbox_vcpu_quota,
                  cnc_probing_duration, sandbox_ctx, db_store,
                  analyzer_pool,
+                 bpf_filter="not stp and not arp",
                  max_cnc_candidates,
                  enable_attack_detection,
                  attack_gap,
@@ -49,6 +50,7 @@ class BotRunner:
         self.destroyed = False
         self.iface_monitor = iface_monitor
         self.analyzer_pool = analyzer_pool
+        self.bpf_filter = bpf_filter
         self.max_cnc_candidates = max_cnc_candidates
         self.enable_attack_detection = enable_attack_detection
         self.attack_gap = attack_gap
@@ -64,10 +66,9 @@ class BotRunner:
         if not os.path.exists(self.log_dir):
             os.makedirs(self.log_dir)
 
-    def _init_capture(self, port_dev):
+    def _init_capture(self, port_dev, bpf_filter):
         if self.live_capture is None:
             iface = port_dev
-            bpf_filter = "not stp and not arp"  # filter out background traffic
             output_file = self.log_dir + os.sep + "capture.pcap"
             self.live_capture = AsyncLiveCapture(interface=iface,
                                                  bpf_filter=bpf_filter,
