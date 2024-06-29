@@ -331,10 +331,9 @@ class AttackReport:
 
     def get(self):
         cnc_report = {}
-        if self.curr_cnc == '':
-            _, cnc_dict = next(iter(self.cnc_status))
-        else:
-            cnc_dict = self.cnc_status[self.curr_cnc]
+        key = self.curr_cnc if self.curr_cnc != '' else \
+                next(iter(self.cnc_status))
+        cnc_dict = self.cnc_status[key]
 
         cnc_report = {
             'cnc_ip': cnc_dict['ip'],
