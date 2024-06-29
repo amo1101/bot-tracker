@@ -115,12 +115,16 @@ class Bazaar:
             open(hash+'.zip', 'wb').write(response.content)
 
             if(unzip == True):
-                with pyzipper.AESZipFile(hash+".zip") as zf:
-                    zf.pwd = ZIP_PASSWORD.encode()
-                    _ = zf.extractall(".")
-                    l.debug("Sample \""+hash+"\" downloaded and unpacked.")
-                    os.remove(hash+".zip")
-                    return zf.namelist()
+                try:
+                    with pyzipper.AESZipFile(hash+".zip") as zf:
+                        zf.pwd = ZIP_PASSWORD.encode()
+                        _ = zf.extractall(".")
+                        l.debug("Sample \""+hash+"\" downloaded and unpacked.")
+                        os.remove(hash+".zip")
+                        return zf.namelist()
+                except BaseException as e:
+                    l.debug(f'An error occured: {e}')
+                    return None
             else:
                 l.debug("Sample \""+hash+"\" downloaded.")
                 return hash + '.zip'
@@ -217,6 +221,7 @@ class Bazaar:
             }
 
         response = self.session.post(self.url, data=data, timeout=300)
+        l.debug(f'respone:{response}')
         json_response = response.json()
 
         if(field):

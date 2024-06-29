@@ -31,14 +31,17 @@ download_period = 3600  # download hourly
 def get_arch_info(bot_file, bot_info):
     # unzipped file name should be sha256
     fi = open(bot_file, "rb")
-    elffile = ELFFile(fi)
-    bot_info.arch = elffile.get_machine_arch()
-    if elffile.little_endian:
-        bot_info.endianness = 'L'
-    else:
-        bot_info.endianness = 'B'
-    bot_info.bitness = elffile.elfclass
-
+    try:
+        elffile = ELFFile(fi)
+        bot_info.arch = elffile.get_machine_arch()
+        if elffile.little_endian:
+            bot_info.endianness = 'L'
+        else:
+            bot_info.endianness = 'B'
+        bot_info.bitness = elffile.elfclass
+    except Exception as e:
+        l.error('An error occurred {e}')
+        bot_info.arch = 'unknown'
 
 def check_arch_info(bot_info):
     if bot_info.arch in valid_arch and \
@@ -92,7 +95,9 @@ async def download_base(remote_repo, local_repo, db_store, time_threshold):
                     not in valid_file_type:
                 continue
             l.debug(f'downloading {bot_info.bot_id}...')
-            remote_repo.bazaar_download(bot_info.bot_id)
+            ret = remote_repo.bazaar_download(bot_info.bot_id)
+            if ret == None:
+                continue
             bot_file = bot_info.file_name
             get_arch_info(bot_file, bot_info)
             l.debug(f'bot_info:\n{repr(bot_info)}')
