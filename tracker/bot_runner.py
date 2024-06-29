@@ -18,7 +18,7 @@ class BotRunner:
                  sandbox_vcpu_quota,
                  cnc_probing_duration, sandbox_ctx, db_store,
                  analyzer_pool,
-                 bpf_filter="not stp and not arp",
+                 bpf_filter,
                  max_cnc_candidates,
                  enable_attack_detection,
                  attack_gap,
@@ -37,7 +37,6 @@ class BotRunner:
         self.live_capture = None
         self.log_base = CUR_DIR + os.sep + "log"
         self.log_dir = self.log_base + os.sep + bot_info.tag
-        self.cnc_stats_file = self.log_dir + os.sep + 'cnc_stats.log'
         self.cnc_info = []
         self.cnc_probing_time = cnc_probing_duration
         self.notify_unstage = False
@@ -245,7 +244,7 @@ class BotRunner:
             await self.update_bot_info(BotStatus.STAGED)
 
             port_dev, mac, own_ip = self.sandbox.get_ifinfo()
-            self._init_capture(port_dev)
+            self._init_capture(port_dev, self.bpf_filter)
 
             # set default nwfiter
             self.sandbox.apply_nwfilter(self.sandbox_ctx.default_nwfilter)
