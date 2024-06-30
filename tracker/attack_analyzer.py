@@ -225,28 +225,34 @@ class DPDetector(AttackDetector):
 class CnCStat:
     ip: str
     port: str
+    is_new: str
     packet_cnt: int
     total_bytes: int
     syn_cnt: int
     fin_cnt: int
+    rst_cnt: int
     start_time: datetime
-    end_time: datetime
+    duration: timedelta
 
     def report(self):
         return {'ip': self.ip,
                 'port': self.port,
+                'is_new': self.is_new,
                 'packet_cnt': self.packet_cnt,
                 'total_bytes': self.total_bytes,
                 'syn_cnt': self.syn_cnt,
                 'fin_cnt': self.fin_cnt,
+                'rst_cnt': self.rst_cnt,
                 'start_time': self.start_time,
-                'end_time': self.end_time}
+                'duration': self.duration}
 
 
 class CnCStatCollector:
-    def __init__(self, cnc_ip_ports, own_ip, min_occurrence=2):
+    def __init__(self, cnc_ip_ports, own_ip, excluded_ips, min_occurrence=1):
         self.cnc_ip_ports = cnc_ip_ports
+        self.cnc_ips = {c[0] for c in cnc_ip_ports}
         self.own_ip = own_ip
+        self.excluded_ips = excluded_ips
         self.min_occurrence = min_occurrence
         self.stats = {}
 
@@ -254,8 +260,13 @@ class CnCStatCollector:
         key = ''
         cnc_ip = ''
         cnc_port = ''
+
         if 'tcp' not in pkt.layers:
             return
+        if pkt.ip_dst in self.excluded_ips or \
+           pkt.ip_src in self.excluded_ips:
+            return
+
         # count traffic from both sides
         if (pkt.ip_src, pkt.tcp_srcport) in self.cnc_ip_ports and \
                 pkt.ip_dst == self.own_ip:
@@ -278,24 +289,28 @@ class CnCStatCollector:
         else:
             return
 
+        is_new = 'no' if cnc_ip in self.cnc_ips else 'yes'
         key = f'{cnc_ip}:{cnc_port}'
         fin_cnt = 1 if pkt.tcp_flags_fin == 'True' and \
             pkt.tcp_flags_ack == 'False' else 0
         syn_cnt = 1 if pkt.tcp_flags_syn == 'True' and \
             pkt.tcp_flags_ack == 'False' else 0
+        rst_cnt = 1 if pkt.tcp_flags_reset == 'True' else 0
 
         if key not in self.stats:
-            self.stats[key] = CnCStat(cnc_ip, cnc_port,
+            self.stats[key] = CnCStat(cnc_ip, cnc_port, is_new,
                                       1, pkt.tcp_len,
-                                      fin_cnt, syn_cnt,
+                                      syn_cnt, fin_cnt, rst_cnt,
                                       pkt.sniff_time,
-                                      pkt.sniff_time)
+                                      timedelta(0))
         else:
             self.stats[key].packet_cnt += 1
             self.stats[key].total_bytes += pkt.tcp_len
             self.stats[key].syn_cnt += syn_cnt
             self.stats[key].fin_cnt += fin_cnt
-            self.stats[key].end_time = pkt.sniff_time
+            self.stats[key].rst_cnt += rst_cnt
+            self.stats[key].duration = pkt.sniff_time - \
+                self.stats[key].start_time
 
     def remove(self, pkt):
         if 'tcp' in pkt.layers:
@@ -323,7 +338,7 @@ class AttackReport:
             key = f'{ip}:{port}'
             if key not in self.cnc_stats:
                 self.cnc_status[key] = {}
-            self.cnc_status[key]['ready'] = False
+            self.cnc_status[key]['ready'] = True
             self.cnc_status[key]['status'] = CnCStatus.UNKNOWN.value
             self.cnc_status[key]['ip'] = ip
             self.cnc_status[key]['port'] = port
@@ -373,7 +388,8 @@ class AttackAnalyzer:
                                             timedelta(seconds=attack_gap),
                                             min_attack_packets,
                                             own_ip)]
-        self.cnc_stat_collector = CnCStatCollector(self.cnc_ip_ports, own_ip)
+        self.cnc_stat_collector = CnCStatCollector(self.cnc_ip_ports, own_ip,
+                                                   excluded_ips)
         self.report = AttackReport(cnc_ip_ports)
 
     def set_tag(self, tag):

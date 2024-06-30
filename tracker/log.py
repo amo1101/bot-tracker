@@ -39,12 +39,14 @@ class TaskFileHandler(logging.FileHandler):
         super().emit(record)
 
 
+log_file_prefix ='bot-tracker-'
+
 class TaskLogger:
     _log_root = ''
     _logger = logging.getLogger(_log_root)
     #  _handler = TaskStreamHandler()
     _log_file = CUR_DIR + os.sep + \
-                'bot-tracker-' + \
+                log_file_prefix + \
                 datetime.now().strftime('%Y-%m-%d-%H-%M-%S') + '.log'
     _handler = TaskFileHandler(_log_file)
     _handler.setFormatter(logging.Formatter(fmt=log_format))
