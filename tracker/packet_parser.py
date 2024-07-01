@@ -1,6 +1,9 @@
 import re
 import pyshark
+from log import TaskLogger
 
+
+l: TaskLogger = TaskLogger(__name__)
 
 def is_background_traffic(pkt, background_fields):
     for field in background_fields:
@@ -31,7 +34,7 @@ def parse_dns(pkt):
         dns_dir = dir(pkt.dns)
         for_test = int(pkt.dns.flags.hex_value) & 0x8001
         reply_status = int(pkt.dns.flags.hex_value) & 0x8003  # this means response and no reply in DNS
-        if reply_status == 0x8003:
+        if reply_status == 0x8003 and "qry_name" in dns_dir:
             return pkt.dns.qry_name, None
         elif for_test == 0x8000 and "a" in dns_dir and "qry_name" in dns_dir:  # it's a response and no error
             return pkt.dns.qry_name, pkt.dns.a
@@ -128,7 +131,6 @@ class PacketSummary:
     def extract(self, pkt):
         self.sniff_time = pkt.sniff_time
         self.layers = dir(pkt)
-        #  print(f'layers: {self.layers}')
 
         if 'ip' in self.layers:
             self.ip_src = str(pkt.ip.src)

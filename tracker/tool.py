@@ -7,6 +7,7 @@ import shutil
 from packet_capture import AsyncFileCapture
 from db_store import *
 from pathlib import Path
+from datetime import datetime
 
 
 CUR_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -442,7 +443,7 @@ async def async_data_analysis():
                             curr_m = 1
                             for m in ms:
                                 print(f'\nAnalyzing {b}: {m}')
-                                print(f'Progress: bot -> {curr_b}/{total_b}, measurement -> {curr_m}/{total_m}...')
+                                print(f'\n{datetime.now()} Progress: bot -> {curr_b}/{total_b}, measurement -> {curr_m}/{total_m}...')
                                 await run_analyzer(curr_data_dir, b, m, packet_cnt)
                                 curr_m += 1
                             curr_b += 1

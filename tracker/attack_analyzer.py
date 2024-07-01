@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 from dataclasses import dataclass
 from packet_parser import *
 from log import TaskLogger
+import copy
 
 l: TaskLogger = TaskLogger(__name__)
 
@@ -281,7 +282,8 @@ class CnCStatCollector:
             background_fields = ["icmpv6", "icmp", "mdns", "dns", "dhcpv6", "dhcp", "arp", "ntp"]
             if not is_background_traffic(pkt, background_fields) and \
                     pkt.tcp_flags_syn == 'True' and \
-                    pkt.tcp_flags_ack != 'True':
+                    pkt.tcp_flags_ack != 'True'and \
+                    pkt.tcp_len == 0:
                 cnc_ip = pkt.ip_dst
                 cnc_port = pkt.tcp_dstport
             else:
@@ -360,9 +362,18 @@ class AttackReport:
         if cnc_dict['ready']:
             cnc_dict['ready'] = False
 
-        return {'cnc_status': cnc_report,
-                'cnc_stats': self.cnc_stats,
-                'attacks': self.attack_reports}
+        cnc_stats = copy.deepcopy(self.cnc_stats) \
+                if len(self.cnc_stats) > 0 else []
+        attack_reports = copy.deepcopy(self.attack_reports) \
+                if len(self.attack_reports) > 0 else []
+
+        ret = {'cnc_status': cnc_report,
+               'cnc_stats': cnc_stats,
+               'attacks': attack_reports}
+
+        self.attack_reports.clear()
+        self.cnc_stats.clear()
+        return ret
 
 
 class AttackAnalyzer:
@@ -425,7 +436,7 @@ class AttackAnalyzer:
                     # server initiate FIN, connection broken
                     if cnc_dict['status'] != CnCStatus.DISCONNECTED.value:
                         cnc_dict['status'] = CnCStatus.DISCONNECTED.value
-                        cnc_dict['update_time'] = datetime.now()
+                        cnc_dict['update_time'] = pkt.sniff_time
                         cnc_dict['ready'] = True
                         cnc_ready = True
                 else:
@@ -434,7 +445,7 @@ class AttackAnalyzer:
                             or (pkt.tcp_len != 0):
                         if cnc_dict['status'] != CnCStatus.ALIVE.value:
                             cnc_dict['status'] = CnCStatus.ALIVE.value
-                            cnc_dict['update_time'] = datetime.now()
+                            cnc_dict['update_time'] = pkt.sniff_time
                             cnc_dict['ready'] = True
                             cnc_ready = True
         return cnc_ready
