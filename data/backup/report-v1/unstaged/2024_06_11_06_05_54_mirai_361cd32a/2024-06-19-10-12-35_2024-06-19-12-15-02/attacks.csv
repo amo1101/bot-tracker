@@ -1,2 +1,0 @@
-attack_type,start_time,duration,src,target,protocol,src_port,dst_port,spoofed,packet_cnt,total_bytes,bot_id,cnc_ip,cnc_port
-Scanning,2024-06-19 10:12:57.721604,0:01:57.596318,192.168.122.89,,tcp,,37215,no,78912,0,361cd32a750b89857322f54b665f7f8849407ba09074e6303be0f26a351f39b5,161.168.243.236,37215
