@@ -238,7 +238,6 @@ class CnCStat:
     def report(self):
         return {'ip': self.ip,
                 'port': self.port,
-                'is_new': self.is_new,
                 'packet_cnt': self.packet_cnt,
                 'total_bytes': self.total_bytes,
                 'syn_cnt': self.syn_cnt,
@@ -248,51 +247,16 @@ class CnCStat:
                 'duration': self.duration}
 
 
-class CnCStatCollector:
-    def __init__(self, cnc_ip_ports, own_ip, excluded_ips, min_occurrence=1):
-        self.cnc_ip_ports = cnc_ip_ports
-        self.cnc_ips = {c[0] for c in cnc_ip_ports}
+class CnCDetector:
+    def __init__(self, own_ip, excluded_ips, min_cnc_attempts=2)
         self.own_ip = own_ip
         self.excluded_ips = excluded_ips
-        self.min_occurrence = min_occurrence
+        self.min_cnc_attempts = min_cnc_attempts
         self.stats = {}
+        self.ips = set()
+        self.cnc = ''
 
-    def add(self, pkt):
-        key = ''
-        cnc_ip = ''
-        cnc_port = ''
-
-        if 'tcp' not in pkt.layers:
-            return
-        if pkt.ip_dst in self.excluded_ips or \
-           pkt.ip_src in self.excluded_ips:
-            return
-
-        # count traffic from both sides
-        if (pkt.ip_src, pkt.tcp_srcport) in self.cnc_ip_ports and \
-                pkt.ip_dst == self.own_ip:
-            cnc_ip = pkt.ip_src
-            cnc_port = pkt.tcp_srcport
-        elif pkt.ip_src == self.own_ip and \
-                (pkt.ip_dst, pkt.tcp_dstport) in self.cnc_ip_ports:
-            cnc_ip = pkt.ip_dst
-            cnc_port = pkt.tcp_dstport
-        elif pkt.ip_src == self.own_ip:
-            # potential c2 that is not detected by CnCAnalyzer
-            background_fields = ["icmpv6", "icmp", "mdns", "dns", "dhcpv6", "dhcp", "arp", "ntp"]
-            if not is_background_traffic(pkt, background_fields) and \
-                    pkt.tcp_flags_syn == 'True' and \
-                    pkt.tcp_flags_ack != 'True'and \
-                    pkt.tcp_len == 0:
-                cnc_ip = pkt.ip_dst
-                cnc_port = pkt.tcp_dstport
-            else:
-                return
-        else:
-            return
-
-        is_new = 'no' if cnc_ip in self.cnc_ips else 'yes'
-        key = f'{cnc_ip}:{cnc_port}'
+    def update(key, pkt):
         fin_cnt = 1 if pkt.tcp_flags_fin == 'True' and \
             pkt.tcp_flags_ack == 'False' else 0
         syn_cnt = 1 if pkt.tcp_flags_syn == 'True' and \
@@ -300,7 +264,7 @@ class CnCStatCollector:
         rst_cnt = 1 if pkt.tcp_flags_reset == 'True' else 0
 
         if key not in self.stats:
-            self.stats[key] = CnCStat(cnc_ip, cnc_port, is_new,
+            self.stats[key] = CnCStat(cnc_ip, cnc_port,
                                       1, pkt.tcp_len,
                                       syn_cnt, fin_cnt, rst_cnt,
                                       pkt.sniff_time,
@@ -314,6 +278,82 @@ class CnCStatCollector:
             self.stats[key].duration = pkt.sniff_time - \
                 self.stats[key].start_time
 
+
+    def detect(self, pkt):
+        key = ''
+        cnc_ip = ''
+        cnc_port = ''
+
+        def get_key(ip, port):
+            return f'{cnc_ip}:{cnc_port}'
+
+        def get_cnc_status(pkt, is_candidate):
+            if is_candidate:
+                return {'ip': pkt.ip_dst, 'port': pkt.tcp_dstport, \
+                        'status': CnCStat.CANDIDATE.value,\
+                        'update_time': pkt.sniff_time}
+
+            # cnc response
+            ret = {}
+            # if there is data in the connection, then it is alive
+            if pkt.tcp_len != 0:
+                ret['status'] = CnCStat.ALIVE.value
+            elif pkt.tcp_flags_fin == 'True':
+                ret['status'] = CnCStat.DISCONNECTED.value
+            else:
+                pass
+            if 'status' in ret:
+                ret['ip'] = pkt.ip_dst
+                ret['port'] = pkt.dstport
+                ret['update_time'] = pkt.sniff_time
+            return ret
+
+        if 'tcp' not in pkt.layers:
+            return {}
+        if pkt.ip_dst in self.excluded_ips or \
+           pkt.ip_src in self.excluded_ips:
+            return {}
+
+        is_cnc_resp = False
+        is_cnc_candidate = False
+        key_src = get_key(pkt.ip_src, pkt.tcp_srcport)
+        key_dst = get_key(pkt.ip_dst, pkt.tcp_dstport)
+        # count traffic from both sides
+        if key_src in self.stats and pkt.ip_dst == self.own_ip:
+            key = key_src
+            if self.cnc == '' and if pkt.tcp_len > 0:
+                # cnc confirmed
+                self.cnc = key_src
+            if key_src == self.cnc:
+                # reply from cnc
+                is_cnc_resp = True
+        if pkt.ip_src == self.own_ip:
+            if key_dst in self.stats:
+                key = key_dst
+                # candidate cnc to be confirmed
+                # to distinguish from scan, we need at least 2 attempts
+                if stats[key].syn_cnt + 1 >= self.min_cnc_attempts and \
+                   pkt.ip_dst not in self.ips and \
+                   self.cnc == '':  # only if cnc is not confirmed
+                    is_cnc_candidate = True
+                    self.ips.add(pkt.ip_dst)
+            else:
+                # potential cnc attempt
+                background_fields = ["icmpv6", "icmp", "mdns", "dns", \
+                                     "dhcpv6", "dhcp", "arp", "ntp"]
+                if not is_background_traffic(pkt, background_fields) and \
+                        pkt.tcp_flags_syn == 'True' and \
+                        pkt.tcp_flags_ack != 'True'and \
+                        pkt.tcp_len == 0:
+                    key = key_dst
+
+        if key != ''
+            self.update(key, pkt)
+        if is_cnc_resp or is_cnc_candidate:
+            return get_cnc_status(pkt, is_cnc_candidate)
+        return {}
+
+
     def remove(self, pkt):
         if 'tcp' in pkt.layers:
             key = f'{pkt.ip_dst}:{pkt.tcp_dstport}'
@@ -323,70 +363,26 @@ class CnCStatCollector:
     def report(self):
         reports = []
         for k, v in self.stats.items():
-            if v.packet_cnt < self.min_occurrence:
+            if v.packet_cnt < self.min_cnc_attempts:
                 continue
             reports.append(v.report())
         return reports
 
 
-class AttackReport:
-    def __init__(self, cnc_ip_ports):
-        self.curr_cnc = ''
+class PacketAnalyzer:
+    def __init__(self, own_ip, excluded_ips,
+                 min_cnc_attempts=2,
+                 attack_gap=900,
+                 min_attack_packets=30,
+                 attack_detection_watermark=5):
+        self.tag = None
+        self.cnc = ('', '')
+        self.cnc_status_ready = False
         self.cnc_status = {}
         self.cnc_stats = []
-        self.attack_reports = []
-
-        for ip, port in cnc_ip_ports:
-            key = f'{ip}:{port}'
-            if key not in self.cnc_stats:
-                self.cnc_status[key] = {}
-            self.cnc_status[key]['ready'] = True
-            self.cnc_status[key]['status'] = CnCStatus.UNKNOWN.value
-            self.cnc_status[key]['ip'] = ip
-            self.cnc_status[key]['port'] = port
-            self.cnc_status[key]['update_time'] = None
-
-    def get(self):
-        cnc_report = {}
-        key = self.curr_cnc if self.curr_cnc != '' else \
-                next(iter(self.cnc_status))
-        cnc_dict = self.cnc_status[key]
-
-        cnc_report = {
-            'cnc_ip': cnc_dict['ip'],
-            'cnc_ready': cnc_dict['ready'],
-            'cnc_port': cnc_dict['port'],
-            'cnc_status': cnc_dict['status'],
-            'cnc_update_at': cnc_dict['update_time']}
-
-        if cnc_dict['ready']:
-            cnc_dict['ready'] = False
-
-        cnc_stats = copy.deepcopy(self.cnc_stats) \
-                if len(self.cnc_stats) > 0 else []
-        attack_reports = copy.deepcopy(self.attack_reports) \
-                if len(self.attack_reports) > 0 else []
-
-        ret = {'cnc_status': cnc_report,
-               'cnc_stats': cnc_stats,
-               'attacks': attack_reports}
-
-        self.attack_reports.clear()
-        self.cnc_stats.clear()
-        return ret
-
-
-class AttackAnalyzer:
-    def __init__(self, cnc_ip_ports, own_ip, excluded_ips,
-                 enable_attack_detection=True, attack_gap=900,
-                 min_attack_packets=30, attack_detection_watermark=5):
-        self.tag = None
-        self.cnc_ip_ports = cnc_ip_ports
+        self.attacks = []
         self.own_ip = own_ip
-        self.excluded_ips = excluded_ips
-        self.enable_attack_detection = enable_attack_detection
-        self.attack_gap = attack_gap
-        self.min_attack_packets = min_attack_packets
+        self.excluded_ips = excluded_ips.split(',')
         self.attack_detectors = [ScanDetector(attack_detection_watermark,
                                               timedelta(seconds=attack_gap),
                                               min_attack_packets,
@@ -399,100 +395,107 @@ class AttackAnalyzer:
                                             timedelta(seconds=attack_gap),
                                             min_attack_packets,
                                             own_ip)]
-        self.cnc_stat_collector = CnCStatCollector(self.cnc_ip_ports, own_ip,
-                                                   excluded_ips)
-        self.report = AttackReport(cnc_ip_ports)
+        self.cnc_detector = CnCDetector(own_ip, excluded_ips, min_cnc_attempts)
 
     def set_tag(self, tag):
         self.tag = tag
-        l.info(f'[{self.tag}] AttackAnalyzer initialized')
-        l.info(f'[{self.tag}] attack detection enabled: {self.enable_attack_detection}')
-        l.info(f'[{self.tag}] attack_gap: {self.attack_gap}')
-        l.info(f'[{self.tag}] min_attack_packets: {self.min_attack_packets}')
+        l.info(f'[{self.tag}] PacketAnalyzer initialized')
 
-    def get_result(self, flush=False):
+    def _report(self):
+        cnc_status = {}
+        cnc_stats = []
+        attacks = []
+        if self.cnc_status_ready:
+            self.cnc_status_ready = False
+            cnc_status = copy.deepcopy(self.cnc_status)
+        if len(self.cnc_stats) > 0:
+            cnc_stats = copy.deepcopy(self.cnc_stats)
+            self.cnc_stats.clear()
+        if len(self.attacks) > 0:
+            attacks = copy.deepcopy(self.attacks)
+            for a in attacks:
+                a['cnc_ip'] = self.cnc[0]
+                a['cnc_port'] = self.cnc[1]
+            self.attacks.clear()
+        return {'cnc_status': cnc_status,
+                'cnc_stats': cnc_stats,
+                'attacks': attacks}
+
+    def get_result(self, flush_attacks=False, flush_cnc_stats=False):
         l.debug(f'[{self.tag}] getting report...')
-        if self.enable_attack_detection and flush:
-            self.report.attack_reports.clear()
+        if flush_attacks:
+            self.attacks.clear()
             for detector in self.attack_detectors:
                 reports = detector.flush()
                 if len(reports) > 0:
-                    self.report.attack_reports.extend(reports)
-            self.report.cnc_stats = self.cnc_stat_collector.report()
+                    self.attacks.extend(reports)
+        if flush_cnc_stats:
+            self.cnc_stats = self.cnc_detector.report()
 
-        return self.report.get()
+        return self._report()
 
-    def _analyze_cnc_status(self, pkt):
-        l.debug(f'[{self.tag}] analyzing cnc status...')
-        cnc_ready = False
-        if 'tcp' in pkt.layers:
-            # we only monitor sync_ack or fin_ack from server -> client
-            if (pkt.ip_src, pkt.tcp_srcport) in self.cnc_ip_ports and \
-               pkt.ip_dst == self.own_ip:
-                cnc = f'{pkt.ip_src}:{pkt.tcp_srcport}'
-                cnc_dict = self.report.cnc_status[cnc]
-                self.report.curr_cnc = cnc
-                if pkt.tcp_flags_fin == 'True':
-                    # server initiate FIN, connection broken
-                    if cnc_dict['status'] != CnCStatus.DISCONNECTED.value:
-                        cnc_dict['status'] = CnCStatus.DISCONNECTED.value
-                        cnc_dict['update_time'] = pkt.sniff_time
-                        cnc_dict['ready'] = True
-                        cnc_ready = True
-                else:
-                    # if sync ack from server, or data exchange from server
-                    if (pkt.tcp_flags_syn == 'True' and pkt.tcp_flags_ack == 'True') \
-                            or (pkt.tcp_len != 0):
-                        if cnc_dict['status'] != CnCStatus.ALIVE.value:
-                            cnc_dict['status'] = CnCStatus.ALIVE.value
-                            cnc_dict['update_time'] = pkt.sniff_time
-                            cnc_dict['ready'] = True
-                            cnc_ready = True
-        return cnc_ready
-
-    def _analyze_attack(self, pkt):
-        l.debug(f'[{self.tag}] analyzing attack of packet: {repr(pkt)}')
+    def analyze(self, pkt):
+        l.debug(f'[{self.tag}] analyzing packet: {repr(pkt)}')
 
         if 'tcp' not in pkt.layers and \
                 'udp' not in pkt.layers and \
                 'ip' not in pkt.layers:
             return False
 
-        # collect cnc stats
-        self.cnc_stat_collector.add(pkt)
+        def check_cnc_status(cnc_status):
+            report_ready = False
+            if len(cnc_status) == 0:
+                return False
+
+            # cncstatus report will be ready when a candidate CnC is available
+            if cnc_status['status'] == CnCStatus.CANDIDATE.value:
+                self.cnc_status = cnc_status
+                self.cnc_status_ready = True
+                return True
+
+            # status of already confirmed CnC changed, from candidate to alive
+            # or between alive <-> disconnected
+            if len(self.cnc_status) > 0 and \
+               self.cnc_status['status'] != cnc_status['status']:
+                self.cnc_status = cnc_status
+                if cnc_status['status'] == CnCStatus.ALIVE.value:
+                    self.cnc[0] = cnc_status['ip']
+                    self.cnc[1] = cnc_status['port']
+                self.cnc_status_ready = True
+                return True
+            return False
+
+
+        # analyze cnc stats
+        cnc_status = self.cnc_detector.detect(pkt)
+        cnc_status_ready = check_cnc_status(cnc_status)
 
         background_fields = ["mdns", "dhcpv6", "dhcp", "arp"]
         if is_background_traffic(pkt, background_fields):
             return False
 
         # only check outgoing packets and ignore c2 traffic
-        if (pkt.ip_dst, pkt.tcp_dstport) in self.cnc_ip_ports or \
-                pkt.ip_dst == self.own_ip or \
-                pkt.ip_dst in self.excluded_ips:
+        if pkt.ip_dst == self.cnc[0] or \
+           pkt.ip_dst == self.own_ip or \
+           pkt.ip_dst in self.excluded_ips:
             return False
 
+        # analyzing attacks
         reports = []
         confirmed = []
         for detector in self.attack_detectors:
             reports, confirmed = detector.detect(pkt)
             if len(reports) > 0:
-                self.report.attack_reports = reports
+                self.attacks = reports
             if len(confirmed) > 0:
                 break
 
         if len(confirmed) > 0:
             for detector in self.attack_detectors:
                 detector.del_confirmed(confirmed)
-            # also delete noises packet from cnc stat collector
+            # also delete noises packet from cnc detector
             for p in confirmed:
-                self.cnc_stat_collector.remove(p)
+                self.cnc_detector.remove(p)
 
-        return len(reports) > 0
-
-    def analyze(self, pkt):
-        cnc_ready = self._analyze_cnc_status(pkt)
-        attack_ready = False
-        if self.enable_attack_detection:
-            attack_ready = self._analyze_attack(pkt)
-        return cnc_ready or attack_ready
+        return len(reports) > 0 or cnc_status_ready
 

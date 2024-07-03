@@ -16,7 +16,7 @@ if [ $? -eq 0 ]; then
 
     mkdir "$new_folder"
     
-    mv *.pcap $new_folder/
+    mv *.pcap *.csv $new_folder/
     cp -rf $MOUNT_FOLDER/bot/log $LOG_DIR/$new_folder/
     cp -rf $MOUNT_FOLDER/bot/syscall $LOG_DIR/$new_folder/
 fi

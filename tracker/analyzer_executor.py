@@ -2,8 +2,7 @@ import signal
 from concurrent.futures import ProcessPoolExecutor
 import asyncio
 import os
-from attack_analyzer import *
-from cnc_analyzer import *
+from packet_analyzer import *
 from log import TaskLogger
 from enum import Enum
 
@@ -33,10 +32,11 @@ class AnalyzerContext:
             return self.analyzer_reg[aid].analyze(packet)
         return False
 
-    def get_result(self, aid, flush=False):
+    def get_result(self, aid, flush_attacks=False, flush_cnc_stats=False):
         l.debug(f'get_result from aid: {aid}...')
         if aid in self.analyzer_reg:
-            return self.analyzer_reg[aid].get_result(flush)
+            return self.analyzer_reg[aid].get_result(flush_attacks,
+                                                     flush_cnc_stats)
         return None
 
     def finalize_analyzer(self, aid):
@@ -79,11 +79,6 @@ def init_worker(analyzer_ctx):
 
 
 # following code run locally
-class AnalyzerType(Enum):
-    ANALYZER_CNC = 0
-    ANALYZER_ATTACK = 1
-
-
 # simple wrapper for ProcessPoolExecutor
 # run task remotely in a specified executor process with executor id
 class AnalyzerExecutorPool:
@@ -126,19 +121,12 @@ class AnalyzerExecutorPool:
 
         l.info(f'Initializing analyzer at executor {eid} ...')
         e = self.executor_reg[eid]
-        if which == AnalyzerType.ANALYZER_CNC:
-            analyzer = CnCAnalyzer(kwargs['own_ip'],
-                                   kwargs['excluded_ips'],
-                                   kwargs['excluded_ports'],
-                                   kwargs['max_cnc_candidates'])
-        else:
-            analyzer = AttackAnalyzer(kwargs['cnc_ip_ports'],
-                                      kwargs['own_ip'],
-                                      kwargs['excluded_ips'],
-                                      kwargs['enable_attack_detection'],
-                                      kwargs['attack_gap'],
-                                      kwargs['min_attack_packets'],
-                                      kwargs['attack_detection_watermark'])
+        analyzer = PacketAnalyzer(kwargs['own_ip'],
+                                  kwargs['excluded_ips'],
+                                  kwargs['min_cnc_attempts'],
+                                  kwargs['attack_gap'],
+                                  kwargs['min_attack_packets'],
+                                  kwargs['attack_detection_watermark'])
 
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(e, init_analyzer_in_executor, analyzer)

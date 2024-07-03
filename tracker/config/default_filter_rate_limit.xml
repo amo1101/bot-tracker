@@ -1,3 +1,0 @@
-<filter name='sandbox-default-filter-rate-limit'>
-  <filterref filter='sandbox-base-filter'/>
-</filter>

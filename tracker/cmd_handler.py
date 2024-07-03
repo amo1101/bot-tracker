@@ -21,6 +21,7 @@ async def handle_list_bot(args):
         status = None
     else:
         status = [BotStatus.STAGED.value,
+                  BotStatus.INITIATING.value,
                   BotStatus.ACTIVE.value,
                   BotStatus.DORMANT.value]
 
@@ -53,8 +54,9 @@ async def handle_start_bot(args):
             status = [args['status']]
         else:
             status = [BotStatus.UNKNOWN.value,
-                      BotStatus.INTERRUPTED.value,
+                      BotStatus.SUSPENDED.value,
                       BotStatus.STAGED.value,
+                      BotStatus.INITIATING.value,
                       BotStatus.DORMANT.value,
                       BotStatus.ACTIVE.value]
 
@@ -180,7 +182,7 @@ async def handle_schedinfo(args):
            f'{"sandbox_vcpu_quota":<20}: {schedinfo[1]}\n' + \
            f'{"max_sandbox_num":<20}: {schedinfo[2]}\n' + \
            f'{"max_dormant_duration":<20}: {schedinfo[3]}\n' + \
-           f'{"cnc_probing_duration":<20}: {schedinfo[4]}'
+           f'{"bot_probing_duration":<20}: {schedinfo[4]}'
     return resp
 
 
