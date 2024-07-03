@@ -1,0 +1,2 @@
+ip,port,is_new,packet_cnt,total_bytes,syn_cnt,fin_cnt,rst_cnt,start_time,end_time
+103.82.193.149,12345,no,898,0,778,0,120,2024-06-21 09:33:16.566673,2024-06-21 10:48:43.024911

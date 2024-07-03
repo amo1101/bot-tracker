@@ -1,0 +1,3 @@
+attack_type,start_time,duration,src,target,protocol,src_port,dst_port,spoofed,packet_cnt,total_bytes,bot_id,cnc_ip,cnc_port
+DP Attack,2024-06-20 14:42:30.038443,0:04:59.149916,,68.50.187.14,udp,,,no,21576,31673568,a9ce0201536afb380206d2ef843eaa025490a268179a115451b344adc594bae2,45.95.169.138,322
+DP Attack,2024-06-20 16:15:12.721228,0:01:09.672987,,24.105.40.93,udp,,,no,1680,13440,a9ce0201536afb380206d2ef843eaa025490a268179a115451b344adc594bae2,45.95.169.138,322

@@ -1,0 +1,2 @@
+ip,port,is_new,packet_cnt,total_bytes,syn_cnt,fin_cnt,rst_cnt,start_time,duration
+216.146.27.222,5220,no,2200,0,1704,0,496,2024-06-20 14:37:14.862697,1:44:50.755736
