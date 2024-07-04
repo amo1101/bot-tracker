@@ -114,7 +114,7 @@ class AnalyzerExecutorPool:
             pass
         l.info(f'Executor {eid} closed')
 
-    async def init_analyzer(self, eid, which, **kwargs):
+    async def init_analyzer(self, eid, **kwargs):
         if eid not in self.executor_reg:
             l.warning(f'Executor {eid} not exist!')
             return None

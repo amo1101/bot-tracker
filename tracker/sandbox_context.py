@@ -16,6 +16,7 @@ class NetworkMode(Enum):
 
 class SandboxNWFilter(Enum):
     DEFAULT = "sandbox-default-filter"
+    CANDIDATE_CNC = "sandbox-candidate-cnc-filter"
     CNC = "sandbox-cnc-filter"
     CNC_RATE_LIMIT = "sandbox-cnc-filter-rate-limit"
 
@@ -87,6 +88,8 @@ class SandboxContext:
             {
                 SandboxNWFilter.DEFAULT.value:
                     ["default_filter.xml", "bind_default_filter.xml"],
+                SandboxNWFilter.CANDIDATE_CNC.value:
+                    ["candidate_cnc_filter.xml", "bind_candidate_cnc_filter.xml"],
                 SandboxNWFilter.CNC.value:
                     ["cnc_filter.xml", "bind_cnc_filter.xml"],
                 SandboxNWFilter.CNC_RATE_LIMIT.value:
@@ -102,6 +105,10 @@ class SandboxContext:
     @property
     def default_nwfilter(self):
         return SandboxNWFilter.DEFAULT
+
+    @property
+    def candidate_cnc_nwfilter(self):
+        return SandboxNWFilter.CANDIDATE_CNC
 
     @property
     def cnc_nwfilter(self):
@@ -296,6 +303,10 @@ class SandboxContext:
             del para_to_check["allowed_tcp_ports"]
             del para_to_check["simulated_server"]
             del para_to_check["conn_limit"]
+        elif filter_name == SandboxNWFilter.CANDIDATE_CNC:
+            del para_to_check["allowed_tcp_ports"]
+            del para_to_check["simulated_server"]
+            del para_to_check["conn_limit"]
         elif filter_name == SandboxNWFilter.CNC:
             del para_to_check["conn_limit"]
         else:
@@ -343,7 +354,7 @@ class SandboxContext:
     def _default_rule(self, switch='ON'):
         s = SandboxScript.DEFAULT_RULE
         sim_server = self.simulated_server if self.network_mode == \
-                        NetworkMode.BLOCK.value else ''
+            NetworkMode.BLOCK.value else ''
         self.run_script(s, switch,
                         self.subnet,
                         self.dns_rate_limit,
@@ -379,7 +390,7 @@ class SandboxContext:
                 l.debug("destroy default network...")
                 default_net.destroy()
         except libvirt.libvirtError as e:
-            l.debug(f'libvirt exception occured: {e}')
+            l.debug(f'libvirt exception occurred: {e}')
 
         net_xml = self._get_net_config()
         l.debug(f'net_xml:\n{net_xml}')

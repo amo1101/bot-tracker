@@ -13,6 +13,19 @@ l: TaskLogger = TaskLogger(__name__)
 CUR_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
+def log_to_csv_file(csv_file, data):
+    if len(data) == 0:
+        return
+    is_empty = os.stat(csv_file).st_size == 0 if \
+        os.path.isfile(csv_file) else True
+    with open(csv_file, 'a', newline='') as file:
+        fieldnames = data[0].keys()
+        writer = csv.DictWriter(file, fieldnames=fieldnames)
+        if is_empty:
+            writer.writeheader()
+        writer.writerows(data)
+
+
 class BotRunner:
     def __init__(self, bot_info,
                  bot_repo_ip, bot_repo_user, bot_repo_path,
@@ -21,8 +34,8 @@ class BotRunner:
                  analyzer_pool,
                  bpf_filter,
                  excluded_ips,
-                 max_cnc_candidates,
                  min_cnc_attempts,
+                 max_cnc_candidates,
                  attack_gap,
                  min_attack_packets,
                  attack_detection_watermark,
@@ -94,59 +107,61 @@ class BotRunner:
                                                  output_file=output_file,
                                                  debug=False)
 
-    def _log_to_csv_file(self, csv_file, data):
-        if len(data) == 0:
-            return
-        is_empty = os.stat(csv_file).st_size == 0 if \
-                os.path.isfile(file_path) else True
-        with open(self.cnc_status_log, 'a', newline='') as file:
-            fieldnames = data[0].keys()
-            writer = csv.DictWriter(file, fieldnames=fieldnames)
-            if is_empty:
-                writer.writeheader()
-            writer.writerows(data)
-
-    async def _handle_cnc_candidate(self, ip, port):
+    async def _handle_candidate_cnc(self, ip, port):
         if self.cnc_info[0] != '':
             l.warning('Cnc info has been confirmed, reject more candidates!')
             return
 
-        # check if this cnc already exists
-        cnc_info_in_db = await self.db_store.load_cnc_info(None, ip, int(port))
-        for cnc in cnc_info_in_db:
-            if cnc.bot_id != self.bot_info.bot_id:
-                l.warning(f'Bot already exists for the botnet!')
-                return
-
-        if len(cnc_candidates) > self.max_cnc_candidates:
-            l.warning(f'CnC candidate number exceed {self.max_cnc_candidates}')
+        if len(self.cnc_candidates) > self.max_cnc_candidates:
+            l.warning(f'CnC candidates number exceeds {self.max_cnc_candidates}')
             return
 
         self.cnc_candidates.append((ip, port))
         await self.iface_monitor.register(ip, self.bot_info.tag)
 
         # allow communication with this CnC
-        nwfilter_type = self.sandbox_ctx.cnc_nwfilter
+        nwfilter_type = self.sandbox_ctx.candidate_cnc_nwfilter
         cnc_ips = list({c.ip for c in self.cnc_candidates})
         args = {"cnc_ip": cnc_ips}
         self.sandbox.apply_nwfilter(nwfilter_type, **args)
 
+    async def _handle_confirmed_cnc(self, ip, port):
+        # check if this cnc already exists
+        cnc_info_in_db = await self.db_store.load_cnc_info(None, ip, int(port))
+        for cnc in cnc_info_in_db:
+            if cnc.bot_id != self.bot_info.bot_id:
+                l.warning(f'Bot already exists for the botnet!')
+                self.notify_dup = True
+                await self.destroy()
+
+        self.cnc_info = (ip, port)
+        for cip, _ in self.cnc_candidates:
+            if cip != ip:
+                await self.iface_monitor.unregister(cip)
+
+        # allow communication with only this CnC
+        nwfilter_type = self.sandbox_ctx.cnc_nwfilter
+        args = {"cnc_ip": [ip]}
+        self.sandbox.apply_nwfilter(nwfilter_type, **args)
+
+        # exclude redirecting cnc traffic to simulated server in block network mode
+        self.sandbox.redirectx_traffic('ON', [self.cnc_info])
+
+        # store to db
+        cnc_info = CnCInfo(ip, int(port), self.bot_info.bot_id)  # TODO domain
+        await self.db_store.add_cnc_info(cnc_info)
+
     async def _handle_cnc_status(self, cnc_status):
         if len(cnc_status) == 0:
             return
-
-        self._log_to_csv_file(self.cnc_status_log, cnc_status)
+        log_to_csv_file(self.cnc_status_log, cnc_status)
         if cnc_status['status'] == CnCStatus.CANDIDATE.value:
             if len(self.cnc_candidates) == 0:
                 await self.update_bot_info(BotStatus.INITIATING)
-            await self._handle_cnc_candidate(cnc_status['ip'], cnc_status['port'])
+            await self._handle_candidate_cnc(cnc_status['ip'], cnc_status['port'])
         elif cnc_status['status'] == CnCStatus.ALIVE.value:
             if self.cnc_info[0] == '':
-                # CnC info confirmed
-                self.cnc_info[0] = cnc_status['ip']
-                self.cnc_info[1] = cnc_status['port']
-                # exclude redirecting cnc traffic to simulated server in block network mode
-                self.sandbox.redirectx_traffic('ON', [self.cnc_info])
+                await self._handle_confirmed_cnc(cnc_status['ip'], cnc_status['port'])
             await self.update_bot_info(BotStatus.ACTIVE)
         else:
             await self.update_bot_info(BotStatus.DORMANT)
@@ -163,10 +178,10 @@ class BotRunner:
         l.debug(f"Get report: {report}")
 
         if 'cnc_status' in report:
-            self._handle_cnc_status(report['cnc_status'])
+            await self._handle_cnc_status(report['cnc_status'])
 
         for s in report['cnc_stats']:
-            self._log_to_csv_file(self.cnc_stats_log, s)
+            log_to_csv_file(self.cnc_stats_log, s)
 
         for r in report['attacks']:
             total_packets = r['packet_cnt']
@@ -196,16 +211,14 @@ class BotRunner:
         try:
             # init analyzer
             l.info(f'Analyzer initializing at: {self.executor_id}')
-            self.analyzer_id = await self.analyzer_pool.init_analyzer(self.executor_id,
-                                                                      own_ip=own_ip,
-                                                                      excluded_ips=self.excluded_ips,
-                                                                      min_cnc_attempts=\
-                                                                          self.min_cnc_attempts,
-                                                                      attack_gap=self.attack_gap,
-                                                                      min_attack_packets=\
-                                                                          self.min_attack_packets,
-                                                                      attack_detection_watermark=\
-                                                                          self.attack_detection_watermark)
+            self.analyzer_id = \
+                await self.analyzer_pool.init_analyzer(self.executor_id,
+                                                       own_ip=own_ip,
+                                                       excluded_ips=self.excluded_ips,
+                                                       min_cnc_attempts=self.min_cnc_attempts,
+                                                       attack_gap=self.attack_gap,
+                                                       min_attack_packets=self.min_attack_packets,
+                                                       attack_detection_watermark=self.attack_detection_watermark)
             l.info(f'Analyzer initialized as: {self.analyzer_id}')
 
             async for packet in self.live_capture.sniff_continuously():
@@ -216,8 +229,8 @@ class BotRunner:
                     await self.handle_analyzer_report()
         finally:
             # flush and get the final report
-            l.info('stopping observing...')
             await self.handle_analyzer_report(True, True)
+            l.info('stopping observing...')
 
     async def update_bot_info(self, status=None):
         if status is None:
@@ -285,7 +298,7 @@ class BotRunner:
             # set default nwfiter
             self.sandbox.apply_nwfilter(self.sandbox_ctx.default_nwfilter)
 
-            # open packet executor
+            # open packet analyzer executor
             self.executor_id = self.analyzer_pool.open_executor()
 
             # observing bot
@@ -337,4 +350,3 @@ class BotRunner:
 
     def is_destroyed(self):
         return self.destroyed
-

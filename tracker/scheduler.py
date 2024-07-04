@@ -49,7 +49,7 @@ class Scheduler:
         self.max_dormant_duration = timedelta(hours=self.max_dormant_hours)
         self.bot_probing_duration = timedelta(seconds=bot_probing_duration)
         self.bpf_filter = bpf_filter
-        self.packet_analyzer_excluded_ips
+        self.packet_analyzer_excluded_ips = packet_analyzer_excluded_ips
         self.max_analyzing_workers = max_packet_analyzing_workers
         self.min_cnc_attempts = min_cnc_attempts
         self.max_cnc_candidates = max_cnc_candidates
@@ -148,7 +148,7 @@ class Scheduler:
 
     async def _stage_bots(self):
         await self._schedule_bots([BotStatus.UNKNOWN.value,
-                                   BotStatus.INTERRUPTED.value])
+                                   BotStatus.SUSPENDED.value])
 
     async def _update_bot_info(self):
         l.info(f'Update bot info..., bot count: {len(self.bot_runners)}')
@@ -161,7 +161,7 @@ class Scheduler:
                     if r.bot_status == BotStatus.STAGED and \
                        r.observe_duration > self.bot_probing_duration:
                         r.notify_error = True
-                        t.cancel()
+                        t.cancel()  # removed at next checkpoint
                     else:
                         await r.update_bot_info()
             for t in to_del:
@@ -182,8 +182,8 @@ class Scheduler:
     async def checkpoint(self):
         try:
             self.analyzer_pool = \
-            AnalyzerExecutorPool(self.max_analyzing_workers)
-            # create the inteface monitor task
+                AnalyzerExecutorPool(self.max_analyzing_workers)
+            # create the interface monitor task
             iface_monitor_action_type = IfaceMonitorAction.TEAR_DOWN if \
                 self.iface_monitor_action == '0' else IfaceMonitorAction.ALARM
 

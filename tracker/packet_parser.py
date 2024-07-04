@@ -2,8 +2,8 @@ import re
 import pyshark
 from log import TaskLogger
 
-
 l: TaskLogger = TaskLogger(__name__)
+
 
 def is_background_traffic(pkt, background_fields):
     for field in background_fields:
@@ -46,7 +46,7 @@ class PacketSummary:
         self.layers = []
         self.ip_src = None
         self.ip_dst = None
-        self.ip_len = None # ip payload length for protocol other than tcp and udp
+        self.ip_len = None  # ip payload length for protocol other than tcp and udp
         self.tcp_len = None
         self.tcp_srcport = None
         self.tcp_dstport = None
@@ -63,23 +63,23 @@ class PacketSummary:
 
     def __repr__(self):
         return 'Summary of packet:\n' + \
-               f'layers: {self.layers}\n' + \
-               f'ip_src: {self.ip_src}\n' + \
-               f'ip_dst: {self.ip_dst}\n' + \
-               f'ip_len: {self.ip_len}\n' + \
-               f'tcp_len: {self.tcp_len}\n' + \
-               f'tcp_srcport: {self.tcp_srcport}\n' + \
-               f'tcp_dstport: {self.tcp_dstport}\n' + \
-               f'tcp_flags_syn: {self.tcp_flags_syn}\n' + \
-               f'tcp_flags_ack: {self.tcp_flags_ack}\n' + \
-               f'tcp_flags_fin: {self.tcp_flags_fin}\n' + \
-               f'tcp_flags_reset: {self.tcp_flags_reset}\n' + \
-               f'udp_len: {self.udp_len}\n' + \
-               f'udp_srcport: {self.udp_srcport}\n' + \
-               f'udp_dstport: {self.udp_dstport}\n' + \
-               f'dns_qry_name: {self.dns_qry_name}\n' + \
-               f'dns_a: {self.dns_a}\n' + \
-               f'sniff_time: {self.sniff_time}\n'
+            f'layers: {self.layers}\n' + \
+            f'ip_src: {self.ip_src}\n' + \
+            f'ip_dst: {self.ip_dst}\n' + \
+            f'ip_len: {self.ip_len}\n' + \
+            f'tcp_len: {self.tcp_len}\n' + \
+            f'tcp_srcport: {self.tcp_srcport}\n' + \
+            f'tcp_dstport: {self.tcp_dstport}\n' + \
+            f'tcp_flags_syn: {self.tcp_flags_syn}\n' + \
+            f'tcp_flags_ack: {self.tcp_flags_ack}\n' + \
+            f'tcp_flags_fin: {self.tcp_flags_fin}\n' + \
+            f'tcp_flags_reset: {self.tcp_flags_reset}\n' + \
+            f'udp_len: {self.udp_len}\n' + \
+            f'udp_srcport: {self.udp_srcport}\n' + \
+            f'udp_dstport: {self.udp_dstport}\n' + \
+            f'dns_qry_name: {self.dns_qry_name}\n' + \
+            f'dns_a: {self.dns_a}\n' + \
+            f'sniff_time: {self.sniff_time}\n'
 
     @property
     def len(self):

@@ -220,11 +220,10 @@ async def run_packet_analyzer(base, bot, measurement, packet_cnt):
     aid = await executor_pool.init_analyzer(eid,
                                             own_ip=own_ip,
                                             excluded_ips=excluded_ips,
-                                            min_cnc_attempts,
+                                            min_cnc_attempts=min_cnc_attempts,
                                             attack_gap=attack_gap,
                                             min_attack_packets=min_attack_packets,
-                                            attack_detection_watermark=\
-                                                attack_detection_watermark)
+                                            attack_detection_watermark=attack_detection_watermark)
     cap = AsyncFileCapture(pcap, display_filter=display_filter)
 
     def get_report_result(report):
