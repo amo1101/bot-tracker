@@ -253,13 +253,13 @@ class CnCDetector:
         self.min_cnc_attempts = min_cnc_attempts
         self.stats = {}
         self.ips = set()
-        self.cnc = ''
+        self.cnc = ''  # cnc_ip:cnc_port
 
     def update(self, key, pkt):
         fin_cnt = 1 if pkt.tcp_flags_fin == 'True' and \
-                       pkt.tcp_flags_ack == 'False' else 0
+            pkt.tcp_flags_ack == 'False' else 0
         syn_cnt = 1 if pkt.tcp_flags_syn == 'True' and \
-                       pkt.tcp_flags_ack == 'False' else 0
+            pkt.tcp_flags_ack == 'False' else 0
         rst_cnt = 1 if pkt.tcp_flags_reset == 'True' else 0
 
         ip_port = key.split(':')
@@ -280,11 +280,9 @@ class CnCDetector:
 
     def detect(self, pkt):
         key = ''
-        cnc_ip = ''
-        cnc_port = ''
 
         def get_key(ip, port):
-            return f'{cnc_ip}:{cnc_port}'
+            return f'{ip}:{port}'
 
         def get_cnc_status(p, is_candidate):
             if is_candidate:
@@ -323,6 +321,7 @@ class CnCDetector:
             if self.cnc == '' and pkt.tcp_len > 0:
                 # cnc confirmed
                 self.cnc = key_src
+                l.debug(f'cnc confirmed as: {self.cnc}')
             if key_src == self.cnc:
                 # reply from cnc
                 is_cnc_resp = True
@@ -335,6 +334,7 @@ class CnCDetector:
                         pkt.ip_dst not in self.ips and \
                         self.cnc == '':  # only if cnc is not confirmed
                     is_cnc_candidate = True
+                    l.debug(f'new cnc candidate detected: {key}')
                     self.ips.add(pkt.ip_dst)
             else:
                 # potential cnc attempt
@@ -379,6 +379,7 @@ class PacketAnalyzer:
         self.cnc_status = {}
         self.cnc_stats = []
         self.attacks = []
+        self.domains = {}
         self.own_ip = own_ip
         self.excluded_ips = excluded_ips.split(',')
         self.attack_detectors = [ScanDetector(attack_detection_watermark,
@@ -399,6 +400,10 @@ class PacketAnalyzer:
         self.tag = tag
         l.info(f'[{self.tag}] PacketAnalyzer initialized')
 
+    def get_domains(self, pkt):
+        if pkt.dns_a is not None:
+            self.domains[pkt.dns_a] = pkt.dns_qry_name
+
     def _report(self):
         cnc_status = {}
         cnc_stats = []
@@ -406,6 +411,8 @@ class PacketAnalyzer:
         if self.cnc_status_ready:
             self.cnc_status_ready = False
             cnc_status = copy.deepcopy(self.cnc_status)
+            cnc_status['domain'] = '' if cnc_status['ip'] not in self.domains \
+                else self.domains[cnc_status['ip']]
         if len(self.cnc_stats) > 0:
             cnc_stats = copy.deepcopy(self.cnc_stats)
             self.cnc_stats.clear()
@@ -420,7 +427,7 @@ class PacketAnalyzer:
                 'attacks': attacks}
 
     def get_result(self, flush_attacks=False, flush_cnc_stats=False):
-        l.debug(f'[{self.tag}] getting report...')
+        l.debug(f'[{self.tag}] getting report, flush_attacks: {flush_attacks}, flush_cnc_stats: {flush_cnc_stats}...')
         if flush_attacks:
             self.attacks.clear()
             for detector in self.attack_detectors:
@@ -435,13 +442,15 @@ class PacketAnalyzer:
     def analyze(self, pkt):
         l.debug(f'[{self.tag}] analyzing packet: {repr(pkt)}')
 
+        if 'dns' in pkt.layers:
+            self.get_domains(pkt)
+
         if 'tcp' not in pkt.layers and \
                 'udp' not in pkt.layers and \
                 'ip' not in pkt.layers:
             return False
 
         def check_cnc_status(status):
-            report_ready = False
             if len(status) == 0:
                 return False
 

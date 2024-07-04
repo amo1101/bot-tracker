@@ -9,7 +9,7 @@ for b in $bindings; do
 done
 
 virsh nwfilter-undefine sandbox-default-filter
-virsh nwfilter-undefine sandbox-default-filter-rate-limit
+virsh nwfilter-undefine sandbox-candidate-cnc-filter
 virsh nwfilter-undefine sandbox-cnc-filter
 virsh nwfilter-undefine sandbox-cnc-filter-rate-limit
 virsh nwfilter-undefine sandbox-base-filter

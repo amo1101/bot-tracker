@@ -59,9 +59,9 @@ def analyze_packet_in_executor(aid, packet):
     return analyzer_context.analyze_packet(aid, packet)
 
 
-def get_analyze_result_in_executor(aid, flush=False):
+def get_analyze_result_in_executor(aid, flush_attacks=False, flush_cnc_stats=False):
     global analyzer_context
-    return analyzer_context.get_result(aid, flush)
+    return analyzer_context.get_result(aid, flush_attacks, flush_cnc_stats)
 
 
 def finalize_analyzer_in_executor(aid):
@@ -141,13 +141,13 @@ class AnalyzerExecutorPool:
         # only send packet summary
         pkt_summary = PacketSummary()
         pkt_summary.extract(packet)
-        l.debug(f'Analyzing new packet at {eid}-{aid}:\n{repr(pkt_summary)}')
+        l.debug(f'Analyzing new packet at {eid}-{aid}...')
 
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(e, analyze_packet_in_executor,
                                           aid, pkt_summary)
 
-    async def get_result(self, eid, aid, flush=False):
+    async def get_result(self, eid, aid, flush_attacks=False, flush_cnc_stats=False):
         if eid not in self.executor_reg:
             l.warning(f'Executor {eid} not exist!')
             return None
@@ -155,7 +155,7 @@ class AnalyzerExecutorPool:
         l.debug(f'Getting result at {eid}-{aid}...')
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(e, get_analyze_result_in_executor,
-                                          aid, flush)
+                                          aid, flush_attacks, flush_cnc_stats)
 
     async def finalize_analyzer(self, eid, aid):
         if eid not in self.executor_reg:

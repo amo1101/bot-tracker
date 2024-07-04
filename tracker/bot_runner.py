@@ -13,6 +13,7 @@ l: TaskLogger = TaskLogger(__name__)
 CUR_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
+# data be a list of dicts
 def log_to_csv_file(csv_file, data):
     if len(data) == 0:
         return
@@ -108,6 +109,7 @@ class BotRunner:
                                                  debug=False)
 
     async def _handle_candidate_cnc(self, ip, port):
+        l.debug(f'New Cnc candidate: {ip}:{port}')
         if self.cnc_info[0] != '':
             l.warning('Cnc info has been confirmed, reject more candidates!')
             return
@@ -121,11 +123,12 @@ class BotRunner:
 
         # allow communication with this CnC
         nwfilter_type = self.sandbox_ctx.candidate_cnc_nwfilter
-        cnc_ips = list({c.ip for c in self.cnc_candidates})
+        cnc_ips = list({cip for cip, _ in self.cnc_candidates})
         args = {"cnc_ip": cnc_ips}
         self.sandbox.apply_nwfilter(nwfilter_type, **args)
+        l.debug(f'Enabled nwfilter policy for Cnc candidate: {ip}:{port}')
 
-    async def _handle_confirmed_cnc(self, ip, port):
+    async def _handle_confirmed_cnc(self, ip, port, domain):
         # check if this cnc already exists
         cnc_info_in_db = await self.db_store.load_cnc_info(None, ip, int(port))
         for cnc in cnc_info_in_db:
@@ -134,6 +137,7 @@ class BotRunner:
                 self.notify_dup = True
                 await self.destroy()
 
+        l.info(f'Confirmed CnC: {ip}:{port}')
         self.cnc_info = (ip, port)
         for cip, _ in self.cnc_candidates:
             if cip != ip:
@@ -148,20 +152,20 @@ class BotRunner:
         self.sandbox.redirectx_traffic('ON', [self.cnc_info])
 
         # store to db
-        cnc_info = CnCInfo(ip, int(port), self.bot_info.bot_id)  # TODO domain
+        cnc_info = CnCInfo(ip, int(port), self.bot_info.bot_id, domain)
         await self.db_store.add_cnc_info(cnc_info)
 
     async def _handle_cnc_status(self, cnc_status):
         if len(cnc_status) == 0:
             return
-        log_to_csv_file(self.cnc_status_log, cnc_status)
+        log_to_csv_file(self.cnc_status_log, [cnc_status])
         if cnc_status['status'] == CnCStatus.CANDIDATE.value:
             if len(self.cnc_candidates) == 0:
                 await self.update_bot_info(BotStatus.INITIATING)
             await self._handle_candidate_cnc(cnc_status['ip'], cnc_status['port'])
         elif cnc_status['status'] == CnCStatus.ALIVE.value:
             if self.cnc_info[0] == '':
-                await self._handle_confirmed_cnc(cnc_status['ip'], cnc_status['port'])
+                await self._handle_confirmed_cnc(cnc_status['ip'], cnc_status['port'], cnc_status['domain'])
             await self.update_bot_info(BotStatus.ACTIVE)
         else:
             await self.update_bot_info(BotStatus.DORMANT)
@@ -180,8 +184,7 @@ class BotRunner:
         if 'cnc_status' in report:
             await self._handle_cnc_status(report['cnc_status'])
 
-        for s in report['cnc_stats']:
-            log_to_csv_file(self.cnc_stats_log, s)
+        log_to_csv_file(self.cnc_stats_log, report['cnc_stats'])
 
         for r in report['attacks']:
             total_packets = r['packet_cnt']
@@ -326,8 +329,8 @@ class BotRunner:
 
             if self.cnc_info[0] != '':
                 self.sandbox.redirectx_traffic('OFF', [self.cnc_info])
-            for c in self.cnc_candidates:
-                await self.iface_monitor.unregister(c.ip)
+            for cip, _ in self.cnc_candidates:
+                await self.iface_monitor.unregister(cip)
 
             self.sandbox.destroy()
 
