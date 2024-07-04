@@ -15,7 +15,9 @@ class NetworkMode(Enum):
 
 
 class SandboxNWFilter(Enum):
+    BASE = "sandbox-base-filter"
     DEFAULT = "sandbox-default-filter"
+    DEFAULT_RATE_LIMIT = "sandbox-default-filter-rate-limit"
     CNC = "sandbox-cnc-filter"
     CNC_RATE_LIMIT = "sandbox-cnc-filter-rate-limit"
 
@@ -85,8 +87,12 @@ class SandboxContext:
 
         self.sandbox_nwfilter_registry = \
             {
+                SandboxNWFilter.BASE.value:
+                    ["base_filter.xml", ""],
                 SandboxNWFilter.DEFAULT.value:
                     ["default_filter.xml", "bind_default_filter.xml"],
+                SandboxNWFilter.DEFAULT_RATE_LIMIT.value:
+                    ["default_filter_rate_limit.xml", "bind_default_filter_rate_limit.xml"],
                 SandboxNWFilter.CNC.value:
                     ["cnc_filter.xml", "bind_cnc_filter.xml"],
                 SandboxNWFilter.CNC_RATE_LIMIT.value:
@@ -101,7 +107,9 @@ class SandboxContext:
 
     @property
     def default_nwfilter(self):
-        return SandboxNWFilter.DEFAULT
+        if self._network_mode == NetworkMode.BLOCK.value:
+            return SandboxNWFilter.DEFAULT
+        return SandboxNWFilter.DEFAULT_RATE_LIMIT
 
     @property
     def cnc_nwfilter(self):
@@ -291,7 +299,8 @@ class SandboxContext:
                 "conn_limit": ["//filterref/parameter[@name='CONN_LIMIT']", "value"]
             }
 
-        if filter_name == SandboxNWFilter.DEFAULT:
+        if (filter_name == SandboxNWFilter.DEFAULT or
+                filter_name == SandboxNWFilter.DEFAULT_RATE_LIMIT):
             del para_to_check["cnc_ip"]
             del para_to_check["allowed_tcp_ports"]
             del para_to_check["simulated_server"]
@@ -299,10 +308,6 @@ class SandboxContext:
         elif filter_name == SandboxNWFilter.CNC:
             del para_to_check["conn_limit"]
         else:
-            del para_to_check["bridge_ip"]
-            del para_to_check["sandbox_ip"]
-            del para_to_check["dsn_server"]
-            del para_to_check["mal_repo_ip"]
             del para_to_check["allowed_tcp_ports"]
             del para_to_check["simulated_server"]
 

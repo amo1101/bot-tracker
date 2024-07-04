@@ -23,12 +23,11 @@ class Scheduler:
                  sandbox_vcpu_quota,
                  max_sandbox_num,
                  max_dormant_duration,
-                 bot_probing_duration,
+                 cnc_probing_duration,
                  bpf_filter,
-                 packet_analyzer_excluded_ips,
                  max_packet_analyzing_workers,
-                 min_cnc_attempts,
                  max_cnc_candidates,
+                 enable_attack_detection,
                  attack_gap,
                  min_attack_packets,
                  attack_detection_watermark,
@@ -47,12 +46,11 @@ class Scheduler:
         self.max_sandbox_num = max_sandbox_num
         self.max_dormant_hours = max_dormant_duration
         self.max_dormant_duration = timedelta(hours=self.max_dormant_hours)
-        self.bot_probing_duration = timedelta(seconds=bot_probing_duration)
+        self.cnc_probing_duration = cnc_probing_duration
         self.bpf_filter = bpf_filter
-        self.packet_analyzer_excluded_ips
         self.max_analyzing_workers = max_packet_analyzing_workers
-        self.min_cnc_attempts = min_cnc_attempts
         self.max_cnc_candidates = max_cnc_candidates
+        self.enable_attack_detection = True if enable_attack_detection == 'yes' else False
         self.attack_gap = attack_gap
         self.min_attack_packets = min_attack_packets
         self.attack_detection_watermark = attack_detection_watermark
@@ -84,8 +82,8 @@ class Scheduler:
     async def _unstage_bots(self):
         async with self.bot_runners_lock:
             for t, r in self.bot_runners.items():
-                dd = r.dormant_duration
-                od = r.observe_duration
+                dd = r.dormant_duration()
+                od = r.observe_duration()
                 l.info(f"Bot [{r.bot_info.tag}]: \ndormant_duration:{dd}\nobserve_duration:{od}")
                 if dd > self.max_dormant_duration:
                     l.info(f"Cancelling running bot [{r.bot_info.tag}]")
@@ -126,13 +124,13 @@ class Scheduler:
                                    self.bot_repo_user,
                                    self.bot_repo_path,
                                    self.sandbox_vcpu_quota,
+                                   self.cnc_probing_duration,
                                    self.sandbox_ctx,
                                    self.db_store,
                                    self.analyzer_pool,
                                    self.bpf_filter,
-                                   self.packet_analyzer_excluded_ips,
-                                   self.min_cnc_attempts,
                                    self.max_cnc_candidates,
+                                   self.enable_attack_detection,
                                    self.attack_gap,
                                    self.min_attack_packets,
                                    self.attack_detection_watermark,
@@ -158,12 +156,7 @@ class Scheduler:
                 if r.is_destroyed():
                     to_del.append(t)
                 else:
-                    if r.bot_status == BotStatus.STAGED and \
-                       r.observe_duration > self.bot_probing_duration:
-                        r.notify_error = True
-                        t.cancel()
-                    else:
-                        await r.update_bot_info()
+                    await r.update_bot_info()
             for t in to_del:
                 del self.bot_runners[t]
                 l.debug(f'remove task {t.get_name()}')
@@ -175,7 +168,7 @@ class Scheduler:
                 if bot_id is None or \
                    r.bot_info.bot_id == bot_id:
                     if not r.is_destroyed():
-                        await r.handle_analyzer_report(True)
+                        await r.handle_attack_report(True)
                     if bot_id is not None:
                         break
 
@@ -244,7 +237,7 @@ class Scheduler:
                 self.sandbox_vcpu_quota,
                 self.max_sandbox_num,
                 self.max_dormant_hours,
-                self.bot_probing_duration)
+                self.cnc_probing_duration)
 
     def set_scheduler_info(self, **kwargs):
         l.debug(f'{kwargs}')
@@ -261,5 +254,5 @@ class Scheduler:
         if 'max_dormant_hours' in kwargs:
             self.max_dormant_hours = int(kwargs['max_dormant_hours'])
             self.max_dormant_duration = timedelta(hours=self.max_dormant_hours)
-        if 'bot_probing_duration' in kwargs:
-            self.bot_probing_duration = int(kwargs['bot_probing_duration'])
+        if 'cnc_probing_duration' in kwargs:
+            self.cnc_probing_duration = int(kwargs['cnc_probing_duration'])

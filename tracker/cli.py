@@ -22,12 +22,12 @@ help_list_bot = "NAME\n" + \
                 "  list-bot [bot_id] [--all] [--status]\n" + \
                 "\nDESCRIPTION\n" + \
                 "  List bot information with specified bot_id or bot status.\n" + \
-                "  If no option specified, list all 'staged','initiating','active' and 'dormant' bots.\n" + \
+                "  If no option specified, list all 'staged','active' and 'dormant' bots.\n" + \
                 "\nOPTIONS\n" + \
                 "  [bot_id]: bot id\n" + \
                 "  [--all]: list all bots\n" + \
                 "  [--status]=<status>: bot status, could be one of 'unknown','staged','dormant',\n" + \
-                "             'initiating', active','suspended','unstaged','error', or 'duplicate'"
+                "             'active','interrupted','unstaged','error', or 'duplicate'"
 
 help_start_bot = "NAME\n" + \
                  "  start-bot - start running bot.\n" + \
@@ -40,7 +40,7 @@ help_start_bot = "NAME\n" + \
                  "  [--all]: start all bots which are not currently running and not in 'error',\n" + \
                  "           'duplicated' or 'unstaged' state\n" + \
                  "  [--status]=<status>: bot status, could be one of 'unknown','staged','dormant',\n" + \
-                 "             'initiating', 'active','suspended','unstaged','error', or 'duplicate'"
+                 "             'active','interrupted','unstaged','error', or 'duplicate'"
 
 help_stop_bot = "NAME\n" + \
                 "  stop-bot - stop running bot.\n" + \
@@ -52,7 +52,7 @@ help_stop_bot = "NAME\n" + \
                 "\nOPTIONS\n" + \
                 "  [--all]: stop all bots which are currently running\n" + \
                 "  [--status]=<status>: bot status, could be one of 'unknown','staged','dormant',\n" + \
-                "             'initiating', 'active','suspended','unstaged','error', or 'duplicate'\n" + \
+                "             'active','interrupted','unstaged','error', or 'duplicate'\n" + \
                 "  [--unstage]=<yes/no>: unstage the bot or not, unstaged bots will not be scheduled\n" + \
                 "              in auto schduler mode."
 
@@ -91,7 +91,7 @@ help_set_sched = "NAME\n" + \
                  "  set-sched - set bot scheduler parameters.\n" + \
                  "\nSYNOPSIS\n" + \
                  "  set-sched [--mode] [--sandbox_vcpu_quota] [--max_sandbox_num]\n" + \
-                 "            [--max_dormant_duration] [--bot_probing_duration]\n" + \
+                 "            [--max_dormant_duration] [--cnc_probing_duration]\n" + \
                  "\nDESCRIPTION\n" + \
                  "  Set bot scheduler parameters, changes will apply immediately.\n" + \
                  "  Multiple parameters can be set at the same time.\n" + \
@@ -100,7 +100,7 @@ help_set_sched = "NAME\n" + \
                  "  [--sandbox_vcpu_quota]=<quota>: sandbox vcpu quota in percentage of a physical cpu core.\n" + \
                  "  [--max_sandbox_num]=<num>: max number of sandboxes the scheduler can run.\n" + \
                  "  [--max_dormant_duration]=<duration>: max dormant hours allowed before a bot is unstaged.\n" + \
-                 "  [--bot_probing_duration]=<duration>: time in second for probing whether bot is running.\n"
+                 "  [--cnc_probing_duration]=<duration>: time in second for probing CnC server.\n"
 
 cmd_help = {'list-bot': help_list_bot,
             'start-bot': help_start_bot,
@@ -112,10 +112,9 @@ cmd_help = {'list-bot': help_list_bot,
 
 bot_status_list = ['unknown',
                    'staged',
-                   'initiating',
                    'dormant',
                    'active',
-                   'suspended',
+                   'interrupted',
                    'unstaged',
                    'error',
                    'duplicate']
@@ -178,7 +177,7 @@ cmd_config = {
         'sandbox_vcpu_quota': lambda v: v.isdigit() and 0 < int(v) <= 100,
         'max_sandbox_num': lambda v: v.isdigit(),
         'max_dormant_duration': lambda v: v.isdigit(),
-        'bot_probing_duration': lambda v: v.isdigit()})
+        'cnc_probing_duration': lambda v: v.isdigit()})
 }
 
 cmd_buffer_len = 1024 * 1024 * 4
@@ -262,4 +261,4 @@ if __name__ == "__main__":
     try:
         asyncio.run(start_cli(), debug=False)
     except KeyboardInterrupt:
-        print('interrupted by user')
+        print('Interrupted by user')

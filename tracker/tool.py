@@ -41,6 +41,10 @@ data_analysis_ui = "\nPlease choose:\n" + \
                    "    2. Analyze for measurements of a bot\n" + \
                    "Press any other key to go back"
 
+data_analysis_ui_1 = "\nPlease choose:\n" + \
+                     "    1. Detect CnC servers\n" + \
+                     "    2. Detect CnC and attack stats\n" + \
+                     "Press any other key to go back"
 
 def list_directories(directory):
     path = Path(directory)
@@ -185,7 +189,49 @@ def get_data_dir(base, bot, measurement):
     return base + os.sep + bot + os.sep + measurement
 
 
-async def run_packet_analyzer(base, bot, measurement, packet_cnt):
+async def run_cnc_analyzer(base, bot, measurement, packet_cnt):
+    pcap = get_data_dir(base, bot, measurement) + os.sep + 'capture.pcap'
+    print('\nStart detecting C2 servers...')
+    print(f'pcap file: {pcap}')
+    print(f'packet_cnt: {packet_cnt}...')
+    own_ip = await get_sandbox_ip(pcap)
+    if own_ip is None:
+        print('Sandbox ip not found, aborted!')
+        return
+    excluded_ips = g_tool_config['data_analysis']['excluded_ips'].split(',')
+    max_cnc_candidates = \
+        int(g_tool_config['data_analysis']['max_cnc_candidates'])
+
+    print(f'sandbox_ip: {own_ip}')
+    print(f'max_cnc_candidates: {max_cnc_candidates}')
+
+    executor_pool = AnalyzerExecutorPool(1)
+    eid = executor_pool.open_executor()
+    aid = await executor_pool.init_analyzer(eid, AnalyzerType.ANALYZER_CNC,
+                                            own_ip=own_ip,
+                                            excluded_ips=excluded_ips,
+                                            excluded_ports=None,
+                                            max_cnc_candidates=max_cnc_candidates)
+    cap = AsyncFileCapture(pcap)
+    cnt = 0
+    try:
+        async for packet in cap.sniff_continuously(packet_cnt):
+            await executor_pool.analyze_packet(eid, aid, packet)
+            cnt += 1
+            if cnt % 10000 == 0:
+                print(f'{cnt} packets analyzed...')
+    finally:
+        pass
+
+    result = await executor_pool.get_result(eid, aid)
+    print(f'Finished detecting CnC servers:\n{result}')
+    await cap.close_async()
+    await executor_pool.finalize_analyzer(eid, aid)
+    executor_pool.close_executor(eid)
+    executor_pool.destroy()
+
+
+async def run_attack_analyzer(base, bot, measurement, packet_cnt):
     pcap = get_data_dir(base, bot, measurement) + os.sep + 'capture.pcap'
     print('\nStart analyzing attack and CnC stats...')
     display_filter = g_tool_config['data_analysis']['display_filter']
@@ -196,7 +242,6 @@ async def run_packet_analyzer(base, bot, measurement, packet_cnt):
         print('Sandbox ip not found, aborted!')
         return
     excluded_ips = g_tool_config['data_analysis']['excluded_ips'].split(',')
-    min_cnc_attempts = int(g_tool_config['data_analysis']['min_cnc_attempts'])
     attack_gap = int(g_tool_config['data_analysis']['attack_gap'])
     min_attack_packets = int(g_tool_config['data_analysis']['min_attack_packets'])
     attack_detection_watermark = \
@@ -208,7 +253,6 @@ async def run_packet_analyzer(base, bot, measurement, packet_cnt):
 
     print(f'sandbox_ip: {own_ip}')
     print(f'CnC info: {cnc_ip_ports}\nattack_gap:{attack_gap}')
-    print(f'min_cnc_attempts: {min_cnc_attempts}')
     print(f'min_attack_packets: {min_attack_packets}')
     print(f'attack_detection_watermark: {attack_detection_watermark}')
 
@@ -217,23 +261,26 @@ async def run_packet_analyzer(base, bot, measurement, packet_cnt):
     attack_reports = []
     executor_pool = AnalyzerExecutorPool(1)
     eid = executor_pool.open_executor()
-    aid = await executor_pool.init_analyzer(eid,
+    aid = await executor_pool.init_analyzer(eid, AnalyzerType.ANALYZER_ATTACK,
+                                            cnc_ip_ports=cnc_ip_ports,
                                             own_ip=own_ip,
                                             excluded_ips=excluded_ips,
-                                            min_cnc_attempts,
+                                            enable_attack_detection=True,
                                             attack_gap=attack_gap,
                                             min_attack_packets=min_attack_packets,
                                             attack_detection_watermark=\
-                                                attack_detection_watermark)
+                                            attack_detection_watermark)
     cap = AsyncFileCapture(pcap, display_filter=display_filter)
 
     def get_report_result(report):
         nonlocal cnc_status, cnc_stats, attack_reports, bot_id
-        if len(report['cnc_status']) > 0:
+        if report['cnc_status']['cnc_ready']:
             cnc_status.append(report['cnc_status'])
         cnc_stats.extend(report['cnc_stats'])
         for ar in report['attacks']:
             ar['bot_id'] = bot_id
+            ar['cnc_ip'] = report['cnc_status']['cnc_ip']
+            ar['cnc_port'] = int(report['cnc_status']['cnc_port'])
             attack_reports.append(ar)
 
     try:
@@ -375,8 +422,20 @@ async def async_data_analysis():
 
                 while True:
                     if len(bots) > 0:
+                        print(f'{data_analysis_ui_1}')
+                        choice = input('\ndata-tool # ')
+
+                        if choice not in ['1','2']:
+                            break
+
                         print('\nInput packet number to analyze, 0 means all:')
                         packet_cnt = int(input('\ndata-tool # '))
+                        run_analyzer = None
+                        if choice == '1':
+                            run_analyzer = run_cnc_analyzer
+                        else:
+                            run_analyzer = run_attack_analyzer
+
                         total_b = len(bots)
                         curr_b = 1
                         for b, ms in bots:
@@ -384,8 +443,8 @@ async def async_data_analysis():
                             curr_m = 1
                             for m in ms:
                                 print(f'\nAnalyzing {b}: {m}')
-                                print(f'\n{datetime.now()}: Progress: bot -> {curr_b}/{total_b}, measurement -> {curr_m}/{total_m}...')
-                                await run_packet_analyzer(curr_data_dir, b, m, packet_cnt)
+                                print(f'\n{datetime.now()} Progress: bot -> {curr_b}/{total_b}, measurement -> {curr_m}/{total_m}...')
+                                await run_analyzer(curr_data_dir, b, m, packet_cnt)
                                 curr_m += 1
                             curr_b += 1
                     else:
