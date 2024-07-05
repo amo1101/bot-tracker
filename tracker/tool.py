@@ -109,17 +109,6 @@ def get_bot_id_prefix(bot_dir):
     return bot_dir[last_ + 1:]
 
 
-async def get_cnc_info(bot_dir):
-    bid_prefix = get_bot_id_prefix(bot_dir)
-    cncs = await g_db_store.load_cnc_info(bid_prefix)
-    if len(cncs) == 0:
-        print('Cannot find CnC info for this bot')
-        return None, None
-    bot_id = cncs[0].bot_id
-    cnc_ip_ports = [(c.ip, str(c.port)) for c in cncs]
-    return bot_id, cnc_ip_ports
-
-
 async def get_bot_info(bot_dir):
     bid_prefix = get_bot_id_prefix(bot_dir)
     bots = await g_db_store.load_bot_info(None, bid_prefix, 1, None, True)
@@ -195,20 +184,19 @@ async def run_packet_analyzer(base, bot, measurement, packet_cnt):
     if own_ip is None:
         print('Sandbox ip not found, aborted!')
         return
-    excluded_ips = g_tool_config['data_analysis']['excluded_ips'].split(',')
+    excluded_ips = g_tool_config['data_analysis']['excluded_ips']
     min_cnc_attempts = int(g_tool_config['data_analysis']['min_cnc_attempts'])
     attack_gap = int(g_tool_config['data_analysis']['attack_gap'])
     min_attack_packets = int(g_tool_config['data_analysis']['min_attack_packets'])
     attack_detection_watermark = \
         int(g_tool_config['data_analysis']['attack_detection_watermark'])
-    bot_id, cnc_ip_ports = await get_cnc_info(bot)
-    if cnc_ip_ports is None:
-        print('CnC not exists for this bot!')
-        return
+    bot_info = await get_bot_info(bot)
+    bot_id = bot_info.bot_id
 
+    print(f'bot_id: {bot_id}')
     print(f'sandbox_ip: {own_ip}')
-    print(f'CnC info: {cnc_ip_ports}\nattack_gap:{attack_gap}')
     print(f'min_cnc_attempts: {min_cnc_attempts}')
+    print(f'attack_gap:{attack_gap}')
     print(f'min_attack_packets: {min_attack_packets}')
     print(f'attack_detection_watermark: {attack_detection_watermark}')
 
@@ -247,7 +235,7 @@ async def run_packet_analyzer(base, bot, measurement, packet_cnt):
                 print(f'{cnt} packets analyzed...')
         print(f'\nTotally {cnt} packets analyzed...')
     finally:
-        r = await executor_pool.get_result(eid, aid, True)
+        r = await executor_pool.get_result(eid, aid, True, True)
         get_report_result(r)
 
     print('Finished analyzing CnC and attack stats')
@@ -372,24 +360,22 @@ async def async_data_analysis():
                 else:
                     break
 
-                while True:
-                    if len(bots) > 0:
-                        print('\nInput packet number to analyze, 0 means all:')
-                        packet_cnt = int(input('\ndata-tool # '))
-                        total_b = len(bots)
-                        curr_b = 1
-                        for b, ms in bots:
-                            total_m = len(ms)
-                            curr_m = 1
-                            for m in ms:
-                                print(f'\nAnalyzing {b}: {m}')
-                                print(f'\n{datetime.now()}: Progress: bot -> {curr_b}/{total_b}, measurement -> {curr_m}/{total_m}...')
-                                await run_packet_analyzer(curr_data_dir, b, m, packet_cnt)
-                                curr_m += 1
-                            curr_b += 1
-                    else:
-                        print('No bots data to analyze!')
-                        break
+                if len(bots) > 0:
+                    print('\nInput packet number to analyze, 0 means all:')
+                    packet_cnt = int(input('\ndata-tool # '))
+                    total_b = len(bots)
+                    curr_b = 1
+                    for b, ms in bots:
+                        total_m = len(ms)
+                        curr_m = 1
+                        for m in ms:
+                            print(f'\nAnalyzing {b}: {m}')
+                            print(f'\n{datetime.now()}: Progress: bot -> {curr_b}/{total_b}, measurement -> {curr_m}/{total_m}...')
+                            await run_packet_analyzer(curr_data_dir, b, m, packet_cnt)
+                            curr_m += 1
+                        curr_b += 1
+                else:
+                    print('No bots data to analyze!')
     finally:
         await g_db_store.close()
 
