@@ -14,17 +14,23 @@ CUR_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
 # data be a list of dicts
-def log_to_csv_file(csv_file, data):
+def log_to_csv_file(csv_file, data, fieldnames=None):
     if len(data) == 0:
         return
     is_empty = os.stat(csv_file).st_size == 0 if \
         os.path.isfile(csv_file) else True
     with open(csv_file, 'a', newline='') as file:
-        fieldnames = data[0].keys()
+        if fieldnames is None:
+            fieldnames = data[0].keys()
         writer = csv.DictWriter(file, fieldnames=fieldnames)
         if is_empty:
             writer.writeheader()
         writer.writerows(data)
+
+
+class BotRunnerException(Exception):
+    def __init__(self, message):
+        super().__init__(message)
 
 
 class BotRunner:
@@ -109,9 +115,9 @@ class BotRunner:
                                                  debug=False)
 
     async def _handle_candidate_cnc(self, ip, port):
-        l.debug(f'New Cnc candidate: {ip}:{port}')
+        l.info(f'New CnC candidate: {ip}:{port}')
         if self.cnc_info[0] != '':
-            l.warning('Cnc info has been confirmed, reject more candidates!')
+            l.warning('CnC info has been confirmed, reject more candidates!')
             return
 
         if len(self.cnc_candidates) > self.max_cnc_candidates:
@@ -126,16 +132,21 @@ class BotRunner:
         cnc_ips = list({cip for cip, _ in self.cnc_candidates})
         args = {"cnc_ip": cnc_ips}
         self.sandbox.apply_nwfilter(nwfilter_type, **args)
-        l.debug(f'Enabled nwfilter policy for Cnc candidate: {ip}:{port}')
+        l.info(f'Enabled nwfilter policy for Cnc candidate: {ip}:{port}')
 
     async def _handle_confirmed_cnc(self, ip, port, domain):
         # check if this cnc already exists
+        is_old_cnc = False
         cnc_info_in_db = await self.db_store.load_cnc_info(None, ip, int(port))
         for cnc in cnc_info_in_db:
             if cnc.bot_id != self.bot_info.bot_id:
                 l.warning(f'Bot already exists for the botnet!')
                 self.notify_dup = True
-                await self.destroy()
+                raise BotRunnerException('Bot already exist for the botnet!')
+            elif cnc.bot_id == self.bot_info.bot_id:
+                is_old_cnc = True
+                l.warning('This is a previously discovered CnC!')
+                break
 
         l.info(f'Confirmed CnC: {ip}:{port}')
         self.cnc_info = (ip, port)
@@ -152,13 +163,17 @@ class BotRunner:
         self.sandbox.redirectx_traffic('ON', [self.cnc_info])
 
         # store to db
-        cnc_info = CnCInfo(ip, int(port), self.bot_info.bot_id, domain)
-        await self.db_store.add_cnc_info(cnc_info)
+        if not is_old_cnc:
+            l.info(f'This is new CnC: {ip}:{port}')
+            cnc_info = CnCInfo(ip, int(port), self.bot_info.bot_id, domain)
+            await self.db_store.add_cnc_info(cnc_info)
 
     async def _handle_cnc_status(self, cnc_status):
         if len(cnc_status) == 0:
             return
-        log_to_csv_file(self.cnc_status_log, [cnc_status])
+
+        fieldnames = ['ip', 'port', 'domain', 'status', 'update_time']
+        log_to_csv_file(self.cnc_status_log, [cnc_status], fieldnames)
         if cnc_status['status'] == CnCStatus.CANDIDATE.value:
             if len(self.cnc_candidates) == 0:
                 await self.update_bot_info(BotStatus.INITIATING)
@@ -230,9 +245,14 @@ class BotRunner:
                                                                         packet)
                 if report_formed:
                     await self.handle_analyzer_report()
-        finally:
-            # flush and get the final report
+            # get the final report
             await self.handle_analyzer_report(True, True)
+        except BotRunnerException as e:
+            l.info(f'An exception occurred {e}, stop observing...')
+        except asyncio.CancelledError:
+            # flush and get the final report when cancelled
+            await self.handle_analyzer_report(True, True)
+        finally:
             l.info('stopping observing...')
 
     async def update_bot_info(self, status=None):

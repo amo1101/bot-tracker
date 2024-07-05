@@ -54,6 +54,7 @@ class PacketSummary:
         self.tcp_flags_ack = None
         self.tcp_flags_fin = None
         self.tcp_flags_reset = None
+        self.tcp_retransmission = None
         self.udp_len = None
         self.udp_srcport = None
         self.udp_dstport = None
@@ -74,6 +75,7 @@ class PacketSummary:
             f'tcp_flags_ack: {self.tcp_flags_ack}\n' + \
             f'tcp_flags_fin: {self.tcp_flags_fin}\n' + \
             f'tcp_flags_reset: {self.tcp_flags_reset}\n' + \
+            f'tcp_retransmission: {self.tcp_retransmission}\n' + \
             f'udp_len: {self.udp_len}\n' + \
             f'udp_srcport: {self.udp_srcport}\n' + \
             f'udp_dstport: {self.udp_dstport}\n' + \
@@ -147,6 +149,11 @@ class PacketSummary:
             self.tcp_flags_ack = 'True' if str(pkt.tcp.flags_ack) in ['1', 'True'] else 'False'
             self.tcp_flags_fin = 'True' if str(pkt.tcp.flags_fin) in ['1', 'True'] else 'False'
             self.tcp_flags_reset = 'True' if str(pkt.tcp.flags_reset) in ['1', 'True'] else 'False'
+            if hasattr(pkt.tcp, 'analysis_retransmission') or \
+               hasattr(pkt.tcp, 'analysis_fast_retransmission'):
+                self.tcp_retransmission = 'True'
+            else:
+                self.tcp_retransmission = 'False'
         if 'udp' in self.layers:
             #  print(f'udp: {dir(pkt.udp)}')
             self.udp_len = int(pkt.udp.length)

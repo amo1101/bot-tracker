@@ -45,8 +45,7 @@ class Scheduler:
         self.checkpoint_interval = 15
         self.sandbox_vcpu_quota = sandbox_vcpu_quota
         self.max_sandbox_num = max_sandbox_num
-        self.max_dormant_hours = max_dormant_duration
-        self.max_dormant_duration = timedelta(hours=self.max_dormant_hours)
+        self.max_dormant_duration = timedelta(hours=max_dormant_duration)
         self.bot_probing_duration = timedelta(seconds=bot_probing_duration)
         self.bpf_filter = bpf_filter
         self.packet_analyzer_excluded_ips = packet_analyzer_excluded_ips
@@ -158,10 +157,11 @@ class Scheduler:
                 if r.is_destroyed():
                     to_del.append(t)
                 else:
-                    if r.bot_status == BotStatus.STAGED and \
-                       r.observe_duration > self.bot_probing_duration:
-                        r.notify_error = True
-                        t.cancel()  # removed at next checkpoint
+                    if r.bot_status == BotStatus.STAGED.value:
+                        l.debug(f'Bot has been staged for {r.observe_duration }...')
+                        if r.observe_duration > self.bot_probing_duration:
+                            r.notify_error = True
+                            t.cancel()  # removed at next checkpoint
                     else:
                         await r.update_bot_info()
             for t in to_del:
@@ -243,7 +243,7 @@ class Scheduler:
         return (self.mode,
                 self.sandbox_vcpu_quota,
                 self.max_sandbox_num,
-                self.max_dormant_hours,
+                self.max_dormant_duration,
                 self.bot_probing_duration)
 
     def set_scheduler_info(self, **kwargs):
@@ -259,7 +259,8 @@ class Scheduler:
         if 'max_sandbox_num' in kwargs:
             self.max_sandbox_num = int(kwargs['max_sandbox_num'])
         if 'max_dormant_hours' in kwargs:
-            self.max_dormant_hours = int(kwargs['max_dormant_hours'])
-            self.max_dormant_duration = timedelta(hours=self.max_dormant_hours)
+            max_dormant_hours = int(kwargs['max_dormant_hours'])
+            self.max_dormant_duration = timedelta(hours=max_dormant_hours)
         if 'bot_probing_duration' in kwargs:
-            self.bot_probing_duration = int(kwargs['bot_probing_duration'])
+            bot_probing_duration = int(kwargs['bot_probing_duration'])
+            self.bot_probing_duration = timedelta(seconds=bot_probing_duration)

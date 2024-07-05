@@ -54,7 +54,7 @@ help_stop_bot = "NAME\n" + \
                 "  [--status]=<status>: bot status, could be one of 'unknown','staged','dormant',\n" + \
                 "             'initiating', 'active','suspended','unstaged','error', or 'duplicate'\n" + \
                 "  [--unstage]=<yes/no>: unstage the bot or not, unstaged bots will not be scheduled\n" + \
-                "              in auto schduler mode."
+                "              in auto scheduler mode."
 
 help_list_cnc = "NAME\n" + \
                 "  list-cnc - list CnC information.\n" + \
@@ -68,17 +68,17 @@ help_list_cnc = "NAME\n" + \
                 "  [--ip]=<ip>: CnC IP."
 
 help_list_attack = "NAME\n" + \
-                     "  list-attack - list attacks.\n" + \
-                     "\nSYNOPSIS\n" + \
-                     "  list-attack [--cnc_ip] [--bot_id] [--time]\n" + \
-                     "\nDESCRIPTION\n" + \
-                     "  List attack information with specified bot_id or CnC IP or time range.\n" + \
-                     "  If no option specified, list all attacks information.\n" + \
-                     "\nOPTIONS\n" + \
-                     "  [--bot_id]=<bot_id>: bot id\n" + \
-                     "  [--cnc_ip]=<ip>: CnC IP\n" + \
-                     "  [--time]=<start,end>: list attack from start time to end time\n" + \
-                     "           time format yyyymmddThhmmss."
+                   "  list-attack - list attacks.\n" + \
+                   "\nSYNOPSIS\n" + \
+                   "  list-attack [--cnc_ip] [--bot_id] [--time]\n" + \
+                   "\nDESCRIPTION\n" + \
+                   "  List attack information with specified bot_id or CnC IP or time range.\n" + \
+                   "  If no option specified, list all attacks information.\n" + \
+                   "\nOPTIONS\n" + \
+                   "  [--bot_id]=<bot_id>: bot id\n" + \
+                   "  [--cnc_ip]=<ip>: CnC IP\n" + \
+                   "  [--time]=<start,end>: list attack from start time to end time\n" + \
+                   "           time format yyyymmddThhmmss."
 
 help_schedinfo = "NAME\n" + \
                  "  schedinfo - show bot scheduler information.\n" + \
@@ -120,6 +120,7 @@ bot_status_list = ['unknown',
                    'error',
                    'duplicate']
 
+
 def get_datetime_range_from_str(t_str):
     try:
         if t_str == '' or t_str is None:
@@ -135,6 +136,7 @@ def get_datetime_range_from_str(t_str):
         return s, e
     except ValueError:
         return ()
+
 
 cmd_config = {
     'help': ([0, 1], {
@@ -182,6 +184,8 @@ cmd_config = {
 }
 
 cmd_buffer_len = 1024 * 1024 * 4
+
+
 def parse_cmd(command):
     cmd_split = command.split(' ')
     cmd = cmd_split[0]
