@@ -152,7 +152,7 @@ class BotRunner:
         self.cnc_info = (ip, port)
         for cip, _ in self.cnc_candidates:
             if cip != ip:
-                await self.iface_monitor.unregister(cip)
+                await self.iface_monitor.unregister(cip, self.bot_info.bot_id)
 
         # allow communication with only this CnC
         nwfilter_type = self.sandbox_ctx.cnc_nwfilter
@@ -350,7 +350,7 @@ class BotRunner:
             if self.cnc_info[0] != '':
                 self.sandbox.redirectx_traffic('OFF', [self.cnc_info])
             for cip, _ in self.cnc_candidates:
-                await self.iface_monitor.unregister(cip)
+                await self.iface_monitor.unregister(cip, self.bot_info.bot_id)
 
             self.sandbox.destroy()
 

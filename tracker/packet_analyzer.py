@@ -319,10 +319,10 @@ class CnCDetector:
         key_src = get_key(pkt.ip_src, pkt.tcp_srcport)
         key_dst = get_key(pkt.ip_dst, pkt.tcp_dstport)
         if pkt.ip_dst == self.own_ip:
-            #  packet from monitored targets
+            # packet from monitored targets
             if key_src in self.stats:
                 key = key_src
-                #  packet from candidate cnc
+                # packet from candidate cnc
                 if pkt.ip_src in self.cnc_candidates:
                     if pkt.tcp_len > 0 and self.cnc == '':
                         # cnc confirmed

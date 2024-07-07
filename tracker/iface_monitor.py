@@ -263,21 +263,27 @@ class IfaceMonitor:
     # bots call the api to register monitoring
     async def register(self, cnc_ip, bot_id):
         async with self.lock:
+            l.info(f'Registered cnc_ip: {cnc_ip} of bot_id: {bot_id}')
             if cnc_ip in self.cnc_map:
+                self.cnc_map[cnc_ip].append(bot_id)
                 return
-            self.cnc_map[cnc_ip] = bot_id
+            self.cnc_map[cnc_ip] = [bot_id]
             if self.network_mode == 0:
                 self.cnc_queue.put((cnc_ip, 1)) # 1 means add
-        l.info(f'Registered for monitoring cnc_ip: {cnc_ip}')
 
-    async def unregister(self, cnc_ip):
+    async def unregister(self, cnc_ip, bot_id):
         async with self.lock:
             if cnc_ip not in self.cnc_map:
                 return
-            del self.cnc_map[cnc_ip]
-            if self.network_mode == 0:
-                self.cnc_queue.put((cnc_ip, 0)) # 0 means delete
-        l.info(f'Unregistered cnc_ip: {cnc_ip}')
+            try:
+                l.info(f'Unregistered cnc_ip: {cnc_ip} of bot_id: {bot_id}')
+                self.cnc_map[cnc_ip].remove(bot_id)
+                if len(self.cnc_map[cnc_ip]) == 0:
+                    if self.network_mode == 0:
+                        self.cnc_queue.put((cnc_ip, 0)) # 0 means delete
+                    del self.cnc_map[cnc_ip]
+            except ValueError:
+                pass
 
     def _init_monitor(self):
         if not os.path.exists(self.log_dir):
@@ -291,7 +297,7 @@ class IfaceMonitor:
                     traffic_type, action):
         desc = traffic_type.value
         if dst_ip in self.cnc_map:
-            desc = f"{desc} (bot_id: {self.cnc_map[dst_ip]})"
+            desc = f"{desc} (bot_id: {','.join(self.cnc_map[dst_ip])})"
 
         report = f"{'timestamp':<16}:{datetime.now()}\n" + \
                  f"{'src_ip':<16}:{src_ip}\n" + \
