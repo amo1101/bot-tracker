@@ -176,7 +176,7 @@ class BotRunner:
         log_to_csv_file(self.cnc_status_log, [cnc_status], fieldnames)
         if cnc_status['status'] == CnCStatus.CANDIDATE.value:
             if len(self.cnc_candidates) == 0:
-                await self.update_bot_info(BotStatus.INITIATING)
+                await self.update_bot_info(BotStatus.DORMANT)
             await self._handle_candidate_cnc(cnc_status['ip'], cnc_status['port'])
         elif cnc_status['status'] == CnCStatus.ALIVE.value:
             if self.cnc_info[0] == '':
@@ -268,9 +268,6 @@ class BotRunner:
             self.bot_info.status = BotStatus.STAGED.value
             self.staged_time = datetime.now()
             self.bot_info.observe_at = self.staged_time
-
-        if status == BotStatus.INITIATING:
-            self.bot_info.status = BotStatus.INITIATING.value
 
         if status == BotStatus.DORMANT:
             self.bot_info.status = BotStatus.DORMANT.value

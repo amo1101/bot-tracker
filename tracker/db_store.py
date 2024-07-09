@@ -13,8 +13,7 @@ INIT_INTERVAL = timedelta(seconds=0)
 
 # unknown: initial status, waiting to be scheduled
 # staged: already been scheduled in sandbox and under cnc probing
-# initiating: bot is initiating CnC communication
-# dormant: CnC is found, but CnC communication is not observed
+# dormant: Attempted CnC connection, but CnC communication is not observed
 # active: CnC communication is observed
 # suspended: observing is suspended, can be resumed
 # unstaged: observing is stopped due to maximum dormant period reached
@@ -24,7 +23,6 @@ INIT_INTERVAL = timedelta(seconds=0)
 class BotStatus(Enum):
     UNKNOWN = "unknown"
     STAGED = "staged"
-    INITIATING = "initiating"
     DORMANT = "dormant"
     ACTIVE = "active"
     SUSPENDED = "suspended"

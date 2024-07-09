@@ -21,7 +21,6 @@ async def handle_list_bot(args):
         status = None
     else:
         status = [BotStatus.STAGED.value,
-                  BotStatus.INITIATING.value,
                   BotStatus.ACTIVE.value,
                   BotStatus.DORMANT.value]
 
@@ -56,7 +55,6 @@ async def handle_start_bot(args):
             status = [BotStatus.UNKNOWN.value,
                       BotStatus.SUSPENDED.value,
                       BotStatus.STAGED.value,
-                      BotStatus.INITIATING.value,
                       BotStatus.DORMANT.value,
                       BotStatus.ACTIVE.value]
 

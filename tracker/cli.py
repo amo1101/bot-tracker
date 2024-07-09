@@ -22,12 +22,12 @@ help_list_bot = "NAME\n" + \
                 "  list-bot [bot_id] [--all] [--status]\n" + \
                 "\nDESCRIPTION\n" + \
                 "  List bot information with specified bot_id or bot status.\n" + \
-                "  If no option specified, list all 'staged','initiating','active' and 'dormant' bots.\n" + \
+                "  If no option specified, list all 'staged','active' and 'dormant' bots.\n" + \
                 "\nOPTIONS\n" + \
                 "  [bot_id]: bot id\n" + \
                 "  [--all]: list all bots\n" + \
                 "  [--status]=<status>: bot status, could be one of 'unknown','staged','dormant',\n" + \
-                "             'initiating', active','suspended','unstaged','error', or 'duplicate'"
+                "            'active','suspended','unstaged','error', or 'duplicate'"
 
 help_start_bot = "NAME\n" + \
                  "  start-bot - start running bot.\n" + \
@@ -40,7 +40,7 @@ help_start_bot = "NAME\n" + \
                  "  [--all]: start all bots which are not currently running and not in 'error',\n" + \
                  "           'duplicated' or 'unstaged' state\n" + \
                  "  [--status]=<status>: bot status, could be one of 'unknown','staged','dormant',\n" + \
-                 "             'initiating', 'active','suspended','unstaged','error', or 'duplicate'"
+                 "             'active','suspended','unstaged','error', or 'duplicate'"
 
 help_stop_bot = "NAME\n" + \
                 "  stop-bot - stop running bot.\n" + \
@@ -52,7 +52,7 @@ help_stop_bot = "NAME\n" + \
                 "\nOPTIONS\n" + \
                 "  [--all]: stop all bots which are currently running\n" + \
                 "  [--status]=<status>: bot status, could be one of 'unknown','staged','dormant',\n" + \
-                "             'initiating', 'active','suspended','unstaged','error', or 'duplicate'\n" + \
+                "             'active','suspended','unstaged','error', or 'duplicate'\n" + \
                 "  [--unstage]=<yes/no>: unstage the bot or not, unstaged bots will not be scheduled\n" + \
                 "              in auto scheduler mode."
 
@@ -112,7 +112,6 @@ cmd_help = {'list-bot': help_list_bot,
 
 bot_status_list = ['unknown',
                    'staged',
-                   'initiating',
                    'dormant',
                    'active',
                    'suspended',
