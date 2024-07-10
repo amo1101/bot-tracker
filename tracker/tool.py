@@ -8,6 +8,7 @@ from packet_capture import AsyncFileCapture
 from db_store import *
 from pathlib import Path
 from datetime import datetime
+from dataclasses import dataclass, asdict
 
 
 CUR_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -17,6 +18,7 @@ ERROR_DIR = DATA_DIR + os.sep + 'ERROR'
 UNSTAGED_DIR = DATA_DIR + os.sep + 'UNSTAGED'
 
 REPORT_DIR = CUR_DIR + os.sep + 'report'
+
 g_data_dir = []
 g_tool_config = None
 g_db_store = None
@@ -39,6 +41,8 @@ choose_data_dir_ui = "\nPlease choose data dir:\n" + \
 data_analysis_ui = "\nPlease choose:\n" + \
                    "    1. Analyze for bots\n" + \
                    "    2. Analyze for measurements of a bot\n" + \
+                   "    3. Collect generated reports from measurements\n" + \
+                   "    4. Analyze reason for error bots\n" + \
                    "Press any other key to go back"
 
 
@@ -46,7 +50,9 @@ def list_directories(directory):
     path = Path(directory)
     directories = [p.name for p in path.iterdir() \
                    if p.is_dir() and p.name != 'DUP' and \
-                        p.name != 'ERROR' and p.name != 'UNSTAGED']
+                        p.name != 'ERROR' and \
+                        p.name != 'UNSTAGED' and \
+                        p.name != 'V1']
     directories.sort()
     return directories
 
@@ -140,12 +146,12 @@ async def get_sandbox_ip(pcap):
     return sandbox_ip
 
 
-def get_report_dir(bot, measurement):
-    return REPORT_DIR + os.sep + bot + os.sep + measurement
+def get_report_dir(report_base, bot, measurement):
+    return report_base + os.sep + bot + os.sep + measurement
 
 
-def create_report_dir(bot, measurement):
-    b_dir = REPORT_DIR + os.sep + bot
+def create_report_dir(report_base, bot, measurement):
+    b_dir = report_base + os.sep + bot
     m_dir = b_dir + os.sep + measurement
     if not os.path.exists(b_dir):
         os.makedirs(b_dir)
@@ -174,7 +180,7 @@ def get_data_dir(base, bot, measurement):
     return base + os.sep + bot + os.sep + measurement
 
 
-async def run_packet_analyzer(base, bot, measurement, packet_cnt):
+async def run_packet_analyzer(base, report_base, bot, measurement, packet_cnt):
     pcap = get_data_dir(base, bot, measurement) + os.sep + 'capture.pcap'
     print('\nStart analyzing attack and CnC stats...')
     display_filter = g_tool_config['data_analysis']['display_filter']
@@ -246,8 +252,8 @@ async def run_packet_analyzer(base, bot, measurement, packet_cnt):
     await cap.close_async()
 
     # report stored in report_dir/bot/xxx_measurement-start-time.csv
-    create_report_dir(bot, measurement)
-    report_dir = get_report_dir(bot, measurement)
+    create_report_dir(report_base, bot, measurement)
+    report_dir = get_report_dir(report_base, bot, measurement)
     f_cnc_status = report_dir + os.sep + 'cnc-status.csv'
     f_cnc_stats = report_dir + os.sep + 'cnc-stats.csv'
     f_attacks = report_dir + os.sep + 'attacks.csv'
@@ -256,6 +262,89 @@ async def run_packet_analyzer(base, bot, measurement, packet_cnt):
     write_to_csv(f_attacks, attack_reports)
 
     print(f'Analyzing results have been written to files under:\n{report_dir}')
+
+
+def get_measure_time(m):
+    tr = m.split('_')
+    s = datetime.strptime(tr[0], '%Y-%m-%d-%H-%M-%S')
+    e = datetime.strptime(tr[1], '%Y-%m-%d-%H-%M-%S')
+    return s, e
+
+
+async def get_attack_info(bid, s, e):
+    str_s = datetime.strftime(s, '%Y%m%dT%H%M%S')
+    str_e = datetime.strftime(e, '%Y%m%dT%H%M%S')
+    attacks = await g_db_store.load_attack_info(bid, None, (str_s, str_e))
+    return attacks
+
+
+async def run_collect_data(base, report_base):
+    print(f'\nStart collecting data from {base} and db...')
+
+    for b, ms in g_data_dir:
+        for m in ms:
+            create_report_dir(report_base, b, m)
+            report_dir = get_report_dir(report_base, b, m)
+            data_dir = get_data_dir(base, b, m)
+            try:
+                shutil.copy(data_dir + os.sep + 'cnc-status.csv', report_dir + os.sep + 'cnc-status.csv')
+                shutil.copy(data_dir + os.sep + 'cnc-stats.csv', report_dir + os.sep + 'cnc-stats.csv')
+            except FileNotFoundError:
+                pass
+            bid = get_bot_id_prefix(b)
+            s, e = get_measure_time(m)
+            attacks = await get_attack_info(bid, s, e)
+            attack_list = []
+            for a in attacks:
+                attack_list.append(asdict(a))
+            f_attacks = report_dir + os.sep + 'attacks.csv'
+            if len(attack_list) > 0:
+                write_to_csv(f_attacks, attack_list)
+
+    print(f'\nData has been collected to: {report_base}')
+
+
+def search_string_in_file(filename, key_words):
+    result = []
+    with open(filename, 'r') as file:
+        for line in file:
+            for k in key_words:
+                if k in line:
+                    result.append({'key': k, 'detail': line})
+
+    return result
+
+
+async def run_error_analysis(base, report_base):
+    print(f'\nStart analyzing reason for error bots from {base}...')
+
+    key_words = ['SIGSEGV', 'SIGPIPE', 'SIGABRT', 'SIGBUS', 'SIGILL', 'SIGKILL',
+                 'SIGSYS', 'ETIMEDOUT', 'ENOENT', 'exit']
+
+    for b, ms in g_data_dir:
+        for m in ms:
+            result = []
+            create_report_dir(report_base, b, m)
+            report_dir = get_report_dir(report_base, b, m)
+            data_dir = get_data_dir(base, b, m)
+            try:
+                bot_info = await get_bot_info(b)
+                bid = bot_info.bot_id
+                f_syscall = data_dir + os.sep + 'syscall' + os.sep + bid + '.elf.log'
+                result = search_string_in_file(f_syscall, key_words)
+                for r in result:
+                    r['bot_id'] = bid
+            except FileNotFoundError:
+                print(f'{b}:{m} syscall file not found!')
+                continue
+
+            f_error = report_dir + os.sep + 'error.csv'
+            if len(result) > 0:
+                write_to_csv(f_error, result)
+            else:
+                print(f'key words not found in {f_syscall}!')
+
+    print(f'\nError analysis result has been written to: {report_base}')
 
 
 def input_bots_menu():
@@ -332,22 +421,27 @@ async def async_data_analysis():
     await connect_db()
     try:
         curr_data_dir = ''
+        curr_report_dir = ''
         while True:
             print(f'{choose_data_dir_ui}')
             d = input('\ndata-tool # ')
             if d == '1':
                 curr_data_dir = DATA_DIR
+                curr_report_dir = REPORT_DIR
             elif d == '2':
                 curr_data_dir = DUP_DIR
+                curr_report_dir = REPORT_DIR + os.sep + 'DUP'
             elif d == '3':
                 curr_data_dir = ERROR_DIR
+                curr_report_dir = REPORT_DIR + os.sep + 'ERROR'
             elif d == '4':
                 curr_data_dir = UNSTAGED_DIR
+                curr_report_dir = REPORT_DIR + os.sep + 'UNSTAGED'
             else:
                 break
             read_all_data_dir(curr_data_dir)
 
-            print(f'Chosen data dir: {curr_data_dir}')
+            print(f'Chosen data dir: {curr_data_dir}, report dir: {curr_report_dir}')
 
             while True:
                 print(f'{data_analysis_ui}')
@@ -357,6 +451,12 @@ async def async_data_analysis():
                     bots = input_bots_menu()
                 elif op == '2':
                     bots = input_measurement_menu()
+                elif op == '3':
+                    await run_collect_data(curr_data_dir, curr_report_dir)
+                    continue
+                elif op == '4':
+                    await run_error_analysis(curr_data_dir, curr_report_dir)
+                    continue
                 else:
                     break
 
@@ -371,7 +471,9 @@ async def async_data_analysis():
                         for m in ms:
                             print(f'\nAnalyzing {b}: {m}')
                             print(f'\n{datetime.now()}: Progress: bot -> {curr_b}/{total_b}, measurement -> {curr_m}/{total_m}...')
-                            await run_packet_analyzer(curr_data_dir, b, m, packet_cnt)
+                            await run_packet_analyzer(curr_data_dir,
+                                                      curr_report_dir,
+                                                      b, m, packet_cnt)
                             curr_m += 1
                         curr_b += 1
                 else:

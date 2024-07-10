@@ -145,10 +145,10 @@ class PacketSummary:
             self.tcp_len = int(pkt.tcp.len)
             self.tcp_srcport = str(pkt.tcp.srcport)
             self.tcp_dstport = str(pkt.tcp.dstport)
-            self.tcp_flags_syn = 'True' if str(pkt.tcp.flags_syn) in ['1', 'True'] else 'False'
-            self.tcp_flags_ack = 'True' if str(pkt.tcp.flags_ack) in ['1', 'True'] else 'False'
-            self.tcp_flags_fin = 'True' if str(pkt.tcp.flags_fin) in ['1', 'True'] else 'False'
-            self.tcp_flags_reset = 'True' if str(pkt.tcp.flags_reset) in ['1', 'True'] else 'False'
+            self.tcp_flags_syn = 'True' if hasattr(pkt.tcp, 'flags_syn') and str(pkt.tcp.flags_syn) in ['1', 'True'] else 'False'
+            self.tcp_flags_ack = 'True' if hasattr(pkt.tcp, 'flags_ack') and str(pkt.tcp.flags_ack) in ['1', 'True'] else 'False'
+            self.tcp_flags_fin = 'True' if hasattr(pkt.tcp, 'flags_fin') and str(pkt.tcp.flags_fin) in ['1', 'True'] else 'False'
+            self.tcp_flags_reset = 'True' if hasattr(pkt.tcp, 'flags_reset') and str(pkt.tcp.flags_reset) in ['1', 'True'] else 'False'
             if hasattr(pkt.tcp, 'analysis_retransmission') or \
                hasattr(pkt.tcp, 'analysis_fast_retransmission'):
                 self.tcp_retransmission = 'True'
@@ -159,3 +159,4 @@ class PacketSummary:
             self.udp_len = int(pkt.udp.length)
             self.udp_srcport = str(pkt.udp.srcport)
             self.udp_dstport = str(pkt.udp.dstport)
+

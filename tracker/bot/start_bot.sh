@@ -24,7 +24,7 @@ mkdir -p /.ssh
 cp known_hosts /root/.ssh/
 cp known_hosts /.ssh/
 
-MAX_RETRIES=10
+MAX_RETRIES=100
 retry_count=0
 
 echo "Downloading bot from $HOST:$DOWNLOAD_PATH/$BOT_NAME"
