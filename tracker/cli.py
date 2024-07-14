@@ -182,7 +182,7 @@ cmd_config = {
         'bot_probing_duration': lambda v: v.isdigit()})
 }
 
-cmd_buffer_len = 1024 * 1024 * 4
+cmd_buffer_len = 1024 * 1024 * 8
 
 
 def parse_cmd(command):

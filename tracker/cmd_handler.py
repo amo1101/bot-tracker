@@ -158,7 +158,7 @@ async def handle_list_attack(args):
         return head + body
 
     foot = f"\n{'count:':>{len(head) - 10}} {len(attack_info)}\n"
-    for a in attack_info:
+    for a in attack_info[-500:]:  # latest 500 attacks
         if len(a.bot_id) <= 16:
             body += f"\n{a.bot_id[:16]:<24}"
         else:
@@ -203,23 +203,29 @@ cmd_registry = {
 
 async def handle_client(reader, writer):
     while True:
-        data = await reader.read(cmd_buffer_len)
-        l.debug(f'received command: {data}')
-        if not data:
+        try:
+            data = await reader.read(cmd_buffer_len)
+            l.debug(f'received command: {data}')
+            if not data:
+                break
+
+            command = data.decode()
+            cmd, params = parse_cmd(command)
+            l.debug(f'{cmd} : {params}')
+            resp = ""
+            if cmd not in cmd_registry:
+                resp = f"Command {cmd} not supported"
+            else:
+                handler = cmd_registry[cmd]
+                resp = await handler(params)
+
+            writer.write(resp.encode())
+            await writer.drain()
+        except Exception as e:
+            l.error(f'An exception occurred {e}')
             break
-
-        command = data.decode()
-        cmd, params = parse_cmd(command)
-        l.debug(f'{cmd} : {params}')
-        resp = ""
-        if cmd not in cmd_registry:
-            resp = f"Command {cmd} not supported"
-        else:
-            handler = cmd_registry[cmd]
-            resp = await handler(params)
-
-        writer.write(resp.encode())
-        await writer.drain()
+        finally:
+            pass
 
     writer.close()
     await writer.wait_closed()
