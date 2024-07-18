@@ -1,6 +1,7 @@
 import asyncio
 from cli import parse_cmd, cmd_buffer_len
 from db_store import *
+import traceback
 
 l: TaskLogger = TaskLogger(__name__)
 
@@ -223,6 +224,7 @@ async def handle_client(reader, writer):
             await writer.drain()
         except Exception as e:
             l.error(f'An exception occurred {e}')
+            traceback.print_exc()
             break
         finally:
             pass

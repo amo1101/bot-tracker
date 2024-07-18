@@ -121,8 +121,10 @@ class BotRunner:
             return
 
         if len(self.cnc_candidates) > self.max_cnc_candidates:
-            l.warning(f'CnC candidates number exceeds {self.max_cnc_candidates}')
-            return
+            l.warning(f'Number of CnC candidates exceeds {self.max_cnc_candidates}, will remove the oldest!')
+            d_ip, d_port = self.cnc_candidates.pop(0)
+            await self.iface_monitor.unregister(d_ip, self.bot_info.tag)
+            self.sandbox.redirectx_traffic('OFF', [(d_ip, d_port)])
 
         self.cnc_candidates.append((ip, port))
         await self.iface_monitor.register(ip, self.bot_info.tag)
@@ -133,6 +135,8 @@ class BotRunner:
         args = {"cnc_ip": cnc_ips}
         self.sandbox.apply_nwfilter(nwfilter_type, **args)
         l.info(f'Enabled nwfilter policy for Cnc candidate: {ip}:{port}')
+        # exclude redirecting cnc traffic to simulated server in block network mode
+        self.sandbox.redirectx_traffic('ON', [(ip, port)])
 
     async def _handle_confirmed_cnc(self, ip, port, domain):
         # check if this cnc already exists
@@ -150,17 +154,19 @@ class BotRunner:
 
         l.info(f'Confirmed CnC: {ip}:{port}')
         self.cnc_info = (ip, port)
+        self.cnc_candidates.remove(self.cnc_info)
         for cip, _ in self.cnc_candidates:
-            if cip != ip:
                 await self.iface_monitor.unregister(cip, self.bot_info.bot_id)
+
+        if len(self.cnc_candidates) != 0:
+            self.sandbox.redirectx_traffic('OFF', self.cnc_candidates)
 
         # allow communication with only this CnC
         nwfilter_type = self.sandbox_ctx.cnc_nwfilter
         args = {"cnc_ip": [ip]}
         self.sandbox.apply_nwfilter(nwfilter_type, **args)
 
-        # exclude redirecting cnc traffic to simulated server in block network mode
-        self.sandbox.redirectx_traffic('ON', [self.cnc_info])
+        self.cnc_candidates.clear()
 
         # store to db
         if not is_old_cnc:
@@ -209,7 +215,7 @@ class BotRunner:
             bandwidth = total_bytes / total_secs
             attack_info = AttackInfo(self.bot_info.bot_id,
                                      r['cnc_ip'],
-                                     int(r['cnc_port']),
+                                     int(r['cnc_port']) if r['cnc_port'] != '' else 0,
                                      r['attack_type'],
                                      r['start_time'],
                                      r['duration'],
@@ -344,10 +350,14 @@ class BotRunner:
             str_end_time = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
             self.sandbox.fetch_log(self.log_dir, str_start_time, str_end_time)
 
-            if self.cnc_info[0] != '':
-                self.sandbox.redirectx_traffic('OFF', [self.cnc_info])
+            if len(self.cnc_candidates) != 0:
+                self.sandbox.redirectx_traffic('OFF', self.cnc_candidates)
             for cip, _ in self.cnc_candidates:
                 await self.iface_monitor.unregister(cip, self.bot_info.bot_id)
+            if self.cnc_info[0] != '':
+                self.sandbox.redirectx_traffic('OFF',[self.cnc_info])
+                await self.iface_monitor.unregister(self.cnc_info[0],
+                                                    self.bot_info.bot_id)
 
             self.sandbox.destroy()
 

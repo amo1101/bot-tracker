@@ -332,6 +332,16 @@ class CnCDetector:
                         # reply from cnc
                         is_cnc_comm = True
         elif pkt.ip_src == self.own_ip:
+            # potential cnc attempt
+            is_syn = False
+            background_fields = ["icmpv6", "icmp", "mdns", "dns",
+                                 "dhcpv6", "dhcp", "arp", "ntp"]
+            if not is_background_traffic(pkt, background_fields) and \
+                    pkt.tcp_flags_syn == 'True' and \
+                    pkt.tcp_flags_ack != 'True' and \
+                    pkt.tcp_len == 0:
+                is_syn = True
+
             # packet to monitored targets
             if key_dst in self.stats:
                 key = key_dst
@@ -339,23 +349,17 @@ class CnCDetector:
                 if pkt.ip_dst in self.cnc_candidates:
                     if pkt.tcp_len > 0 and self.cnc == '':
                         # cnc confirmed
-                        self.cnc = key_dst
+                        self.cnc = key
                         l.debug(f'cnc confirmed as: {self.cnc}')
-                    if key_dst == self.cnc:
+                    if key == self.cnc:
                         is_cnc_comm = True
-                elif self.stats[key].syn_cnt + 1 >= self.min_cnc_attempts and \
+                elif is_syn and self.stats[key].syn_cnt + 1 >= self.min_cnc_attempts and \
                         self.cnc == '':
                     is_cnc_candidate = True
                     self.cnc_candidates.add(pkt.ip_dst)
                     l.debug(f'new cnc candidate detected: {key}')
             else:
-                # potential cnc attempt
-                background_fields = ["icmpv6", "icmp", "mdns", "dns",
-                                     "dhcpv6", "dhcp", "arp", "ntp"]
-                if not is_background_traffic(pkt, background_fields) and \
-                        pkt.tcp_flags_syn == 'True' and \
-                        pkt.tcp_flags_ack != 'True' and \
-                        pkt.tcp_len == 0:
+                if is_syn:
                     key = key_dst
 
         if key != '':
