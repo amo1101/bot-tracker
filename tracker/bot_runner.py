@@ -154,7 +154,8 @@ class BotRunner:
 
         l.info(f'Confirmed CnC: {ip}:{port}')
         self.cnc_info = (ip, port)
-        self.cnc_candidates.remove(self.cnc_info)
+        # TODO: temp fix
+        self.cnc_candidates = list(filter(lambda x: x[0] != ip, self.cnc_candidates))
         for cip, _ in self.cnc_candidates:
                 await self.iface_monitor.unregister(cip, self.bot_info.bot_id)
 
