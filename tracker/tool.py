@@ -5,30 +5,33 @@ import configparser
 import csv
 import shutil
 from packet_capture import AsyncFileCapture
-from db_store import *
+import pandas as pd
 from pathlib import Path
 from datetime import datetime
 from dataclasses import dataclass, asdict
-
+import requests
+import json
 
 CUR_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = CUR_DIR + os.sep + 'log'
 DUP_DIR = DATA_DIR + os.sep + 'DUP'
 ERROR_DIR = DATA_DIR + os.sep + 'ERROR'
 UNSTAGED_DIR = DATA_DIR + os.sep + 'UNSTAGED'
+DB_DIR = DATA_DIR + os.sep + 'DB'
 
 REPORT_DIR = CUR_DIR + os.sep + 'report'
 
 g_data_dir = []
 g_tool_config = None
-g_db_store = None
+g_db_bot_info = None
+g_db_cnc_info = None
+g_db_attack_info = None
 
 welcome_ui = "\nWelcome to bot-tracker data tool!"
 main_ui = "\nPlease choose:\n" + \
           "    1. Analyze data\n" + \
           "    2. Enrich data\n" + \
           "    3. Triage data\n" + \
-          "    4. Backup data\n" + \
           "Press 'q' to quit"
 
 choose_data_dir_ui = "\nPlease choose data dir:\n" + \
@@ -52,7 +55,7 @@ def list_directories(directory):
                    if p.is_dir() and p.name != 'DUP' and \
                         p.name != 'ERROR' and \
                         p.name != 'UNSTAGED' and \
-                        p.name != 'V1']
+                        p.name != 'DB']
     directories.sort()
     return directories
 
@@ -85,14 +88,15 @@ def read_tool_config():
     REPORT_DIR = g_tool_config['report']['report_dir']
 
 
-async def connect_db():
-    global g_db_store
-    g_db_store = DBStore(g_tool_config['database']['host'],
-                         g_tool_config['database']['port'],
-                         g_tool_config['database']['dbname'],
-                         g_tool_config['database']['user'],
-                         g_tool_config['database']['password'])
-    await g_db_store.open()
+def load_db_from_csv():
+    global g_db_bot_info, g_db_cnc_info, g_db_attack_info
+    g_db_bot_info = pd.read_csv(DB_DIR + os.sep + 'bot_info.csv') if \
+        g_db_bot_info is None else g_db_bot_info
+    g_db_cnc_info = pd.read_csv(DB_DIR + os.sep + 'cnc_info.csv') if \
+        g_db_cnc_info is None else  g_db_cnc_info
+    if g_db_attack_info is None:
+        g_db_attack_info = pd.read_csv(DB_DIR + os.sep + 'attack_info.csv')
+        g_db_attack_info['time'] = pd.to_datetime(g_db_attack_info['time']).dt.tz_localize(None)
 
 
 # data should be stored in list of dict
@@ -115,9 +119,10 @@ def get_bot_id_prefix(bot_dir):
     return bot_dir[last_ + 1:]
 
 
-async def get_bot_info(bot_dir):
+def get_bot_info(bot_dir):
     bid_prefix = get_bot_id_prefix(bot_dir)
-    bots = await g_db_store.load_bot_info(None, bid_prefix, 1, None, True)
+    #  bots = g_db_bot_info[g_db_bot_info['bot_id'] == bid_prefix].to_dict(orient='records')
+    bots = g_db_bot_info[g_db_bot_info['bot_id'].str.startswith(bid_prefix)].to_dict(orient='records')
     if len(bots) == 0:
         print(f'Failed to get bot info for {bid_prefix}')
         return None
@@ -196,8 +201,8 @@ async def run_packet_analyzer(base, report_base, bot, measurement, packet_cnt):
     min_attack_packets = int(g_tool_config['data_analysis']['min_attack_packets'])
     attack_detection_watermark = \
         int(g_tool_config['data_analysis']['attack_detection_watermark'])
-    bot_info = await get_bot_info(bot)
-    bot_id = bot_info.bot_id
+    bot_info = get_bot_info(bot)
+    bot_id = bot_info['bot_id']
 
     print(f'bot_id: {bot_id}')
     print(f'sandbox_ip: {own_ip}')
@@ -271,14 +276,13 @@ def get_measure_time(m):
     return s, e
 
 
-async def get_attack_info(bid, s, e):
-    str_s = datetime.strftime(s, '%Y%m%dT%H%M%S')
-    str_e = datetime.strftime(e, '%Y%m%dT%H%M%S')
-    attacks = await g_db_store.load_attack_info(bid, None, (str_s, str_e))
-    return attacks
+def get_attack_info(bid, s, e):
+    df = g_db_attack_info
+    attacks = df[(df['bot_id'].str.startswith(bid)) & (df['time'] > s) & (df['time'] < e)]
+    return attacks.to_dict(orient='records')
 
 
-async def run_collect_data(base, report_base):
+def run_collect_data(base, report_base):
     print(f'\nStart collecting data from {base} and db...')
 
     for b, ms in g_data_dir:
@@ -293,13 +297,10 @@ async def run_collect_data(base, report_base):
                 pass
             bid = get_bot_id_prefix(b)
             s, e = get_measure_time(m)
-            attacks = await get_attack_info(bid, s, e)
-            attack_list = []
-            for a in attacks:
-                attack_list.append(asdict(a))
+            attacks = get_attack_info(bid, s, e)
             f_attacks = report_dir + os.sep + 'attacks.csv'
-            if len(attack_list) > 0:
-                write_to_csv(f_attacks, attack_list)
+            if len(attacks) > 0:
+                write_to_csv(f_attacks, attacks)
 
     print(f'\nData has been collected to: {report_base}')
 
@@ -315,7 +316,7 @@ def search_string_in_file(filename, key_words):
     return result
 
 
-async def run_error_analysis(base, report_base):
+def run_error_analysis(base, report_base):
     print(f'\nStart analyzing reason for error bots from {base}...')
 
     key_words = ['SIGSEGV', 'SIGPIPE', 'SIGABRT', 'SIGBUS', 'SIGILL', 'SIGKILL',
@@ -328,8 +329,8 @@ async def run_error_analysis(base, report_base):
             report_dir = get_report_dir(report_base, b, m)
             data_dir = get_data_dir(base, b, m)
             try:
-                bot_info = await get_bot_info(b)
-                bid = bot_info.bot_id
+                bot_info = get_bot_info(b)
+                bid = bot_info['bot_id']
                 f_syscall = data_dir + os.sep + 'syscall' + os.sep + bid + '.elf.log'
                 result = search_string_in_file(f_syscall, key_words)
                 for r in result:
@@ -384,22 +385,22 @@ def input_measurement_menu():
     return [(bot[0], bot[1][s - 1 : e])]
 
 
-async def async_data_triage():
+def sync_data_triage():
     read_all_data_dir(DATA_DIR)
-    await connect_db()
+    load_db_from_csv()
     try:
         for b in g_data_dir:
             base = ''
-            bi = await get_bot_info(b[0])
+            bi = get_bot_info(b[0])
             if bi is None:
                 print(f'{b[0]} not exist in db, please check!')
                 #  shutil.rmtree(DATA_DIR + os.sep + b[0])
                 continue
-            if bi.status == BotStatus.ERROR.value:
+            if bi['status'] == BotStatus.ERROR.value:
                 base = ERROR_DIR
-            elif bi.status == BotStatus.DUPLICATE.value:
+            elif bi['status'] == BotStatus.DUPLICATE.value:
                 base = DUP_DIR
-            elif bi.status == BotStatus.UNSTAGED.value:
+            elif bi['status'] == BotStatus.UNSTAGED.value:
                 base = UNSTAGED_DIR
             else:
                 continue
@@ -409,7 +410,7 @@ async def async_data_triage():
             os.rmdir(DATA_DIR + os.sep + b[0])
         print('Triage data done!')
     finally:
-        await g_db_store.close()
+        pass
 
 
 async def async_data_analysis():
@@ -418,7 +419,7 @@ async def async_data_analysis():
     if ch != 'yes':
         return
 
-    await connect_db()
+    load_db_from_csv()
     try:
         curr_data_dir = ''
         curr_report_dir = ''
@@ -452,10 +453,10 @@ async def async_data_analysis():
                 elif op == '2':
                     bots = input_measurement_menu()
                 elif op == '3':
-                    await run_collect_data(curr_data_dir, curr_report_dir)
+                    run_collect_data(curr_data_dir, curr_report_dir)
                     continue
                 elif op == '4':
-                    await run_error_analysis(curr_data_dir, curr_report_dir)
+                    run_error_analysis(curr_data_dir, curr_report_dir)
                     continue
                 else:
                     break
@@ -479,7 +480,163 @@ async def async_data_analysis():
                 else:
                     print('No bots data to analyze!')
     finally:
-        await g_db_store.close()
+        pass
+
+
+def get_ip_info(ip):
+    access_key = '126e7f8cef039e'
+    response = requests.get(f'http://ipinfo.io/{ip}?token={access_key}')
+    return response.json()
+
+def enrich_cnc_info():
+    edf_file = DB_DIR + os.sep + 'cnc_info_enriched.csv'
+    lst = []
+    cnt = 1
+    total = len(g_db_cnc_info)
+    for row in g_db_cnc_info.itertuples():
+        print(f'enrich c2 {cnt}/{total}...')
+        ipinfo = get_ip_info(row.ip)
+        erow = [
+            row.ip,
+            row.port,
+            row.bot_id,
+            row.domain,
+            ipinfo.get('hostname'),
+            ipinfo.get('city'),
+            ipinfo.get('region'),
+            ipinfo.get('country'),
+            ipinfo.get('loc'),
+            ipinfo.get('org'),
+            ipinfo.get('postal'),
+            ipinfo.get('timezone')
+        ]
+        lst.append(erow)
+        cnt += 1
+
+    edf = pd.DataFrame(lst, columns=['ip','port','bot_id','domain',
+                                'hostname','city','region','country',
+                                'loc','org','postal','timezone'])
+    edf.to_csv(edf_file, index=False)
+
+
+def find_pcap_file(bot_id, t):
+    for b, ms in g_data_dir:
+        if b.rfind(bot_id[:8]) != -1:
+            for m in ms:
+                s, e = get_measure_time(m)
+                if t > s and t < e:
+                    return get_data_dir(UNSTAGED_DIR,b,m) + os.sep + 'capture.pcap'
+    return None
+
+
+async def enrich_attack_report(raw):
+    added = {}
+    pcap = find_pcap_file(raw.bot_id, raw.time)
+    if pcap is None:
+        print('bot measurement folder not found.')
+
+    attack_type = raw.attack_type
+    if attack_type != 'DP Attack' or pcap is None:
+        added['layers'] = ''
+        added['dst_port'] = raw.dst_port
+        return added
+
+    display_filter = f"ip.dst=={raw.target}"
+    cap = AsyncFileCapture(pcap, display_filter=display_filter)
+    layers = set()
+    dst_port = set()
+    proxied = set()
+
+    print(f'analyzing {pcap}, filter:{display_filter}...')
+    try:
+        cnt = 0
+        async for packet in cap.sniff_continuously(0):
+            pkt_summary = PacketSummary()
+            pkt_summary.extract(packet)
+            for l in packet.layers:
+                if len(layers) < 50:
+                    layers.add(l.layer_name)
+            if len(dst_port) < 50:
+                dst_port.add(pkt_summary.dstport)
+            cnt += 1
+            if cnt % 10000 == 0:
+                print(f'{cnt} packets analyzed...')
+        print(f'\nTotally {cnt} packets analyzed...')
+    finally:
+        pass
+
+    await cap.close_async()
+
+    added['dst_port'] = ','.join(dst_port)
+    added['layers'] = ','.join(layers)
+    return added
+
+async def enrich_attack_info():
+    edf_file = DB_DIR + os.sep + 'attack_info_enriched.csv'
+
+    cnt = 1
+    total = len(g_db_attack_info)
+    lst = []
+    for row in g_db_attack_info.itertuples():
+        print(f'Enriching attack {cnt}/{total}...')
+        added = await enrich_attack_report(row)
+        target = row.target
+        p = target.rfind('/24')
+        if p != -1:
+            target = target[:p]
+        ipinfo = get_ip_info(target)
+        erow = [
+            row.bot_id,
+            row.cnc_ip,
+            row.cnc_port,
+            row.attack_type,
+            row.time,
+            row.duration,
+            row.target,
+            row.protocol,
+            row.src_port,
+            added['dst_port'],
+            row.spoofed,
+            row.packet_num,
+            row.total_bytes,
+            row.pps,
+            row.bandwidth,
+            added['layers'],
+            ipinfo.get('hostname'),
+            ipinfo.get('city'),
+            ipinfo.get('region'),
+            ipinfo.get('country'),
+            ipinfo.get('loc'),
+            ipinfo.get('org'),
+            ipinfo.get('postal'),
+            ipinfo.get('timezone')
+        ]
+        lst.append(erow)
+        cnt += 1
+
+    edf = pd.DataFrame(lst, columns=['bot_id','cnc_ip','cnc_port','attack_type',
+                                'time','duration','target','protocol',
+                                'src_port','dst_port','spoofed',
+                                'packet_num','total_bytes','pps','bandwidth',
+                                'layers',
+                                't_hostname','t_city','t_region','t_country',
+                                't_loc','t_org','t_postal','t_timezone'])
+
+    edf.to_csv(edf_file, index=False)
+
+
+async def async_data_enrichment():
+    print(f'Attention: Data enrichment will use data under DB and UNSTAGED folder, data will be kept intact.')
+    read_all_data_dir(UNSTAGED_DIR)
+    load_db_from_csv()
+    try:
+        #  print('Enriching C2 info...')
+        #  enrich_cnc_info()
+        print('Enriching attack info...')
+        await enrich_attack_info()
+    finally:
+        pass
+    print(f'Enriching data done!')
 
 
 if __name__ == "__main__":
@@ -494,11 +651,9 @@ if __name__ == "__main__":
             if op == '1':
                 asyncio.run(async_data_analysis(), debug=True)
             elif op == '2':
-                pass
+                asyncio.run(async_data_enrichment(), debug=True)
             elif op == '3':
-                asyncio.run(async_data_triage(), debug=True)
-            elif op == '4':
-                pass
+                sync_data_triage()
             elif op == 'q':
                 print('Have a good day! Bye!')
                 exit(0)
