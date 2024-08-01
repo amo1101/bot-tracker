@@ -85,7 +85,12 @@ def read_tool_config():
         g_tool_config = None
         return
     g_tool_config.read(ini_file)
-    REPORT_DIR = g_tool_config['report']['report_dir']
+    DATA_DIR = g_tool_config['dir']['data_base']
+    DUP_DIR = DATA_DIR + os.sep + 'DUP'
+    ERROR_DIR = DATA_DIR + os.sep + 'ERROR'
+    UNSTAGED_DIR = DATA_DIR + os.sep + 'UNSTAGED'
+    DB_DIR = DATA_DIR + os.sep + 'DB'
+    REPORT_DIR = g_tool_config['dir']['report_base']
 
 
 def load_db_from_csv():
