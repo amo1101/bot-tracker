@@ -7,7 +7,7 @@ import copy
 
 l: TaskLogger = TaskLogger(__name__)
 
-
+MAX_STAT_ENTRIES = 50
 class AttackStat:
     def __init__(self):
         self.attack_type = None
@@ -16,6 +16,7 @@ class AttackStat:
         self.src = set()
         self.target = set()
         self.protocol = set()
+        self.layers = set()
         self.src_port = set()
         self.dst_port = set()
         self.spoofed = set()
@@ -30,6 +31,7 @@ class AttackStat:
         self.src.clear()
         self.target.clear()
         self.protocol.clear()
+        self.layers.clear()
         self.src_port.clear()
         self.dst_port.clear()
         self.spoofed.clear()
@@ -43,15 +45,20 @@ class AttackStat:
             self.start_time = pkt.sniff_time
 
         if attack_type == AttackType.ATTACK_SCAN.value:
-            self.src.add(pkt.ip_src)
-            self.dst_port.add(pkt.dstport)
+            if len(self.src) < MAX_STAT_ENTRIES:
+                self.src.add(pkt.ip_src)
         if attack_type == AttackType.ATTACK_RA.value:
-            self.target.add(pkt.ip_src)
-            self.dst_port.add(pkt.dstport)
+            if len(self.target) < MAX_STAT_ENTRIES:
+                self.target.add(pkt.ip_src)
         if attack_type == AttackType.ATTACK_DP.value:
-            self.target.add(pkt.ip_dst)
+            if len(self.target) < MAX_STAT_ENTRIES:
+                self.target.add(pkt.ip_dst)
+        if len(self.dst_port) < MAX_STAT_ENTRIES:
+            self.dst_port.add(pkt.dstport)
 
         self.protocol.add(pkt.protocol)
+        if len(self.layers) < MAX_STAT_ENTRIES:
+            self.layers.update(pkt.layer_names)
         self.spoofed.add(spoofed)
         self.packet_cnt += 1
         self.total_bytes += pkt.len
@@ -71,6 +78,7 @@ class AttackStat:
                 'src': ','.join(self.src),
                 'target': target,
                 'protocol': ','.join(self.protocol),
+                'layers': ','.join(self.layers),
                 'src_port': ','.join(self.src_port),
                 'dst_port': ','.join(self.dst_port),
                 'spoofed': ','.join(self.spoofed),

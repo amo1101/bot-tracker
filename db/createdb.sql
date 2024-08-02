@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS attack_info (
     duration INTERVAL,
     target VARCHAR,
     protocol VARCHAR,
+    layers VARCHAR,
     src_port VARCHAR,
     dst_port VARCHAR,
     spoofed VARCHAR(8),
@@ -47,7 +48,7 @@ CREATE TABLE IF NOT EXISTS attack_info (
 DO $$
 DECLARE
     bid INTEGER := 1;
-    cnt INTEGER := 30;
+    cnt INTEGER := 64;
 BEGIN
     FOR bid IN 1..cnt LOOP
         INSERT INTO bot_info (

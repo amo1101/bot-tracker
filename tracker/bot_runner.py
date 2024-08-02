@@ -222,6 +222,7 @@ class BotRunner:
                                      r['duration'],
                                      r['target'],
                                      r['protocol'],
+                                     r['layers'],
                                      r['src_port'],
                                      r['dst_port'],
                                      r['spoofed'],

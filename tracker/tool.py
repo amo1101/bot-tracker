@@ -76,7 +76,7 @@ def read_all_data_dir(root):
 
 
 def read_tool_config():
-    global REPORT_DIR
+    global REPORT_DIR, DATA_DIR, DUP_DIR, ERROR_DIR, UNSTAGED_DIR, DB_DIR
     global g_tool_config
     g_tool_config = configparser.ConfigParser()
     ini_file = CUR_DIR + os.sep + 'config' + os.sep + 'tool.ini'
@@ -193,7 +193,9 @@ def get_data_dir(base, bot, measurement):
 async def run_packet_analyzer(base, report_base, bot, measurement, packet_cnt):
     pcap = get_data_dir(base, bot, measurement) + os.sep + 'capture.pcap'
     print('\nStart analyzing attack and CnC stats...')
-    display_filter = g_tool_config['data_analysis']['display_filter']
+    display_filter = None
+    if g_tool_config.has_option('data_analysis', 'display_filter'):
+        display_filter = g_tool_config['data_analysis']['display_filter']
     print(f'pcap file: {pcap}\ndisplay_filter: {display_filter}')
     print(f'packet_cnt: {packet_cnt}...')
     own_ip = await get_sandbox_ip(pcap)
@@ -538,7 +540,13 @@ async def enrich_attack_report(raw):
     added = {}
     pcap = find_pcap_file(raw.bot_id, raw.time)
     if pcap is None:
-        print('bot measurement folder not found.')
+        print(f'bot measurement folder for {raw.bot_id} at {raw.time} not found.')
+
+    # this is for compatible for V1 data
+    if 'layers' in g_db_attack_info.columns:
+        added['layers'] = raw.layers
+        added['dst_port'] = raw.dst_port
+        return added
 
     attack_type = raw.attack_type
     if attack_type != 'DP Attack' or pcap is None:
@@ -558,9 +566,8 @@ async def enrich_attack_report(raw):
         async for packet in cap.sniff_continuously(0):
             pkt_summary = PacketSummary()
             pkt_summary.extract(packet)
-            for l in packet.layers:
-                if len(layers) < 50:
-                    layers.add(l.layer_name)
+            if len(layers) < 50:
+                layers.update(pkt_summary.layer_names)
             if len(dst_port) < 50:
                 dst_port.add(pkt_summary.dstport)
             cnt += 1
@@ -599,6 +606,7 @@ async def enrich_attack_info():
             row.duration,
             row.target,
             row.protocol,
+            added['layers'],
             row.src_port,
             added['dst_port'],
             row.spoofed,
@@ -606,7 +614,6 @@ async def enrich_attack_info():
             row.total_bytes,
             row.pps,
             row.bandwidth,
-            added['layers'],
             ipinfo.get('hostname'),
             ipinfo.get('city'),
             ipinfo.get('region'),
@@ -620,10 +627,9 @@ async def enrich_attack_info():
         cnt += 1
 
     edf = pd.DataFrame(lst, columns=['bot_id','cnc_ip','cnc_port','attack_type',
-                                'time','duration','target','protocol',
+                                'time','duration','target','protocol','layers',
                                 'src_port','dst_port','spoofed',
                                 'packet_num','total_bytes','pps','bandwidth',
-                                'layers',
                                 't_hostname','t_city','t_region','t_country',
                                 't_loc','t_org','t_postal','t_timezone'])
 
@@ -632,11 +638,14 @@ async def enrich_attack_info():
 
 async def async_data_enrichment():
     print(f'Attention: Data enrichment will use data under DB and UNSTAGED folder, data will be kept intact.')
+    print(f'DB folder: {DB_DIR}')
+    print(f'UNSTAGED folder: {UNSTAGED_DIR}')
+
     read_all_data_dir(UNSTAGED_DIR)
     load_db_from_csv()
     try:
-        #  print('Enriching C2 info...')
-        #  enrich_cnc_info()
+        print('Enriching C2 info...')
+        enrich_cnc_info()
         print('Enriching attack info...')
         await enrich_attack_info()
     finally:

@@ -130,6 +130,7 @@ class AttackInfo:
     duration: timedelta
     target: str
     protocol: str
+    layers: str
     src_port: str
     dst_port: str
     spoofed: str
@@ -148,6 +149,7 @@ class AttackInfo:
             f'{"duration":<16}: {self.duration}\n' + \
             f'{"target":<16}: {self.target}\n' + \
             f'{"protocol":<16}: {self.protocol}\n' + \
+            f'{"layers":<16}: {self.layers}\n' + \
             f'{"src_port":<16}: {self.src_port}\n' + \
             f'{"dst_port":<16}: {self.dst_port}\n' + \
             f'{"spoofed":<16}: {self.spoofed}\n' + \

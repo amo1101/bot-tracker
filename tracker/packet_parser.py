@@ -44,6 +44,7 @@ def parse_dns(pkt):
 class PacketSummary:
     def __init__(self):
         self.layers = []
+        self.layer_names = []
         self.ip_src = None
         self.ip_dst = None
         self.ip_len = None  # ip payload length for protocol other than tcp and udp
@@ -64,7 +65,7 @@ class PacketSummary:
 
     def __repr__(self):
         return 'Summary of packet:\n' + \
-            f'layers: {self.layers}\n' + \
+            f'layers: {self.layer_names}\n' + \
             f'ip_src: {self.ip_src}\n' + \
             f'ip_dst: {self.ip_dst}\n' + \
             f'ip_len: {self.ip_len}\n' + \
@@ -104,6 +105,8 @@ class PacketSummary:
     def protocol(self):
         if 'http' in self.layers:
             proto = 'http'
+        elif 'ssl' in self.layers:
+            proto = 'ssl'
         elif 'ftp' in self.layers:
             proto = 'ftp'
         elif 'dns' in self.layers:
@@ -116,8 +119,6 @@ class PacketSummary:
             proto = 'udp'
         elif 'icmp' in self.layers:
             proto = 'icmp'
-        elif 'gre' in self.layers:
-            proto = 'gre'
         else:
             proto = 'unknown'
         return proto
@@ -133,6 +134,7 @@ class PacketSummary:
     def extract(self, pkt):
         self.sniff_time = pkt.sniff_time
         self.layers = dir(pkt)
+        self.layer_names = [l.layer_name for l in pkt.layers]
 
         if 'ip' in self.layers:
             self.ip_src = str(pkt.ip.src)
