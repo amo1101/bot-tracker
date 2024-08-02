@@ -102,6 +102,7 @@ def load_db_from_csv():
     if g_db_attack_info is None:
         g_db_attack_info = pd.read_csv(DB_DIR + os.sep + 'attack_info.csv')
         g_db_attack_info['time'] = pd.to_datetime(g_db_attack_info['time']).dt.tz_localize(None)
+        g_db_attack_info['duration'] =  pd.to_timedelta(g_db_attack_info['duration'])
 
 
 # data should be stored in list of dict
@@ -554,7 +555,10 @@ async def enrich_attack_report(raw):
         added['dst_port'] = raw.dst_port
         return added
 
-    display_filter = f"ip.dst=={raw.target}"
+    time_e = raw.time + raw.duration
+    display_filter = f"ip.dst=={raw.target} and " + \
+                     "!tcp.analysis.retransmission and !tcp.analysis.fast_retransmission and " + \
+                     f"frame.time >= \"{raw.time}\" and frame.time <= \"{time_e}\""
     cap = AsyncFileCapture(pcap, display_filter=display_filter)
     layers = set()
     dst_port = set()
@@ -585,12 +589,18 @@ async def enrich_attack_report(raw):
 
 async def enrich_attack_info():
     edf_file = DB_DIR + os.sep + 'attack_info_enriched.csv'
-
+    start = 0
+    if os.path.isfile(edf_file):
+        df = pd.read_csv(edf_file)
+        start = len(df)
     cnt = 1
     total = len(g_db_attack_info)
-    lst = []
     for row in g_db_attack_info.itertuples():
         print(f'Enriching attack {cnt}/{total}...')
+        if cnt <= start:
+            print('skip already enriched attack report.')
+            cnt += 1
+            continue
         added = await enrich_attack_report(row)
         target = row.target
         p = target.rfind('/24')
@@ -623,18 +633,20 @@ async def enrich_attack_info():
             ipinfo.get('postal'),
             ipinfo.get('timezone')
         ]
-        lst.append(erow)
-        cnt += 1
 
-    edf = pd.DataFrame(lst, columns=['bot_id','cnc_ip','cnc_port','attack_type',
+        edf = pd.DataFrame([erow], columns=['bot_id','cnc_ip','cnc_port','attack_type',
                                 'time','duration','target','protocol','layers',
                                 'src_port','dst_port','spoofed',
                                 'packet_num','total_bytes','pps','bandwidth',
                                 't_hostname','t_city','t_region','t_country',
                                 't_loc','t_org','t_postal','t_timezone'])
 
-    edf.to_csv(edf_file, index=False)
+        if not os.path.isfile(edf_file):
+            edf.to_csv(edf_file, mode='a', header=True, index=False)
+        else:
+            edf.to_csv(edf_file, mode='a', header=False, index=False)
 
+        cnt += 1
 
 async def async_data_enrichment():
     print(f'Attention: Data enrichment will use data under DB and UNSTAGED folder, data will be kept intact.')

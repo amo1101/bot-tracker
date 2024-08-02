@@ -53,7 +53,7 @@ class AttackStat:
         if attack_type == AttackType.ATTACK_DP.value:
             if len(self.target) < MAX_STAT_ENTRIES:
                 self.target.add(pkt.ip_dst)
-        if len(self.dst_port) < MAX_STAT_ENTRIES:
+        if len(self.dst_port) < MAX_STAT_ENTRIES and pkt.dstport is not None:
             self.dst_port.add(pkt.dstport)
 
         self.protocol.add(pkt.protocol)
