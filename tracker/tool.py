@@ -502,11 +502,15 @@ async def async_data_analysis():
 
 
 def get_ip_info(ip):
-    if ip == '':
+    try:
+        if ip == '':
+            return {}
+        access_key = '126e7f8cef039e'
+        response = requests.get(f'http://ipinfo.io/{ip}?token={access_key}')
+        return response.json()
+    except Exception as e:
+        print(f'an error occured {e}')
         return {}
-    access_key = '126e7f8cef039e'
-    response = requests.get(f'http://ipinfo.io/{ip}?token={access_key}')
-    return response.json()
 
 def enrich_cnc_info():
     edf_file = DB_DIR + os.sep + 'cnc_info_enriched.csv'
