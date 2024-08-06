@@ -48,6 +48,11 @@ data_analysis_ui = "\nPlease choose:\n" + \
                    "    4. Analyze reason for error bots\n" + \
                    "Press any other key to go back"
 
+data_enrichment_ui = "\nPlease choose:\n" + \
+                   "    1. Enrich C2\n" + \
+                   "    2. Enrich atack info\n" + \
+                   "Press any other key to go back"
+
 
 def list_directories(directory):
     path = Path(directory)
@@ -480,6 +485,11 @@ async def async_data_analysis():
                         for m in ms:
                             print(f'\nAnalyzing {b}: {m}')
                             print(f'\n{datetime.now()}: Progress: bot -> {curr_b}/{total_b}, measurement -> {curr_m}/{total_m}...')
+                            rd = get_report_dir(curr_report_dir, b, m)
+                            if os.path.isdir(rd):
+                                print('skip already analyzed measurement.')
+                                curr_m += 1
+                                continue
                             await run_packet_analyzer(curr_data_dir,
                                                       curr_report_dir,
                                                       b, m, packet_cnt)
@@ -492,6 +502,8 @@ async def async_data_analysis():
 
 
 def get_ip_info(ip):
+    if ip == '':
+        return {}
     access_key = '126e7f8cef039e'
     response = requests.get(f'http://ipinfo.io/{ip}?token={access_key}')
     return response.json()
@@ -572,7 +584,7 @@ async def enrich_attack_report(raw):
             pkt_summary.extract(packet)
             if len(layers) < 50:
                 layers.update(pkt_summary.layer_names)
-            if len(dst_port) < 50:
+            if len(dst_port) < 50 and pkt_summary.dstport is not None:
                 dst_port.add(pkt_summary.dstport)
             cnt += 1
             if cnt % 10000 == 0:
@@ -587,25 +599,29 @@ async def enrich_attack_report(raw):
     added['layers'] = ','.join(layers)
     return added
 
-async def enrich_attack_info():
-    edf_file = DB_DIR + os.sep + 'attack_info_enriched.csv'
-    start = 0
+async def enrich_attack_info(s, e):
+    edf_file = DB_DIR + os.sep + f'attack_info_enriched_{s}_{e}.csv'
+    start = s - 1
     if os.path.isfile(edf_file):
         df = pd.read_csv(edf_file)
-        start = len(df)
-    cnt = 1
-    total = len(g_db_attack_info)
-    for row in g_db_attack_info.itertuples():
-        print(f'Enriching attack {cnt}/{total}...')
+        start += len(df)
+    cnt = s
+    attacks = g_db_attack_info.iloc[s-1:e]
+    total = len(attacks)
+    for row in attacks.itertuples():
+        print(f'Enriching attack {cnt}/{s - 1 + total}...')
         if cnt <= start:
             print('skip already enriched attack report.')
             cnt += 1
             continue
         added = await enrich_attack_report(row)
-        target = row.target
-        p = target.rfind('/24')
-        if p != -1:
-            target = target[:p]
+        if row.attack_type == 'Scanning':
+            target = ''
+        else:
+            target = row.target
+            p = target.rfind('/24')
+            if p != -1:
+                target = target[:p]
         ipinfo = get_ip_info(target)
         erow = [
             row.bot_id,
@@ -624,14 +640,14 @@ async def enrich_attack_info():
             row.total_bytes,
             row.pps,
             row.bandwidth,
-            ipinfo.get('hostname'),
-            ipinfo.get('city'),
-            ipinfo.get('region'),
-            ipinfo.get('country'),
-            ipinfo.get('loc'),
-            ipinfo.get('org'),
-            ipinfo.get('postal'),
-            ipinfo.get('timezone')
+            ipinfo.get('hostname',''),
+            ipinfo.get('city',''),
+            ipinfo.get('region',''),
+            ipinfo.get('country',''),
+            ipinfo.get('loc',''),
+            ipinfo.get('org',''),
+            ipinfo.get('postal',''),
+            ipinfo.get('timezone','')
         ]
 
         edf = pd.DataFrame([erow], columns=['bot_id','cnc_ip','cnc_port','attack_type',
@@ -655,14 +671,21 @@ async def async_data_enrichment():
 
     read_all_data_dir(UNSTAGED_DIR)
     load_db_from_csv()
-    try:
-        print('Enriching C2 info...')
-        enrich_cnc_info()
-        print('Enriching attack info...')
-        await enrich_attack_info()
-    finally:
-        pass
-    print(f'Enriching data done!')
+    while True:
+        print(data_enrichment_ui)
+        op = input('\ndata-tool # ')
+        if op == '1':
+            print('Enriching C2 info...')
+            enrich_cnc_info()
+        if op == '2':
+            print(f'Enriching attack info, totally {len(g_db_attack_info)} attacks...')
+            print('Choose attack info range, e.g. 1,100')
+            r = input('\ndata-tool # ').split(',')
+            s = int(r[0])
+            e = int(r[1])
+            await enrich_attack_info(s, e)
+        else:
+            break
 
 
 if __name__ == "__main__":
