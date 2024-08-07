@@ -120,14 +120,8 @@ def write_to_csv(csv_file, data):
     if len(data) == 0:
         #  print(f'No data written to {csv_file}')
         return
-
-    with open(csv_file, 'w', newline='') as file:
-        fieldnames = data[0].keys()
-        writer = csv.DictWriter(file, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerows(data)
-        #  print(f'Data written to {csv_file}')
-
+    df = pd.DataFrame(data)
+    df.to_csv(csv_file, index=False)
 
 def get_bot_id_prefix(bot_dir):
     # e.g.2024_06_26_16_12_38_mirai_5f2ac36f
@@ -354,8 +348,11 @@ def run_error_analysis(base, report_base):
                 for r in result:
                     r['bot_id'] = bid
             except FileNotFoundError:
+                r['bot_id'] = bid
+                r['key'] = 'NotActivated'
+                r['detail'] = 'syscall file not found'
+                result.append(r)
                 print(f'{b}:{m} syscall file not found!')
-                continue
 
             f_error = report_dir + os.sep + 'error.csv'
             if len(result) > 0:
