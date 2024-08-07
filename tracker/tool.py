@@ -110,9 +110,11 @@ def load_db_from_csv():
         g_db_attack_info = pd.read_csv(DB_DIR + os.sep + 'attack_info.csv')
         g_db_attack_info['time'] = pd.to_datetime(g_db_attack_info['time']).dt.tz_localize(None)
         g_db_attack_info['duration'] =  pd.to_timedelta(g_db_attack_info['duration'])
-    if g_db_cnc_status_info is None:
-        g_db_cnc_status_info = pd.read_csv(DB_DIR + os.sep + 'cnc_stats_db.csv')
-        g_db_cnc_status_info['time'] = pd.to_datetime(g_db_cnc_status_info['measure_start']).dt.tz_localize(None)
+    if g_db_cnc_status_info is None:  # this is optional
+        stats_db_f = DB_DIR + os.sep + 'cnc_stats_db.csv'
+        if os.path.isfile(stats_db_f):
+            g_db_cnc_status_info = pd.read_csv(stats_db_f)
+            g_db_cnc_status_info['time'] = pd.to_datetime(g_db_cnc_status_info['measure_start']).dt.tz_localize(None)
 
 
 # data should be stored in list of dict
