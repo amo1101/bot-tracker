@@ -26,6 +26,7 @@ g_tool_config = None
 g_db_bot_info = None
 g_db_cnc_info = None
 g_db_attack_info = None
+g_db_cnc_status_info = None
 
 welcome_ui = "\nWelcome to bot-tracker data tool!"
 main_ui = "\nPlease choose:\n" + \
@@ -51,6 +52,7 @@ data_analysis_ui = "\nPlease choose:\n" + \
 data_enrichment_ui = "\nPlease choose:\n" + \
                    "    1. Enrich C2\n" + \
                    "    2. Enrich atack info\n" + \
+                   "    3. Rebuild C2 status\n" + \
                    "Press any other key to go back"
 
 
@@ -99,7 +101,7 @@ def read_tool_config():
 
 
 def load_db_from_csv():
-    global g_db_bot_info, g_db_cnc_info, g_db_attack_info
+    global g_db_bot_info, g_db_cnc_info, g_db_attack_info, g_db_cnc_status_info
     g_db_bot_info = pd.read_csv(DB_DIR + os.sep + 'bot_info.csv') if \
         g_db_bot_info is None else g_db_bot_info
     g_db_cnc_info = pd.read_csv(DB_DIR + os.sep + 'cnc_info.csv') if \
@@ -108,6 +110,9 @@ def load_db_from_csv():
         g_db_attack_info = pd.read_csv(DB_DIR + os.sep + 'attack_info.csv')
         g_db_attack_info['time'] = pd.to_datetime(g_db_attack_info['time']).dt.tz_localize(None)
         g_db_attack_info['duration'] =  pd.to_timedelta(g_db_attack_info['duration'])
+    if g_db_cnc_status_info is None:
+        g_db_cnc_status_info = pd.read_csv(DB_DIR + os.sep + 'cnc_stats_db.csv')
+        g_db_cnc_status_info['time'] = pd.to_datetime(g_db_cnc_status_info['measure_start']).dt.tz_localize(None)
 
 
 # data should be stored in list of dict
@@ -548,7 +553,7 @@ def find_pcap_file(bot_id, t):
         if b.rfind(bot_id[:8]) != -1:
             for m in ms:
                 s, e = get_measure_time(m)
-                if t > s and t < e:
+                if t >= s and t <= e:
                     return get_data_dir(UNSTAGED_DIR,b,m) + os.sep + 'capture.pcap'
     return None
 
@@ -559,16 +564,11 @@ async def enrich_attack_report(raw):
     if pcap is None:
         print(f'bot measurement folder for {raw.bot_id} at {raw.time} not found.')
 
-    # this is for compatible for V1 data
-    if 'layers' in g_db_attack_info.columns:
-        added['layers'] = raw.layers
-        added['dst_port'] = raw.dst_port
-        return added
-
     attack_type = raw.attack_type
     if attack_type != 'DP Attack' or pcap is None:
         added['layers'] = ''
         added['dst_port'] = raw.dst_port
+        added['packet_cnt_check'] = -1
         return added
 
     time_e = raw.time + raw.duration
@@ -579,10 +579,9 @@ async def enrich_attack_report(raw):
     layers = set()
     dst_port = set()
     proxied = set()
-
+    cnt = 0
     print(f'analyzing {pcap}, filter:{display_filter}...')
     try:
-        cnt = 0
         async for packet in cap.sniff_continuously(0):
             pkt_summary = PacketSummary()
             pkt_summary.extract(packet)
@@ -601,7 +600,83 @@ async def enrich_attack_report(raw):
 
     added['dst_port'] = ','.join(dst_port)
     added['layers'] = ','.join(layers)
+    added['packet_cnt_check'] = cnt
     return added
+
+async def rebuild_cnc_status_report(raw):
+    reports = []
+    def add_report(status, update_time):
+        nonlocal reports, raw
+        reports.append([raw.ip, raw.port, raw.bot_id, raw.measure_start,
+            raw.measure_end, status, update_time])
+
+    pcap = find_pcap_file(raw.bot_id, raw.time)
+    if pcap is None:
+        print(f'bot measurement folder for {raw.bot_id} at {raw.time} not found.')
+        return []
+
+    display_filter = f"(ip.dst=={raw.ip} and tcp.dstport=={raw.port}) or " + \
+                     f"(ip.src=={raw.ip} and tcp.srcport=={raw.port})"
+
+    cap = AsyncFileCapture(pcap, display_filter=display_filter)
+
+    print(f'analyzing {pcap}, filter:{display_filter}...')
+    try:
+        cnt = 0
+        curr_status = 'unknown'
+        async for packet in cap.sniff_continuously(0):
+            pkt_summary = PacketSummary()
+            pkt_summary.extract(packet)
+            if pkt_summary.tcp_len > 0:
+                if curr_status != 'alive':
+                    curr_status = 'alive'
+                    add_report('alive', pkt_summary.sniff_time)
+            if pkt_summary.tcp_flags_fin == 'True':
+                if curr_status != 'disconnected':
+                    curr_status = 'disconnected'
+                    add_report('disconnected', pkt_summary.sniff_time)
+
+            cnt += 1
+            if cnt % 10000 == 0:
+                print(f'{cnt} packets analyzed...')
+        print(f'\nTotally {cnt} packets analyzed...')
+    finally:
+        pass
+
+    await cap.close_async()
+    return reports
+
+
+async def rebuild_cnc_status(s, e):
+    edf_file = DB_DIR + os.sep + f'cnc_status_rebuilt_{s}_{e}.csv'
+    start = s - 1
+    if os.path.isfile(edf_file):
+        df = pd.read_csv(edf_file)
+        start += len(df)
+    cnt = s
+    c2_status = g_db_cnc_status_info.iloc[s-1:e]
+    total = len(c2_status)
+    for row in c2_status.itertuples():
+        print(f'Rebuilding status {cnt}/{s - 1 + total}...')
+        if cnt <= start:
+            print('skip already rebuilt cnc status.')
+            cnt += 1
+            continue
+        reports = await rebuild_cnc_status_report(row)
+        if len(reports) == 0:
+            cnt += 1
+            continue
+
+        edf = pd.DataFrame(reports, columns=['bot_id','ip','port','measure_start',
+                                'measure_end','status','update_time'])
+
+        if not os.path.isfile(edf_file):
+            edf.to_csv(edf_file, mode='a', header=True, index=False)
+        else:
+            edf.to_csv(edf_file, mode='a', header=False, index=False)
+
+        cnt += 1
+
 
 async def enrich_attack_info(s, e):
     edf_file = DB_DIR + os.sep + f'attack_info_enriched_{s}_{e}.csv'
@@ -651,7 +726,8 @@ async def enrich_attack_info(s, e):
             ipinfo.get('loc',''),
             ipinfo.get('org',''),
             ipinfo.get('postal',''),
-            ipinfo.get('timezone','')
+            ipinfo.get('timezone',''),
+            added['packet_cnt_check']
         ]
 
         edf = pd.DataFrame([erow], columns=['bot_id','cnc_ip','cnc_port','attack_type',
@@ -659,7 +735,7 @@ async def enrich_attack_info(s, e):
                                 'src_port','dst_port','spoofed',
                                 'packet_num','total_bytes','pps','bandwidth',
                                 't_hostname','t_city','t_region','t_country',
-                                't_loc','t_org','t_postal','t_timezone'])
+                                't_loc','t_org','t_postal','t_timezone','packet_cnt_check'])
 
         if not os.path.isfile(edf_file):
             edf.to_csv(edf_file, mode='a', header=True, index=False)
@@ -688,6 +764,13 @@ async def async_data_enrichment():
             s = int(r[0])
             e = int(r[1])
             await enrich_attack_info(s, e)
+        if op == '3':
+            print(f'Rebuild C2 status for v1, {len(g_db_cnc_status_info)} C2 status...')
+            print('Choose C2 status info range, e.g. 1,100')
+            r = input('\ndata-tool # ').split(',')
+            s = int(r[0])
+            e = int(r[1])
+            await rebuild_cnc_status(s, e)
         else:
             break
 
