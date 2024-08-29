@@ -123,7 +123,7 @@ def write_to_csv(csv_file, data):
         #  print(f'No data written to {csv_file}')
         return
     df = pd.DataFrame(data)
-    df.to_csv(csv_file, index=False)
+    df.to_csv(csv_file, index=False, escapechar='\\')
 
 def get_bot_id_prefix(bot_dir):
     # e.g.2024_06_26_16_12_38_mirai_5f2ac36f
@@ -606,7 +606,7 @@ async def rebuild_cnc_status_report(raw):
     reports = []
     def add_report(status, update_time):
         nonlocal reports, raw
-        reports.append([raw.ip, raw.port, raw.bot_id, raw.measure_start,
+        reports.append([raw.bot_id, raw.ip, raw.port, raw.measure_start,
             raw.measure_end, status, update_time])
 
     pcap = find_pcap_file(raw.bot_id, raw.time)
