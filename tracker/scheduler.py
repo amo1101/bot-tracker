@@ -12,7 +12,6 @@ SCHEDULER_MODE_AUTO = 1
 
 class Scheduler:
     def __init__(self,
-                 tracker_id,
                  bot_repo_ip,
                  bot_repo_user,
                  bot_repo_path,
@@ -24,17 +23,18 @@ class Scheduler:
                  max_sandbox_num,
                  max_dormant_duration,
                  bot_probing_duration,
+                 allow_duplicate_bots,
+                 max_cnc_candidates,
                  bpf_filter,
                  packet_analyzer_excluded_ips,
                  max_packet_analyzing_workers,
                  min_cnc_attempts,
-                 max_cnc_candidates,
                  attack_gap,
                  min_attack_packets,
                  attack_detection_watermark,
                  sandbox_ctx,
                  db_store):
-        self.tracker_id = tracker_id  # reserved for supporting multiple trackers.
+        self.tracker_id = 0 # reserved for supporting multiple trackers.
         self.bot_repo_ip = bot_repo_ip
         self.bot_repo_user = bot_repo_user
         self.bot_repo_path = bot_repo_path
@@ -47,6 +47,7 @@ class Scheduler:
         self.max_sandbox_num = max_sandbox_num
         self.max_dormant_duration = timedelta(hours=max_dormant_duration)
         self.bot_probing_duration = timedelta(seconds=bot_probing_duration)
+        self.allow_duplicate_bots = True if allow_duplicate_bots == 'yes' else False
         self.bpf_filter = bpf_filter
         self.packet_analyzer_excluded_ips = packet_analyzer_excluded_ips
         self.max_analyzing_workers = max_packet_analyzing_workers
@@ -128,10 +129,11 @@ class Scheduler:
                                    self.sandbox_ctx,
                                    self.db_store,
                                    self.analyzer_pool,
+                                   self.allow_duplicate_bots,
+                                   self.max_cnc_candidates,
                                    self.bpf_filter,
                                    self.packet_analyzer_excluded_ips,
                                    self.min_cnc_attempts,
-                                   self.max_cnc_candidates,
                                    self.attack_gap,
                                    self.min_attack_packets,
                                    self.attack_detection_watermark,

@@ -2,23 +2,13 @@
 
 SWITCH=$1
 SUBNET=$2
-DNS_RATE=$3
-SIM_SERVER=$4
-TCP_PORTS=$5
+SIM_SERVER=$3
+TCP_PORTS=$4
 
-CHAIN=FWD-BC
 CHAIN_NAT=NAT-BC
 IFS=','
 
 if [ "$SWITCH" == "ON" ]; then
-    # forward chain for dns traffic rate-limiting
-    iptables -N $CHAIN
-    iptables -A $CHAIN -p udp --dport 53 -s "$SUBNET" -m limit --limit "$DNS_RATE"/sec --limit-burst "$DNS_RATE" -j RETURN
-    iptables -A $CHAIN -p tcp --dport 53 -s "$SUBNET" -m limit --limit "$DNS_RATE"/sec --limit-burst "$DNS_RATE" -j RETURN
-    iptables -A $CHAIN -j DROP
-    iptables -A FORWARD -s "$SUBNET" -p udp --dport 53 -j $CHAIN
-    iptables -A FORWARD -s "$SUBNET" -p tcp --dport 53 -j $CHAIN
-
     # nat table PREROUTING chain for traffic redirection
     if [ -n "$SIM_SERVER" ]; then
         iptables -N $CHAIN_NAT -t nat
@@ -32,11 +22,6 @@ if [ "$SWITCH" == "ON" ]; then
     # mark outgoing packets for monitoring
     iptables -t mangle -A PREROUTING -s "$SUBNET" -j MARK --set-mark 0xb
 else
-    iptables -F $CHAIN
-    iptables -D FORWARD -s "$SUBNET" -p udp --dport 53 -j $CHAIN
-    iptables -D FORWARD -s "$SUBNET" -p tcp --dport 53 -j $CHAIN
-    iptables -X $CHAIN
-
     if [ -n "$SIM_SERVER" ]; then
         iptables -F $CHAIN_NAT -t nat
         read -ra ports <<< "$TCP_PORTS"

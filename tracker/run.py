@@ -23,16 +23,15 @@ async def async_main(arguments=None):
     sandbox_ctx = SandboxContext(config['network_control']['subnet'],
                                  config['network_control']['dns_server'],
                                  int(config['network_control']['mode']),
-                                 config['network_control']['dns_rate_limit'],
-                                 config['network_control.block']['redirected_tcp_ports'],
-                                 config['network_control.block']['simulated_server'],
-                                 config['network_control.rate_limit']['network_peak'],
-                                 config['network_control.rate_limit']['network_average'],
-                                 config['network_control.rate_limit']['network_burst'],
-                                 config['network_control.rate_limit']['port_peak'],
-                                 config['network_control.rate_limit']['port_average'],
-                                 config['network_control.rate_limit']['port_burst'],
-                                 config['network_control.rate_limit']['port_max_conn'])
+                                 config['network_control']['redirected_tcp_ports'],
+                                 config['network_control']['simulated_server'],
+                                 config['network_control']['network_peak'],
+                                 config['network_control']['network_average'],
+                                 config['network_control']['network_burst'],
+                                 config['network_control']['port_peak'],
+                                 config['network_control']['port_average'],
+                                 config['network_control']['port_burst'],
+                                 config['network_control']['port_max_conn'])
     sandbox_ctx.start()
 
     db_store = DBStore(config['database']['host'],
@@ -42,8 +41,7 @@ async def async_main(arguments=None):
                        config['database']['password'])
     await db_store.open()
 
-    scheduler = Scheduler(int(config['tracker']['id']),
-                          config['local_bot_repo']['ip'],
+    scheduler = Scheduler(config['local_bot_repo']['ip'],
                           config['local_bot_repo']['user'],
                           config['local_bot_repo']['path'],
                           config['interface_monitor']['iface'],
@@ -54,14 +52,15 @@ async def async_main(arguments=None):
                           int(config['scheduler']['max_sandbox_num']),
                           int(config['scheduler']['max_dormant_duration']),
                           int(config['scheduler']['bot_probing_duration']),
-                          config['scheduler.packet_analyzer']['bpf_filter'],
-                          config['scheduler.packet_analyzer']['excluded_ips'],
-                          int(config['scheduler.packet_analyzer']['max_analyzing_workers']),
-                          int(config['scheduler.packet_analyzer']['min_cnc_attempts']),
-                          int(config['scheduler.packet_analyzer']['max_cnc_candidates']),
-                          int(config['scheduler.packet_analyzer']['attack_gap']),
-                          int(config['scheduler.packet_analyzer']['min_attack_packets']),
-                          int(config['scheduler.packet_analyzer']['attack_detection_watermark']),
+                          config['scheduler']['allow_duplicate_bots'],
+                          int(config['scheduler']['max_cnc_candidates']),
+                          config['packet_analyzer']['bpf_filter'],
+                          config['packet_analyzer']['excluded_ips'],
+                          int(config['packet_analyzer']['max_analyzing_workers']),
+                          int(config['packet_analyzer']['min_cnc_attempts']),
+                          int(config['packet_analyzer']['attack_gap']),
+                          int(config['packet_analyzer']['min_attack_packets']),
+                          int(config['packet_analyzer']['attack_detection_watermark']),
                           sandbox_ctx,
                           db_store)
 

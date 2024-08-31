@@ -125,10 +125,14 @@ class PacketSummary:
 
     @property
     def src_net(self):
+        if self.ip_src is None:
+            return None
         return '.'.join(self.ip_src.split('.')[:3]) + '.0/24'
 
     @property
     def dst_net(self):
+        if self.ip_dst is None:
+            return None
         return '.'.join(self.ip_dst.split('.')[:3]) + '.0/24'
 
     def extract(self, pkt):

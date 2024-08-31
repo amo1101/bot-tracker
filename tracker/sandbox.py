@@ -90,7 +90,7 @@ class Sandbox:
             if self.dom.state()[0] != libvirt.VIR_DOMAIN_RUNNING:
                 l.debug("domain state %d, reason %d...", self.dom.state()[0],
                         self.dom.state()[1])
-                await asyncio.sleep(1)
+                await asyncio.sleep(0.1)
             else:
                 break
 
@@ -98,10 +98,10 @@ class Sandbox:
         ifaces = self.dom.interfaceAddresses(libvirt.VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_LEASE)
         retry = 0
         while len(ifaces) == 0:
-            if retry % 6 == 0:
+            if retry % 50 == 0:
                 retry += 1
                 l.info("waiting for interface info...")
-            await asyncio.sleep(0.5)
+            await asyncio.sleep(0.1)
             ifaces = self.dom.interfaceAddresses(libvirt.VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_LEASE)
 
         l.debug("interfaces are:")

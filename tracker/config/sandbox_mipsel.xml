@@ -14,7 +14,7 @@
       <target dev='sda' bus='ide'/>
     </disk>
     <interface type='network'>
-      <source network='mynet'/>
+      <source network='mynet' portgroup='sandbox'/>
       <model type='pcnet'/>
       <address type='pci' domain='0x0000' bus='0x00' slot='0x0b' function='0x0'/>
     </interface>

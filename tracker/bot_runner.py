@@ -39,10 +39,11 @@ class BotRunner:
                  sandbox_vcpu_quota,
                  sandbox_ctx, db_store,
                  analyzer_pool,
+                 allow_duplicate_bots,
+                 max_cnc_candidates,
                  bpf_filter,
                  excluded_ips,
                  min_cnc_attempts,
-                 max_cnc_candidates,
                  attack_gap,
                  min_attack_packets,
                  attack_detection_watermark,
@@ -73,10 +74,11 @@ class BotRunner:
         self.destroyed = False
         self.iface_monitor = iface_monitor
         self.analyzer_pool = analyzer_pool
+        self.allow_duplicate_bots = allow_duplicate_bots
+        self.max_cnc_candidates = max_cnc_candidates
         self.bpf_filter = bpf_filter
         self.excluded_ips = excluded_ips
         self.min_cnc_attempts = min_cnc_attempts
-        self.max_cnc_candidates = max_cnc_candidates
         self.attack_gap = attack_gap
         self.min_attack_packets = min_attack_packets
         self.attack_detection_watermark = attack_detection_watermark
@@ -145,8 +147,9 @@ class BotRunner:
         for cnc in cnc_info_in_db:
             if cnc.bot_id != self.bot_info.bot_id:
                 l.warning(f'Bot already exists for the botnet!')
-                self.notify_dup = True
-                raise BotRunnerException('Bot already exist for the botnet!')
+                if not self.allow_duplicate_bots:
+                    self.notify_dup = True
+                    raise BotRunnerException('Bot already exist for the botnet!')
             elif cnc.bot_id == self.bot_info.bot_id:
                 is_old_cnc = True
                 l.warning('This is a previously discovered CnC!')
@@ -154,13 +157,16 @@ class BotRunner:
 
         l.info(f'Confirmed CnC: {ip}:{port}')
         self.cnc_info = (ip, port)
-        # TODO: temp fix
-        self.cnc_candidates = list(filter(lambda x: x[0] != ip, self.cnc_candidates))
-        for cip, _ in self.cnc_candidates:
-                await self.iface_monitor.unregister(cip, self.bot_info.bot_id)
 
-        if len(self.cnc_candidates) != 0:
-            self.sandbox.redirectx_traffic('OFF', self.cnc_candidates)
+        # revoke permission for C2 candidates
+        d_candidates = []
+        for cip, cport in self.cnc_candidates:
+            if cip != ip or cport != port:
+                await self.iface_monitor.unregister(cip, self.bot_info.tag)
+                d_candidates.append((cip, cport))
+
+        if len(d_candidates) != 0:
+            self.sandbox.redirectx_traffic('OFF', d_candidates)
 
         # allow communication with only this CnC
         nwfilter_type = self.sandbox_ctx.cnc_nwfilter

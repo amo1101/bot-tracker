@@ -7,6 +7,11 @@
     <tcp srcipaddr='$CNC_IP'/>
   </rule>
   
+  <!-- allow connection limit -->
+  <rule action='drop' direction='out' priority='800'>
+    <tcp connlimit-above='$CONN_LIMIT'/>
+  </rule>
+
   <!-- allow on tcp ports -->
   <rule action='accept' direction='out' priority='900'>
     <tcp dstportstart='$TCP_PORT[@1]' dstipaddr='$SIM_SERVER[@2]'/>

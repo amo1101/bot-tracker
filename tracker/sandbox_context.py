@@ -33,7 +33,6 @@ class SandboxContext:
                  subnet,
                  dns_server,
                  network_mode,
-                 dns_rate_limit,
                  redirected_tcp_ports,
                  simulated_server,
                  network_peak,
@@ -55,7 +54,6 @@ class SandboxContext:
         self.bridge_ip = None
         self._dns_server = dns_server
         self._network_mode = network_mode
-        self.dns_rate_limit = dns_rate_limit
         self._redirected_tcp_ports = redirected_tcp_ports
         self._simulated_server = simulated_server
         self.network_peak = network_peak
@@ -160,14 +158,6 @@ class SandboxContext:
         dhcp_range_node.set('start', dhcp_s)
         dhcp_range_node.set('end', dhcp_e)
 
-        # block mode do not rate limit bandwidth
-        if self._network_mode == NetworkMode.BLOCK.value:
-            bandwidth_node = tree.xpath("//bandwidth")[0]
-            portgroup_node = tree.xpath("//portgroup")[0]
-            tree.remove(bandwidth_node)
-            tree.remove(portgroup_node)
-            return etree.tostring(tree, encoding='unicode')
-
         net_bandwidth_node = tree.xpath("//bandwidth/outbound")[0]
         net_bandwidth_node.set('average', self.network_average)
         net_bandwidth_node.set('peak', self.network_peak)
@@ -203,10 +193,9 @@ class SandboxContext:
         source_element = tree.xpath("//devices/disk/source")[0]
         source_element.set("file", self.get_sandbox_fs(arch, name)[1])
 
-        # add network interface to portgroup in rate-limit mode
-        if self._network_mode == NetworkMode.RATE_LIMIT.value:
-            network_source_element = tree.xpath("//devices/interface/source")[0]
-            network_source_element.set("portgroup", "sandbox")
+        # add network interface to portgroup
+        network_source_element = tree.xpath("//devices/interface/source")[0]
+        network_source_element.set("portgroup", "sandbox")
 
         return etree.tostring(tree, encoding='unicode')
 
@@ -308,7 +297,7 @@ class SandboxContext:
             del para_to_check["simulated_server"]
             del para_to_check["conn_limit"]
         elif filter_name == SandboxNWFilter.CNC:
-            del para_to_check["conn_limit"]
+            pass
         else:
             del para_to_check["bridge_ip"]
             del para_to_check["sandbox_ip"]
@@ -357,7 +346,6 @@ class SandboxContext:
             NetworkMode.BLOCK.value else ''
         self.run_script(s, switch,
                         self.subnet,
-                        self.dns_rate_limit,
                         sim_server,
                         self.redirected_tcp_ports)
 

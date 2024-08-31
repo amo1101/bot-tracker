@@ -470,9 +470,8 @@ class PacketAnalyzer:
         if 'dns' in pkt.layers:
             self.get_domains(pkt)
 
-        if 'tcp' not in pkt.layers and \
-                'udp' not in pkt.layers and \
-                'ip' not in pkt.layers:
+        # ip layer must present
+        if 'ip' not in pkt.layers:
             return False
 
         # skip retransmission packets
@@ -506,7 +505,7 @@ class PacketAnalyzer:
         cnc_status = self.cnc_detector.detect(pkt)
         cnc_status_ready = check_cnc_status(cnc_status)
 
-        background_fields = ["mdns", "dhcpv6", "dhcp", "arp"]
+        background_fields = ["dhcpv6", "dhcp", "arp"]
         if is_background_traffic(pkt, background_fields):
             return cnc_status_ready
 
