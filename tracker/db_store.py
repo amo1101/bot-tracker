@@ -137,10 +137,13 @@ class AttackInfo:
     packet_num: int
     total_bytes: int
     pps: int
+    pps_max: int
     bandwidth: int
+    bandwidth_max: int
 
     def __repr__(self):
         bw = "{:.3f}".format(self.bandwidth / 1000.0) + ' KB/s'
+        bw_max = "{:.3f}".format(self.bandwidth_max / 1000.0) + ' KB/s'
         return f'{"bot_id":<16}: {self.bot_id}\n' + \
             f'{"cnc_ip":<16}: {self.cnc_ip}\n' + \
             f'{"cnc_port":<16}: {self.cnc_port}\n' + \
@@ -156,7 +159,9 @@ class AttackInfo:
             f'{"packet_num":<16}: {self.packet_num}\n' + \
             f'{"total_bytes":<16}: {self.total_bytes}\n' + \
             f'{"pps":<16}: {self.pps}\n' + \
-            f'{"bandwidth":<16}: {bw}'
+            f'{"pps_max":<16}: {self.pps_max}\n' + \
+            f'{"bandwidth":<16}: {bw}\n' + \
+            f'{"bandwidth_max":<16}: {bw_max}'
 
 
 class DBStore:
@@ -423,10 +428,12 @@ async def test_db_6(db_store):
     await db_store.open()
     a = AttackInfo('bot1','192.168.100.5', AttackType.ATTACK_DP.value,
                    TEST_TS1, INIT_INTERVAL,
-                   '109.123.100.9','tcp','2034','-','no',10000, 120000, 100,10)
+                   '109.123.100.9','tcp','2034','-','no',10000, 120000,
+                   100,101,10,11)
     a1 = AttackInfo('bot2','192.168.100.6', AttackType.ATTACK_RA.value,
                    TEST_TS1, INIT_INTERVAL,
-                   '109.123.100.9','udp','2034','-','yes',10000, 120000, 100,10)
+                   '109.123.100.9','udp','2034','-','yes',10000, 120000,
+                    100,101,10,11)
     print(f'add AttackInfo:\n{repr(a)}\n')
     await db_store.add_attack_info(a)
     print(f'add AttackInfo:\n{repr(a1)}\n')

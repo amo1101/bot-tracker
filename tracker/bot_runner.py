@@ -235,7 +235,9 @@ class BotRunner:
                                      total_packets,
                                      total_bytes,
                                      pps,
-                                     bandwidth)
+                                     r['pps_max'],
+                                     bandwidth,
+                                     r['bandwidth_max'])
             await self.db_store.add_attack_info(attack_info)
             l.debug(f'attack inserted: {attack_info}')
 

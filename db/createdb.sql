@@ -41,14 +41,16 @@ CREATE TABLE IF NOT EXISTS attack_info (
     packet_num INT,
     total_bytes INT,
     pps INT,
-    bandwidth INT
+    pps_max INT,
+    bandwidth INT,
+    bandwidth_max INT
 );
 
 -- insert records for the test bot
 DO $$
 DECLARE
     bid INTEGER := 1;
-    cnt INTEGER := 64;
+    cnt INTEGER := 15;
 BEGIN
     FOR bid IN 1..cnt LOOP
         INSERT INTO bot_info (

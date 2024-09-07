@@ -1,3 +1,4 @@
+from collections import deque
 from db_store import CnCStatus, AttackType
 from datetime import datetime, timedelta
 from dataclasses import dataclass
@@ -8,6 +9,8 @@ import copy
 l: TaskLogger = TaskLogger(__name__)
 
 MAX_STAT_ENTRIES = 50
+MOVING_AVG_PERIOD = 100
+
 class AttackStat:
     def __init__(self):
         self.attack_type = None
@@ -23,6 +26,9 @@ class AttackStat:
         self.update_time = None
         self.packet_cnt = 0
         self.total_bytes = 0
+        self.pps_max = 0  # moving average maximum pps
+        self.bandwidth_max = 0  # moving average maximum bandwidth
+        self._mavg_queue = deque(maxlen=MOVING_AVG_PERIOD+1)
 
     def reset(self):
         self.attack_type = None
@@ -38,6 +44,9 @@ class AttackStat:
         self.update_time = None
         self.packet_cnt = 0
         self.total_bytes = 0
+        self.pps_max = 0
+        self.bandwidth_max = 0
+        self._mavg_queue.clear()
 
     def update(self, attack_type, pkt, spoofed):
         if self.packet_cnt == 0:
@@ -65,6 +74,18 @@ class AttackStat:
         self.update_time = pkt.sniff_time
         self.duration = self.update_time - self.start_time
 
+        # calculate simple moving average
+        self._mavg_queue.append((pkt.sniff_time, self.total_bytes))
+        if self.packet_cnt > MOVING_AVG_PERIOD:
+            td = self._mavg_queue[MOVING_AVG_PERIOD][0] - self._mavg_queue[0][0]
+            secs = td.total_seconds()
+            tb = self._mavg_queue[MOVING_AVG_PERIOD][1] - self._mavg_queue[0][1]
+            pps_max = MOVING_AVG_PERIOD / secs
+            bw_max = tb / secs
+            self.pps_max = self.pps_max if self.pps_max >= pps_max else pps_max
+            self.bandwidth_max = self.bandwidth_max if self.bandwidth_max >=
+                bw_max else bw_max
+
     def report(self):
         if len(self.target) > 1:
             first_e = next(iter(self.target))
@@ -83,7 +104,9 @@ class AttackStat:
                 'dst_port': ','.join(self.dst_port),
                 'spoofed': ','.join(self.spoofed),
                 'packet_cnt': self.packet_cnt,
-                'total_bytes': self.total_bytes}
+                'total_bytes': self.total_bytes,
+                'pps_max': self.pps_max,
+                'bandwidth_max': self.bandwidth_max}
 
 
 class AttackDetector:
