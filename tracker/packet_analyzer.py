@@ -320,10 +320,13 @@ class CnCDetector:
             if is_candidate:
                 return {'ip': p.ip_dst, 'port': p.tcp_dstport,
                         'status': CnCStatus.CANDIDATE.value,
-                        'update_time': p.sniff_time}
+                        'update_time': p.sniff_time,
+                        'packet_cnt': 0,
+                        'total_bytes': 0}
 
-            # cnc communication
+            # cnc communication, cnc should have been confirmed
             ret = {}
+            cnc_stat = self.stats[self.cnc]
             if p.tcp_len > 0:
                 ret['status'] = CnCStatus.ALIVE.value
             if p.tcp_flags_fin == 'True':
@@ -331,12 +334,13 @@ class CnCDetector:
             else:
                 pass
 
-            # cnc should have been confirmed
             ip_port = self.cnc.split(':')
             if 'status' in ret:
                 ret['ip'] = ip_port[0]
                 ret['port'] = ip_port[1]
                 ret['update_time'] = p.sniff_time
+                ret['packet_cnt'] = cnc_stat.packet_cnt
+                ret['total_bytes'] = cnc_stat.total_bytes
             return ret
 
         if 'tcp' not in pkt.layers:
@@ -408,10 +412,16 @@ class CnCDetector:
 
     def report(self):
         reports = []
+        cnc_stat = None
         for k, v in self.stats.items():
             if v.packet_cnt < self.min_cnc_attempts:
                 continue
+            if k == self.cnc:  # let's put cnc stat at last
+                cnc_stat = v
+                continue
             reports.append(v.report())
+        if cnc_stat is not None:
+            reports.append(cnc_stat.report())
         return reports
 
 
@@ -484,6 +494,18 @@ class PacketAnalyzer:
                     self.attacks.extend(reports)
         if flush_cnc_stats:
             self.cnc_stats = self.cnc_detector.report()
+            # flush cnc status only for alive channel
+            if len(self.cnc_stats) > 0 and \
+               len(self.cnc_status) > 0 and \
+               self.cnc_status['status'] == CnCStatus.ALIVE.value:
+                cnc_stat = self.cnc_stats[-1]
+                if cnc_stat.ip == self.cnc[0] and \
+                   cnc_stat.port == self.cnc[1]:
+                    self.cnc_status['packet_cnt'] = cnc_stat.packet_cnt
+                    self.cnc_status['total_bytes'] = cnc_stat.total_bytes
+                    # for offline analysis, this should be replaced by measurement_end time
+                    self.cnc_status['update_time'] = datetime.now()
+                    self.cnc_status_ready = True
 
         return self._report()
 
