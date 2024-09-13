@@ -6,14 +6,15 @@
   <rule action='accept' direction='in' priority='700'>
     <tcp srcipaddr='$CNC_IP'/>
   </rule>
-  
+
+  <!-- allow on tcp ports -->
+  <rule action='accept' direction='out' priority='800'>
+    <tcp dstportstart='$TCP_PORT[@1]' dstipaddr='$SIM_SERVER[@2]'/>
+  </rule>
+
   <!-- allow connection limit -->
-  <rule action='drop' direction='out' priority='800'>
+  <rule action='drop' direction='out' priority='900'>
     <tcp connlimit-above='$CONN_LIMIT'/>
   </rule>
 
-  <!-- allow on tcp ports -->
-  <rule action='accept' direction='out' priority='900'>
-    <tcp dstportstart='$TCP_PORT[@1]' dstipaddr='$SIM_SERVER[@2]'/>
-  </rule>
 </filter>

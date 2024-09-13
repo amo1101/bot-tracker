@@ -9,7 +9,7 @@ import copy
 l: TaskLogger = TaskLogger(__name__)
 
 MAX_STAT_ENTRIES = 50
-MOVING_AVG_PERIOD = 100
+MOVING_AVG_PERIOD = 30
 
 class AttackStat:
     def __init__(self):
@@ -83,7 +83,7 @@ class AttackStat:
             pps_max = MOVING_AVG_PERIOD / secs
             bw_max = tb / secs
             self.pps_max = self.pps_max if self.pps_max >= pps_max else pps_max
-            self.bandwidth_max = self.bandwidth_max if self.bandwidth_max >=
+            self.bandwidth_max = self.bandwidth_max if self.bandwidth_max >= \
                 bw_max else bw_max
 
     def report(self):
@@ -499,10 +499,10 @@ class PacketAnalyzer:
                len(self.cnc_status) > 0 and \
                self.cnc_status['status'] == CnCStatus.ALIVE.value:
                 cnc_stat = self.cnc_stats[-1]
-                if cnc_stat.ip == self.cnc[0] and \
-                   cnc_stat.port == self.cnc[1]:
-                    self.cnc_status['packet_cnt'] = cnc_stat.packet_cnt
-                    self.cnc_status['total_bytes'] = cnc_stat.total_bytes
+                if cnc_stat['ip'] == self.cnc[0] and \
+                   cnc_stat['port'] == self.cnc[1]:
+                    self.cnc_status['packet_cnt'] = cnc_stat['packet_cnt']
+                    self.cnc_status['total_bytes'] = cnc_stat['total_bytes']
                     # for offline analysis, this should be replaced by measurement_end time
                     self.cnc_status['update_time'] = datetime.now()
                     self.cnc_status_ready = True

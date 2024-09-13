@@ -8,7 +8,7 @@
   </rule>
 
   <!-- allow connection limit -->
-  <rule action='drop' direction='out' priority='800'>
+  <rule action='drop' direction='out' priority='900'>
     <tcp connlimit-above='$CONN_LIMIT'/>
   </rule>
 </filter>

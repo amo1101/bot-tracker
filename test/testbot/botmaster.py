@@ -2,7 +2,7 @@ import asyncio
 import time
 
 async def start_bot():
-    reader, writer = await asyncio.open_connection('192.168.100.5', 9999)
+    reader, writer = await asyncio.open_connection('192.168.88.234', 9999)
     reg_cmd = 'register botmaster'
     writer.write(reg_cmd.encode())
     await writer.drain()
