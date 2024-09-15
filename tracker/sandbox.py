@@ -71,9 +71,9 @@ class Sandbox:
                 all_ips = ','.join(cnc_ips)
                 self._run_script(s, switch, all_ips)
 
-    def fetch_log(self, dst, start_time, end_time):
+    def fetch_log(self, dst):
         s = SandboxScript.FETCH_LOG
-        self._run_script(s, self.fs, dst, start_time, end_time)
+        self._run_script(s, self.fs, dst)
 
     async def start(self):
         self._prepare_kernel()

@@ -25,6 +25,8 @@ class Scheduler:
                  bot_probing_duration,
                  allow_duplicate_bots,
                  max_cnc_candidates,
+                 ring_capture,
+                 ring_file_size,
                  bpf_filter,
                  packet_analyzer_excluded_ips,
                  max_packet_analyzing_workers,
@@ -48,6 +50,8 @@ class Scheduler:
         self.max_dormant_duration = timedelta(hours=max_dormant_duration)
         self.bot_probing_duration = timedelta(seconds=bot_probing_duration)
         self.allow_duplicate_bots = True if allow_duplicate_bots == 'yes' else False
+        self.ring_capture = True if ring_capture == 'yes' else False
+        self.ring_file_size = ring_file_size
         self.bpf_filter = bpf_filter
         self.packet_analyzer_excluded_ips = packet_analyzer_excluded_ips
         self.max_analyzing_workers = max_packet_analyzing_workers
@@ -131,6 +135,8 @@ class Scheduler:
                                    self.analyzer_pool,
                                    self.allow_duplicate_bots,
                                    self.max_cnc_candidates,
+                                   self.ring_capture,
+                                   self.ring_file_size,
                                    self.bpf_filter,
                                    self.packet_analyzer_excluded_ips,
                                    self.min_cnc_attempts,

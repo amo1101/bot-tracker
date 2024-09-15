@@ -54,6 +54,8 @@ async def async_main(arguments=None):
                           int(config['scheduler']['bot_probing_duration']),
                           config['scheduler']['allow_duplicate_bots'],
                           int(config['scheduler']['max_cnc_candidates']),
+                          config['packet_analyzer']['ring_capture'],
+                          int(config['packet_analyzer']['ring_file_size']),
                           config['packet_analyzer']['bpf_filter'],
                           config['packet_analyzer']['excluded_ips'],
                           int(config['packet_analyzer']['max_analyzing_workers']),

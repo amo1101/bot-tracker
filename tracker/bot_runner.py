@@ -41,6 +41,8 @@ class BotRunner:
                  analyzer_pool,
                  allow_duplicate_bots,
                  max_cnc_candidates,
+                 ring_capture,
+                 ring_file_size,
                  bpf_filter,
                  excluded_ips,
                  min_cnc_attempts,
@@ -60,8 +62,10 @@ class BotRunner:
         self.live_capture = None
         self.log_base = CUR_DIR + os.sep + "log"
         self.log_dir = self.log_base + os.sep + bot_info.tag
-        self.cnc_stats_log = self.log_dir + os.sep + 'cnc-stats.csv'
-        self.cnc_status_log = self.log_dir + os.sep + 'cnc-status.csv'
+        self.measurement_log = self.log_dir + os.sep + 'measurements.csv'
+        self.measurement_dir = ''
+        self.cnc_stats_log = ''
+        self.cnc_status_log = ''
         self.cnc_info = ('', '')
         self.cnc_candidates = []
         self.notify_unstage = False
@@ -76,6 +80,8 @@ class BotRunner:
         self.analyzer_pool = analyzer_pool
         self.allow_duplicate_bots = allow_duplicate_bots
         self.max_cnc_candidates = max_cnc_candidates
+        self.ring_capture = ring_capture
+        self.ring_file_size = ring_file_size
         self.bpf_filter = bpf_filter
         self.excluded_ips = excluded_ips
         self.min_cnc_attempts = min_cnc_attempts
@@ -101,20 +107,33 @@ class BotRunner:
     def bot_status(self):
         return self.bot_info.status
 
-    def _create_log_dir(self):
+    def _init_log_dir(self):
+        str_start_time = self.staged_time.strftime('%Y_%m_%d_%H_%M_%S')
+        self.measurement_dir = self.log_dir + os.sep + str_start_time
+        self.cnc_stats_log = self.measurement_dir + os.sep + 'cnc-stats.csv'
+        self.cnc_status_log = self.measurement_dir + os.sep + 'cnc-status.csv'
+
         if not os.path.exists(self.log_base):
             os.makedirs(self.log_base)
         if not os.path.exists(self.log_dir):
             os.makedirs(self.log_dir)
+        os.makedirs(self.measurement_dir)
 
     def _init_capture(self, port_dev, bpf_filter):
         if self.live_capture is None:
             iface = port_dev
-            output_file = self.log_dir + os.sep + "capture.pcap"
-            self.live_capture = AsyncLiveCapture(interface=iface,
-                                                 bpf_filter=bpf_filter,
-                                                 output_file=output_file,
-                                                 debug=False)
+            output_file = self.measurement_dir + os.sep + "capture.pcap"
+            if not self.ring_capture:
+                self.live_capture = AsyncLiveCapture(interface=iface,
+                                                     bpf_filter=bpf_filter,
+                                                     output_file=output_file,
+                                                     debug=False)
+            else:
+                self.live_capture = AsyncLiveRingCapture(ring_file_size=self.ring_file_size*1024,
+                                                         ring_file_name=output_file,
+                                                         interface=iface,
+                                                         bpf_filter=bpf_filter,
+                                                         debug=False)
 
     async def _handle_candidate_cnc(self, ip, port):
         l.info(f'New CnC candidate: {ip}:{port}')
@@ -317,7 +336,6 @@ class BotRunner:
     async def run(self):
         try:
             l.info('Starting bot runner...')
-            self._create_log_dir()
             self.sandbox = Sandbox(self.sandbox_ctx,
                                    self.sandbox_vcpu_quota,
                                    self.bot_info.tag,
@@ -328,6 +346,7 @@ class BotRunner:
                                    self.bot_repo_path)
             await self.sandbox.start()
             await self.update_bot_info(BotStatus.STAGED)
+            self._init_log_dir()
 
             port_dev, mac, own_ip = self.sandbox.get_ifinfo()
             self._init_capture(port_dev, self.bpf_filter)
@@ -357,9 +376,18 @@ class BotRunner:
 
             l.info("Bot runner destroyed")
             await self.update_bot_info(BotStatus.SUSPENDED)
-            str_start_time = self.staged_time.strftime('%Y-%m-%d-%H-%M-%S')
-            str_end_time = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
-            self.sandbox.fetch_log(self.log_dir, str_start_time, str_end_time)
+
+            # record this measurement
+            fieldnames = ['bot_id', 'measure_start', 'measure_end', 'duration']
+            m_end = datetime.now()
+            m_duration = m_end - self.staged_time
+            m_rcd = {'bot_id': self.bot_info.bot_id,
+                    'measure_start': self.staged_time,
+                    'measure_end': m_end,
+                    'duration': m_duration}
+            log_to_csv_file(self.measurement_log, [m_rcd], fieldnames)
+
+            self.sandbox.fetch_log(self.measurement_dir)
 
             if len(self.cnc_candidates) != 0:
                 self.sandbox.redirectx_traffic('OFF', self.cnc_candidates)
