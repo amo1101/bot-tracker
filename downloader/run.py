@@ -46,11 +46,11 @@ def log_bot_detail_info(botinfo, tags):
     is_empty = os.stat(g_bot_info_log).st_size == 0 if \
         os.path.isfile(g_bot_info_log) else True
     with open(g_bot_info_log, 'a', newline='') as file:
-        fieldnames = bot_details[0].keys()
+        fieldnames = bot_details.keys()
         writer = csv.DictWriter(file, fieldnames=fieldnames)
         if is_empty:
             writer.writeheader()
-        writer.writerows(bot_details)
+        writer.writerows([bot_details])
 
 def get_arch_info(bot_file, bot_info):
     # unzipped file name should be sha256
@@ -97,7 +97,7 @@ def get_timestamp(timestr):
 
 
 async def download_base(remote_repo, local_repo, db_store, time_threshold):
-    l.debug('download base started...')
+    l.info('download base started...')
     #  enable_bazzar_access()
     for t in valid_tags:
         bot_list = remote_repo.bazaar_query('tag', t, max_batch)
@@ -108,7 +108,7 @@ async def download_base(remote_repo, local_repo, db_store, time_threshold):
             l.debug(f'bot: {bot}')
             exists = await db_store.bot_exists(bot['sha256_hash'])
             if exists:
-                l.debug(f'bot {bot["sha256_hash"]} already downloaded')
+                l.info(f'bot {bot["sha256_hash"]} already downloaded')
                 continue
             if not is_valid_datetime_format(bot['first_seen']) or \
                     not is_valid_datetime_format(bot['last_seen']):
@@ -119,10 +119,14 @@ async def download_base(remote_repo, local_repo, db_store, time_threshold):
                                get_timestamp(bot["last_seen"]),
                                bot["file_type"],
                                bot["file_size"])
-            if bot_info.first_seen < time_threshold or bot_info.file_type \
-                    not in valid_file_type:
+            if bot_info.first_seen < time_threshold:
+                l.debug(f'{bot_info.bot_id} is too old.')
                 continue
-            l.debug(f'downloading {bot_info.bot_id}...')
+            if bot_info.file_type not in valid_file_type:
+                l.debug(f'{bot_info.bot_id} file type not supported.')
+                continue
+
+            l.info(f'downloading {bot_info.bot_id}...')
             ret = remote_repo.bazaar_download(bot_info.bot_id)
             if ret == None:
                 continue
@@ -132,17 +136,19 @@ async def download_base(remote_repo, local_repo, db_store, time_threshold):
             log_bot_detail_info(bot_info, bot['tags'])
 
             if not check_arch_info(bot_info):
+                l.info(f'{bot_info.bot_id} arch not supported.')
                 os.remove(bot_file)
                 continue
             shutil.move(bot_file, local_repo + os.sep + bot_file)
             l.debug('storing bot_info')
             await db_store.add_bot(bot_info)
+            l.info(f'bot in stock {bot_info.bot_id}...')
     #  disable_bazzar_access()
-    l.debug('download base done')
+    l.info('download base done')
 
 
 async def download_recent(remote_repo, local_repo, db_store):
-    l.debug('download recent started...')
+    l.info('download recent started...')
     #  enable_bazzar_access()
     bot_list = remote_repo.bazaar_list_samples('time')
     l.debug(f'response json: {bot_list}')
@@ -152,7 +158,7 @@ async def download_recent(remote_repo, local_repo, db_store):
     for bot in bot_list["data"]:
         exists = await db_store.bot_exists(bot['sha256_hash'])
         if exists:
-            l.debug(f'bot {bot["sha256_hash"]} already downloaded')
+            l.info(f'bot {bot["sha256_hash"]} already downloaded')
             continue
         if not is_valid_datetime_format(bot['first_seen']) or \
                 not is_valid_datetime_format(bot['last_seen']):
@@ -165,6 +171,7 @@ async def download_recent(remote_repo, local_repo, db_store):
                            bot["file_size"])
 
         if bot_info.file_type not in valid_file_type:
+            l.info(f'{bot_info.bot_id} file type not supported.')
             continue
         find_tag = False
         for t in valid_tags:
@@ -174,7 +181,7 @@ async def download_recent(remote_repo, local_repo, db_store):
                 break
         if not find_tag:
             continue
-        l.debug(f'downloading {bot_info.bot_id}...')
+        l.info(f'downloading {bot_info.bot_id}...')
         remote_repo.bazaar_download(bot_info.bot_id)
         bot_file = bot_info.file_name
         get_arch_info(bot_file, bot_info)
@@ -182,13 +189,15 @@ async def download_recent(remote_repo, local_repo, db_store):
         log_bot_detail_info(bot_info, bot['tags'])
 
         if not check_arch_info(bot_info):
+            l.info(f'{bot_info.bot_id} arch not supported.')
             os.remove(bot_file)
             continue
         l.debug('storing bot_info...')
         shutil.move(bot_file, local_repo + os.sep + bot_file)
         await db_store.add_bot(bot_info)
+        l.info(f'bot in stock {bot_info.bot_id}...')
     #  disable_bazzar_access()
-    l.debug('download recent done')
+    l.info('download recent done')
 
 
 async def tag_invalid_bots(db_store, local_repo):
@@ -238,17 +247,17 @@ async def async_main(tag_invalid=False):
     if not os.path.exists(local_repo):
         os.makedirs(local_repo)
 
-    l.debug('connecting to remote repo...')
+    l.info('connecting to remote repo...')
     remote_repo = Bazaar(api_key=config['downloader']['api_key'])
-    l.debug('connecting to remote repo done')
-    l.debug('connecting to db...')
+    l.info('connecting to remote repo done')
+    l.info('connecting to db...')
     db_store = DBStore(config['database']['host'],
                        config['database']['port'],
                        config['database']['dbname'],
                        config['database']['user'],
                        config['database']['password'])
     await db_store.open()
-    l.debug('connecting to db done')
+    l.info('connecting to db done')
 
     if tag_invalid:
         await tag_invalid_bots(db_store, local_repo)
