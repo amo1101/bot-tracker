@@ -6,7 +6,8 @@ FS_PATH=$3
 BOT_REPO_IP=$4
 BOT_REPO_USER=$5
 BOT_REPO_PATH=$6
-DNS_SERVER=$7
+TRACE_SYSCALL=$7
+DNS_SERVER=$8
 
 MOUNT_FOLDER=`mktemp -d`
 chmod 755 $FS_PATH
@@ -16,7 +17,7 @@ cat > $MOUNT_FOLDER/etc/run_bot.sh << EOF
 #!/bin/sh
 /bot/start_net.sh $DNS_SERVER
 sleep 20
-cd /bot; ./start_bot.sh $BOT_NAME $BOT_REPO_IP $BOT_REPO_USER $BOT_REPO_PATH &
+cd /bot; ./start_bot.sh $BOT_NAME $BOT_REPO_IP $BOT_REPO_USER $BOT_REPO_PATH $TRACE_SYSCALL &
 EOF
 
 chmod +x $MOUNT_FOLDER/etc/run_bot.sh

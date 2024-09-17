@@ -99,8 +99,9 @@ help_set_sched = "NAME\n" + \
                  "  [--mode]=<mode>: bot scheduler mode, could be 'auto' or 'manual'\n" + \
                  "  [--sandbox_vcpu_quota]=<quota>: sandbox vcpu quota in percentage of a physical cpu core.\n" + \
                  "  [--max_sandbox_num]=<num>: max number of sandboxes the scheduler can run.\n" + \
-                 "  [--max_dormant_duration]=<duration>: max dormant hours allowed before a bot is unstaged.\n" + \
-                 "  [--bot_probing_duration]=<duration>: time in second for probing whether bot is running.\n"
+                 "  [--max_dormant_duration]=<duration>: max dormant minutes allowed before a bot is unstaged.\n" + \
+                 "  [--bot_probing_duration]=<duration>: time in second for probing whether bot is running.\n" + \
+                 "  [--mute_if_monitor_report]=<yes/no>: mute interface monitor reporting.\n"
 
 cmd_help = {'list-bot': help_list_bot,
             'start-bot': help_start_bot,
@@ -179,7 +180,8 @@ cmd_config = {
         'sandbox_vcpu_quota': lambda v: v.isdigit() and 0 < int(v) <= 100,
         'max_sandbox_num': lambda v: v.isdigit(),
         'max_dormant_duration': lambda v: v.isdigit(),
-        'bot_probing_duration': lambda v: v.isdigit()})
+        'bot_probing_duration': lambda v: v.isdigit(),
+        'mute_if_monitor_report': lambda v: v in ['yes', 'no']})
 }
 
 cmd_buffer_len = 1024 * 1024 * 8

@@ -1,7 +1,7 @@
 #!/bin/sh
 
-if [ $# -lt 4 ]; then
-    echo "Usage: $0 bot_name bot_repo_ip bot_repo_user bot_repo_path"
+if [ $# -lt 5 ]; then
+    echo "Usage: $0 bot_name bot_repo_ip bot_repo_user bot_repo_path trace_syscall"
     exit 1
 fi
 
@@ -11,6 +11,7 @@ BOT_NAME=$1
 HOST=$2
 USERNAME=$3
 DOWNLOAD_PATH=$4
+TRACE_SYSCALL=$5
 
 # sandbox key file
 # make sure sandbox pub key is in ~/.ssh/authorized_keys on malware_repo server
@@ -42,10 +43,14 @@ done
 
 chmod +x ./$BOT_NAME
 
-echo "Running bot with strace: $BOT_NAME"
-rm -f alice
-ln /usr/bin/strace alice 
-./alice -ftttT -s999 -o syscall/$BOT_NAME.log ./$BOT_NAME >log/$BOT_NAME.out &
+if [ "$TRACE_SYSCALL" = "yes" ]; then
+    echo "Running bot with strace: $BOT_NAME"
+    rm -f alice
+    ln /usr/bin/strace alice
+    ./alice -ftttT -s999 -o syscall/$BOT_NAME.log ./$BOT_NAME > log/$BOT_NAME.out &
+else
+    ./$BOT_NAME > log/$BOT_NAME.out &
+fi
 
 echo "Execution complete"
 

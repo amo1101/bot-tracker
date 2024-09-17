@@ -1,5 +1,6 @@
 import os
 import sys
+import csv
 import asyncio
 from datetime import datetime
 import logging
@@ -24,9 +25,32 @@ l = logging.getLogger(name=__name__)
 valid_tags = None
 max_batch = '100'
 valid_file_type = ['elf']
-valid_arch = {'MIPS': {32: ['B', 'L']}, 'ARM': {32: ['L']}}
+valid_arch = {'MIPS': {32: ['B', 'L']}, 'ARM': {32: ['L']}, 'x86': {32: ['L']}}
 download_period = 3600  # download hourly
+g_bot_info_log = CUR_DIR + os.sep + 'bot_details.csv'
 
+# record bot details
+def log_bot_detail_info(botinfo, tags):
+    bot_details = {
+        'download_time': datetime.now(),
+        'bot_id': botinfo.bot_id,
+        'family': botinfo.family,
+        'first_seen': botinfo.first_seen,
+        'last_seen': botinfo.last_seen,
+        'file_type': botinfo.file_type,
+        'arch': botinfo.arch,
+        'endianness': botinfo.endianness,
+        'bitness': botinfo.bitness,
+        'tags': ','.join(tags)
+    }
+    is_empty = os.stat(g_bot_info_log).st_size == 0 if \
+        os.path.isfile(g_bot_info_log) else True
+    with open(g_bot_info_log, 'a', newline='') as file:
+        fieldnames = bot_details[0].keys()
+        writer = csv.DictWriter(file, fieldnames=fieldnames)
+        if is_empty:
+            writer.writeheader()
+        writer.writerows(bot_details)
 
 def get_arch_info(bot_file, bot_info):
     # unzipped file name should be sha256
@@ -105,6 +129,8 @@ async def download_base(remote_repo, local_repo, db_store, time_threshold):
             bot_file = bot_info.file_name
             get_arch_info(bot_file, bot_info)
             l.debug(f'bot_info:\n{repr(bot_info)}')
+            log_bot_detail_info(bot_info, bot['tags'])
+
             if not check_arch_info(bot_info):
                 os.remove(bot_file)
                 continue
@@ -153,6 +179,8 @@ async def download_recent(remote_repo, local_repo, db_store):
         bot_file = bot_info.file_name
         get_arch_info(bot_file, bot_info)
         l.debug(f'bot_info:\n{repr(bot_info)}')
+        log_bot_detail_info(bot_info, bot['tags'])
+
         if not check_arch_info(bot_info):
             os.remove(bot_file)
             continue

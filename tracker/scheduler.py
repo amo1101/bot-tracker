@@ -18,6 +18,7 @@ class Scheduler:
                  iface_monitor_iface,
                  iface_monitor_excluded_ips,
                  iface_monitor_action,
+                 mute_if_monitor_report,
                  mode,
                  sandbox_vcpu_quota,
                  max_sandbox_num,
@@ -25,6 +26,7 @@ class Scheduler:
                  bot_probing_duration,
                  allow_duplicate_bots,
                  max_cnc_candidates,
+                 trace_bot_syscall,
                  ring_capture,
                  ring_file_size,
                  bpf_filter,
@@ -43,6 +45,7 @@ class Scheduler:
         self.iface_monitor_iface = iface_monitor_iface
         self.iface_monitor_excluded_ips = iface_monitor_excluded_ips
         self.iface_monitor_action = iface_monitor_action
+        self.mute_if_monitor_report = True if mute_if_monitor_report=='yes' else False
         self.mode = mode
         self.checkpoint_interval = 15
         self.sandbox_vcpu_quota = sandbox_vcpu_quota
@@ -57,6 +60,7 @@ class Scheduler:
         self.max_analyzing_workers = max_packet_analyzing_workers
         self.min_cnc_attempts = min_cnc_attempts
         self.max_cnc_candidates = max_cnc_candidates
+        self.trace_bot_syscall = True if trace_bot_syscall == 'yes' else False
         self.attack_gap = attack_gap
         self.min_attack_packets = min_attack_packets
         self.attack_detection_watermark = attack_detection_watermark
@@ -134,6 +138,7 @@ class Scheduler:
                                    self.analyzer_pool,
                                    self.allow_duplicate_bots,
                                    self.max_cnc_candidates,
+                                   self.trace_bot_syscall,
                                    self.ring_capture,
                                    self.ring_file_size,
                                    self.bpf_filter,
@@ -203,6 +208,7 @@ class Scheduler:
             self.iface_monitor = IfaceMonitor(self.sandbox_ctx.network_mode,
                                               self.iface_monitor_iface,
                                               self.iface_monitor_excluded_ips,
+                                              self.mute_if_monitor_report,
                                               iface_monitor_action_type,
                                               iface_monitor_action)
             self.iface_monitor_task = asyncio.create_task(self.iface_monitor.run(),
@@ -251,7 +257,8 @@ class Scheduler:
                 self.sandbox_vcpu_quota,
                 self.max_sandbox_num,
                 self.max_dormant_duration,
-                self.bot_probing_duration)
+                self.bot_probing_duration,
+                'yes' if self.mute_if_monitor_report else 'no')
 
     def set_scheduler_info(self, **kwargs):
         l.debug(f'{kwargs}')
@@ -265,9 +272,12 @@ class Scheduler:
             self.sandbox_vcpu_quota = int(kwargs['sandbox_vcpu_quota'])
         if 'max_sandbox_num' in kwargs:
             self.max_sandbox_num = int(kwargs['max_sandbox_num'])
-        if 'max_dormant_hours' in kwargs:
-            max_dormant_hours = int(kwargs['max_dormant_hours'])
-            self.max_dormant_duration = timedelta(hours=max_dormant_hours)
+        if 'max_dormant_duration' in kwargs:
+            max_dormant_minutes = int(kwargs['max_dormant_duration'])
+            self.max_dormant_duration = timedelta(minutes=max_dormant_minutes)
         if 'bot_probing_duration' in kwargs:
             bot_probing_duration = int(kwargs['bot_probing_duration'])
             self.bot_probing_duration = timedelta(seconds=bot_probing_duration)
+        if 'mute_if_monitor_report' in kwargs:
+            self.mute_if_monitor_report = True if kwargs['mute_if_monitor_report'] == 'yes' else False
+            self.iface_monitor.mute_report(self.mute_if_monitor_report)

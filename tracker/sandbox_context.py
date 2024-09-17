@@ -79,6 +79,11 @@ class SandboxContext:
                     "sandbox_mips.xml",
                     "openwrt-malta-be-vmlinux.elf",
                     "openwrt-malta-be-rootfs-ext4.img"
+                ],
+                "x86_32_L": [
+                    "sandbox_x86.xml",
+                    "openwrt-x86-generic-generic-kernel.bin",
+                    "openwrt-x86-generic-generic-ext4-rootfs.img"
                 ]
             }
 

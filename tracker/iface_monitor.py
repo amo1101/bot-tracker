@@ -244,11 +244,13 @@ class IfaceMonitor:
                  network_mode,
                  iface,
                  excluded_ips,
+                 mute_report,
                  action_type,
                  action):
         self.network_mode = network_mode
         self.iface = iface
         self.excluded_ips = excluded_ips.split(',')
+        self._mute_report = mute_report
         self.action_type = action_type
         self.action = action
         self.cnc_queue = None
@@ -284,6 +286,9 @@ class IfaceMonitor:
                     del self.cnc_map[cnc_ip]
             except ValueError:
                 pass
+
+    def mute_report(self, mute=True):
+        self._mute_report = mute
 
     def _init_monitor(self):
         if not os.path.exists(self.log_dir):
@@ -323,6 +328,8 @@ class IfaceMonitor:
     def report_incidence(self, src_ip, dst_ip,
                          protocol, src_port, dst_port,
                          policy, traffic_type):
+        if self._mute_report:
+            return
         with open(self.report_file, 'a') as file:
             action = self.action_type.value \
                         if traffic_type == IfaceMonitorTraffic.MALICIOUS else 'None'

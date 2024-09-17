@@ -181,7 +181,8 @@ async def handle_schedinfo(args):
            f'{"sandbox_vcpu_quota":<20}: {schedinfo[1]}\n' + \
            f'{"max_sandbox_num":<20}: {schedinfo[2]}\n' + \
            f'{"max_dormant_duration":<20}: {schedinfo[3]}\n' + \
-           f'{"bot_probing_duration":<20}: {schedinfo[4]}'
+           f'{"bot_probing_duration":<20}: {schedinfo[4]}\n' + \
+           f'{"mute_if_monitor_report":<20}: {schedinfo[5]}'
     return resp
 
 

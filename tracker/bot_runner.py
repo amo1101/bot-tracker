@@ -41,6 +41,7 @@ class BotRunner:
                  analyzer_pool,
                  allow_duplicate_bots,
                  max_cnc_candidates,
+                 trace_bot_syscall,
                  ring_capture,
                  ring_file_size,
                  bpf_filter,
@@ -80,6 +81,7 @@ class BotRunner:
         self.analyzer_pool = analyzer_pool
         self.allow_duplicate_bots = allow_duplicate_bots
         self.max_cnc_candidates = max_cnc_candidates
+        self.trace_bot_syscall = trace_bot_syscall
         self.ring_capture = ring_capture
         self.ring_file_size = ring_file_size
         self.bpf_filter = bpf_filter
@@ -347,7 +349,8 @@ class BotRunner:
                                    self.bot_info.arch_spec,
                                    self.bot_repo_ip,
                                    self.bot_repo_user,
-                                   self.bot_repo_path)
+                                   self.bot_repo_path,
+                                   self.trace_bot_syscall)
             await self.sandbox.start()
             await self.update_bot_info(BotStatus.STAGED)
             self._init_log_dir()

@@ -10,7 +10,8 @@ class Sandbox:
                  context,
                  sandbox_vcpu_quota,
                  name, bot_file, arch,
-                 bot_repo_ip, bot_repo_user, bot_repo_path):
+                 bot_repo_ip, bot_repo_user, bot_repo_path,
+                 trace_bot_syscall):
         self.context = context
         self.sandbox_vcpu_quota = sandbox_vcpu_quota
         self.name = name
@@ -19,6 +20,7 @@ class Sandbox:
         self.bot_repo_ip = bot_repo_ip
         self.bot_repo_user = bot_repo_user
         self.bot_repo_path = bot_repo_path
+        self.trace_bot_syscall = trace_bot_syscall
         self.dom = None
         self.ifinfo = None
         self.port_dev = None
@@ -50,6 +52,7 @@ class Sandbox:
         s = SandboxScript.PREPARE_FS
         self._run_script(s, self.bot_file, bot_dir, dst, self.bot_repo_ip,
                          self.bot_repo_user, self.bot_repo_path,
+                         'yes' if self.trace_bot_syscall else 'no',
                          dns_server)
 
     def _get_config(self):
