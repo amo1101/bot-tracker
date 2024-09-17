@@ -92,6 +92,10 @@ class BotRunner:
         self.analyzer_id = None
 
     @property
+    def bot_dormant_duration(self):
+        return self.bot_info.dormant_duration
+
+    @property
     def dormant_duration(self):
         if self.dormant_time == INIT_TIME_STAMP:
             return INIT_INTERVAL

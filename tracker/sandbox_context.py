@@ -193,10 +193,6 @@ class SandboxContext:
         source_element = tree.xpath("//devices/disk/source")[0]
         source_element.set("file", self.get_sandbox_fs(arch, name)[1])
 
-        # add network interface to portgroup
-        network_source_element = tree.xpath("//devices/interface/source")[0]
-        network_source_element.set("portgroup", "sandbox")
-
         return etree.tostring(tree, encoding='unicode')
 
     def get_sandbox_kernel(self, arch):
@@ -301,7 +297,7 @@ class SandboxContext:
         else:
             del para_to_check["bridge_ip"]
             del para_to_check["sandbox_ip"]
-            del para_to_check["dsn_server"]
+            del para_to_check["dns_server"]
             del para_to_check["mal_repo_ip"]
             del para_to_check["allowed_tcp_ports"]
             del para_to_check["simulated_server"]

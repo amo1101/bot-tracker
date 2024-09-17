@@ -1,0 +1,24 @@
+<domain type='qemu'>
+  <name>openwrt-vm-ppc</name>
+  <memory unit='KiB'>524288</memory>
+  <vcpu placement='static'>1</vcpu>
+  <os>
+    <type arch='ppc' machine='ppce500'>hvm</type>
+    <kernel>/var/lib/libvirt/images/openwrt-23.05.0-mpc85xx-p1020-extreme-networks_ws-ap3825i-initramfs-kernel.bin</kernel>
+    <cmdline>root=/dev/vda</cmdline>
+  </os>
+  <devices>
+    <disk type='file' device='disk'>
+      <driver name='qemu' type='raw'/>
+      <source file='/var/lib/libvirt/images/openwrt-23.05.0-mpc85xx-p1020-extreme-networks_ws-ap3825i-squashfs-sysupgrade.bin'/>
+      <target dev='vda' bus='virtio'/>
+    </disk>
+    <interface type='network'>
+      <source network='default'/>
+    </interface>
+    <console type='pty'>
+      <target type='serial' port='0'/>
+      <log file='/var/log/libvirt/qemu/openwrt-vm-ppc-1.log' append='true'/>
+    </console>
+  </devices>
+</domain>

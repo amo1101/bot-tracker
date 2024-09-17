@@ -355,7 +355,8 @@ class IfaceMonitor:
             async for src_ip, dst_ip, mark, policy, protocol, src_port, dst_port \
                     in self.fetch_trace_output():
                 async with self.lock:
-                    traffic_type = IfaceMonitorTraffic.MALICIOUS
+                    traffic_type = IfaceMonitorTraffic.MALICIOUS if self.network_mode == 0 \
+                        else IfaceMonitorTraffic.EXCLUSIVE
                     if dst_ip in self.cnc_map:
                         traffic_type = IfaceMonitorTraffic.C2_COMM
                     elif dst_ip in self.excluded_ips:

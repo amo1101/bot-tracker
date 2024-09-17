@@ -8,7 +8,7 @@ source_dir="/home/crow/PycharmProjects/bot-tracker/tracker/log"
 remote_user="cw486"
 key_path="./id_ed25519"
 jump_server="linux-labs.cms.waikato.ac.nz"
-jump_server_dir="~/temp/relay"
+jump_server_dir="/home/cw486/temp/relay"
 data_server="kaka.cms.waikato.ac.nz"
 data_server_dir="/Data/scratch/cw486/dataset/V3"
 
@@ -119,7 +119,7 @@ upload_to_data_server() {
 }
 
 if [ "$direction" -eq 0 ]; then
-  log_msg "Start backing up pcap files to jump server..."
+  log_msg "Start migrating pcap files to jump server..."
   while true; do
     upload_to_jump_server
     sleep 10

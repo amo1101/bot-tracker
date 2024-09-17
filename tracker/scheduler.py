@@ -47,7 +47,7 @@ class Scheduler:
         self.checkpoint_interval = 15
         self.sandbox_vcpu_quota = sandbox_vcpu_quota
         self.max_sandbox_num = max_sandbox_num
-        self.max_dormant_duration = timedelta(hours=max_dormant_duration)
+        self.max_dormant_duration = timedelta(minutes=max_dormant_duration)
         self.bot_probing_duration = timedelta(seconds=bot_probing_duration)
         self.allow_duplicate_bots = True if allow_duplicate_bots == 'yes' else False
         self.ring_capture = True if ring_capture == 'yes' else False
@@ -88,11 +88,10 @@ class Scheduler:
     async def _unstage_bots(self):
         async with self.bot_runners_lock:
             for t, r in self.bot_runners.items():
-                dd = r.dormant_duration
-                od = r.observe_duration
-                l.info(f"Bot [{r.bot_info.tag}]: \ndormant_duration:{dd}\nobserve_duration:{od}")
+                dd = r.bot_dormant_duration
+                l.debug(f"Bot [{r.bot_info.tag}] dormant_duration:{dd}")
                 if dd > self.max_dormant_duration:
-                    l.info(f"Cancelling running bot [{r.bot_info.tag}]")
+                    l.info(f"Cancelling running bot [{r.bot_info.tag}] after dormant for {dd} minutes.")
                     r.notify_unstage = True
                     t.cancel()
 
@@ -158,7 +157,7 @@ class Scheduler:
                                    BotStatus.SUSPENDED.value])
 
     async def _update_bot_info(self):
-        l.info(f'Update bot info..., bot count: {len(self.bot_runners)}')
+        l.info(f'Scheduler mode: {self.mode}, update bot info, bot count: {len(self.bot_runners)}')
         to_del = []
         async with self.bot_runners_lock:
             for t, r in self.bot_runners.items():
