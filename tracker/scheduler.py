@@ -159,7 +159,10 @@ class Scheduler:
 
     async def _stage_bots(self):
         await self._schedule_bots([BotStatus.UNKNOWN.value,
-                                   BotStatus.SUSPENDED.value])
+                                   BotStatus.SUSPENDED.value,
+                                   BotStatus.STAGED.value,
+                                   BotStatus.DORMANT.value,
+                                   BotStatus.ACTIVE.value])
 
     async def _update_bot_info(self):
         l.info(f'Scheduler mode: {self.mode}, update bot info, bot count: {len(self.bot_runners)}')

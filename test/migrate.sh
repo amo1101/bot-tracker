@@ -122,7 +122,7 @@ if [ "$direction" -eq 0 ]; then
   log_msg "Start migrating pcap files to jump server..."
   while true; do
     upload_to_jump_server
-    sleep 10
+    sleep 30
   done
 fi
 
@@ -130,6 +130,6 @@ if [ "$direction" -eq 1 ]; then
   log_msg "Start relaying pcap files to data server..."
   while true; do
     upload_to_data_server
-    sleep 10
+    sleep 30
   done
 fi

@@ -288,6 +288,7 @@ class BotRunner:
                 if report_formed:
                     await self.handle_analyzer_report()
             # get the final report
+            l.info('Packet capture finalized.')
             await self.handle_analyzer_report(True, True)
         except BotRunnerException as e:
             l.info(f'An exception occurred {e}, stop observing...')
@@ -392,9 +393,10 @@ class BotRunner:
                     'measure_start': self.staged_time,
                     'measure_end': m_end,
                     'duration': m_duration}
-            log_to_csv_file(self.measurement_log, [m_rcd], fieldnames)
 
-            self.sandbox.fetch_log(self.measurement_dir)
+            if self.measurement_dir != '':
+                log_to_csv_file(self.measurement_log, [m_rcd], fieldnames)
+                self.sandbox.fetch_log(self.measurement_dir)
 
             if len(self.cnc_candidates) != 0:
                 self.sandbox.redirectx_traffic('OFF', self.cnc_candidates)

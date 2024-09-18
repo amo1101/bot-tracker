@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS attack_info (
 DO $$
 DECLARE
     bid INTEGER := 1;
-    cnt INTEGER := 15;
+    cnt INTEGER := 50;
 BEGIN
     FOR bid IN 1..cnt LOOP
         INSERT INTO bot_info (
@@ -75,7 +75,7 @@ BEGIN
             '1970-01-01 00:00:00',
             'py',
             '1000',
-            'ARM',
+            'MIPS',
             'L',
             '32',
             'unknown',
