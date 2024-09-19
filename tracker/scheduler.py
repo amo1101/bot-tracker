@@ -172,13 +172,12 @@ class Scheduler:
                 if r.is_destroyed():
                     to_del.append(t)
                 else:
+                    await r.update_bot_info()
                     if r.bot_status == BotStatus.STAGED.value:
                         l.debug(f'Bot has been staged for {r.observe_duration }...')
                         if r.observe_duration > self.bot_probing_duration:
                             r.notify_error = True
                             t.cancel()  # removed at next checkpoint
-                    else:
-                        await r.update_bot_info()
             for t in to_del:
                 del self.bot_runners[t]
                 l.debug(f'remove task {t.get_name()}')
