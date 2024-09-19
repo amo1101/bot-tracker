@@ -38,19 +38,19 @@ CREATE TABLE IF NOT EXISTS attack_info (
     src_port VARCHAR,
     dst_port VARCHAR,
     spoofed VARCHAR(8),
-    packet_num INT,
-    total_bytes INT,
-    pps INT,
-    pps_max INT,
-    bandwidth INT,
-    bandwidth_max INT
+    packet_num BIGINT,
+    total_bytes BIGINT,
+    pps BIGINT,
+    pps_max BIGINT,
+    bandwidth BIGINT,
+    bandwidth_max BIGINT
 );
 
 -- insert records for the test bot
 DO $$
 DECLARE
     bid INTEGER := 1;
-    cnt INTEGER := 50;
+    cnt INTEGER := 15;
 BEGIN
     FOR bid IN 1..cnt LOOP
         INSERT INTO bot_info (

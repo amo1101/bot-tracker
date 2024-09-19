@@ -244,8 +244,11 @@ class BotRunner:
             total_packets = r['packet_cnt']
             total_bytes = r['total_bytes']
             total_secs = r['duration'].total_seconds()
-            pps = total_packets / total_secs
-            bandwidth = total_bytes / total_secs
+            pps = 0
+            bandwidth = 0
+            if total_secs > 0:
+                pps = total_packets / total_secs
+                bandwidth = total_bytes / total_secs
             attack_info = AttackInfo(self.bot_info.bot_id,
                                      r['cnc_ip'],
                                      int(r['cnc_port']) if r['cnc_port'] != '' else 0,
@@ -264,8 +267,14 @@ class BotRunner:
                                      r['pps_max'],
                                      bandwidth,
                                      r['bandwidth_max'])
-            await self.db_store.add_attack_info(attack_info)
-            l.debug(f'attack inserted: {attack_info}')
+            try:
+                await self.db_store.add_attack_info(attack_info)
+            except Exception as e:
+                l.error(f"An error occurred {e}")
+                l.error(f'erronous attack info: {attack_info}')
+                traceback.print_exc()
+            finally:
+                l.debug(f'attack inserted: {attack_info}')
 
     async def _observe(self, own_ip):
         try:
