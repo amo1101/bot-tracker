@@ -14,12 +14,14 @@ class AsyncLiveCapture(LiveCapture):
                                                display_filter=display_filter,
                                                output_file=output_file,
                                                debug=debug)
-        self.tshark_process = None
+
+        self.stop = False
+
+    def force_stop(self):
+        self.stop = True
 
     async def sniff_continuously(self, packet_count=0):
-        if self.tshark_process is None:
-            self.tshark_process = await self._get_tshark_process(packet_count=packet_count)
-
+        tshark_process = await self._get_tshark_process(packet_count=packet_count)
         parser = self._setup_tshark_output_parser()
         packets_captured = 0
         data = b''
@@ -27,7 +29,7 @@ class AsyncLiveCapture(LiveCapture):
         try:
             while True:
                 try:
-                    packet, data = await parser.get_packets_from_stream(self.tshark_process.stdout,
+                    packet, data = await parser.get_packets_from_stream(tshark_process.stdout,
                                                                         data,
                                                                         got_first_packet=packets_captured > 0)
                 except EOFError:
@@ -36,13 +38,18 @@ class AsyncLiveCapture(LiveCapture):
                     break
 
                 if packet:
+                    if self.stop:
+                        self._log.debug("Forcibly stopped.")
+                        break
                     packets_captured += 1
                     yield packet
 
                 if packet_count and packets_captured >= packet_count:
                     break
+
         finally:
-            self._log.debug("sniff finalized.")
+            await self._cleanup_subprocess(tshark_process)
+            self._log.debug("Sniff finalized.")
 
 
 class AsyncLiveRingCapture(AsyncLiveCapture):
@@ -75,8 +82,13 @@ class AsyncFileCapture(FileCapture):
                                                display_filter=display_filter,
                                                debug=debug)
 
+        self.stop = False
+
+    def force_stop(self):
+        self.stop = True
+
     async def sniff_continuously(self, packet_count=0):
-        self.tshark_process = await self._get_tshark_process(packet_count=packet_count)
+        tshark_process = await self._get_tshark_process(packet_count=packet_count)
         parser = self._setup_tshark_output_parser()
         packets_captured = 0
         data = b''
@@ -92,6 +104,10 @@ class AsyncFileCapture(FileCapture):
                     self._eof_reached = True
                     break
 
+                if self.stop:
+                    self._log.debug("Forcibly stopped.")
+                    break
+
                 if packet:
                     packets_captured += 1
                     yield packet
@@ -99,5 +115,6 @@ class AsyncFileCapture(FileCapture):
                 if packet_count and packets_captured >= packet_count:
                     break
         finally:
-            self._log.debug("sniff finalized.")
+            await self._cleanup_subprocess(tshark_process)
+            self._log.debug("Sniff finalized.")
 

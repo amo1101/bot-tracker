@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS attack_info (
 DO $$
 DECLARE
     bid INTEGER := 1;
-    cnt INTEGER := 15;
+    cnt INTEGER := 0;
 BEGIN
     FOR bid IN 1..cnt LOOP
         INSERT INTO bot_info (

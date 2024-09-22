@@ -1,5 +1,6 @@
 import asyncio
 import os
+import time
 import traceback
 import csv
 from db_store import *
@@ -77,6 +78,7 @@ class BotRunner:
         self.last_observe_duration = bot_info.observe_duration  # accumulate observe duration
         self.last_dormant_duration = bot_info.dormant_duration  # accumulate dormant duration
         self.destroyed = False
+        self.cancelled = False
         self.iface_monitor = iface_monitor
         self.analyzer_pool = analyzer_pool
         self.allow_duplicate_bots = allow_duplicate_bots
@@ -233,6 +235,10 @@ class BotRunner:
                                                      self.analyzer_id,
                                                      flush_attacks,
                                                      flush_cnc_stats)
+
+        if report is None:
+            return
+
         l.debug(f"Get report: {report}")
 
         if 'cnc_status' in report:
@@ -271,7 +277,7 @@ class BotRunner:
                 await self.db_store.add_attack_info(attack_info)
             except Exception as e:
                 l.error(f"An error occurred {e}")
-                l.error(f'erronous attack info: {attack_info}')
+                l.error(f'erroneous attack info: {attack_info}')
                 traceback.print_exc()
             finally:
                 l.debug(f'attack inserted: {attack_info}')
@@ -296,6 +302,10 @@ class BotRunner:
                                                                         packet)
                 if report_formed:
                     await self.handle_analyzer_report()
+
+                if self.cancelled:
+                    self.live_capture.force_stop()
+                    l.info('live capture force stopped.')
             # get the final report
             l.info('Packet capture finalized.')
             await self.handle_analyzer_report(True, True)
@@ -363,6 +373,7 @@ class BotRunner:
                                    self.trace_bot_syscall)
             await self.sandbox.start()
             await self.update_bot_info(BotStatus.STAGED)
+
             self._init_log_dir()
 
             port_dev, mac, own_ip = self.sandbox.get_ifinfo()
@@ -385,13 +396,15 @@ class BotRunner:
         finally:
             await self.destroy()
 
+    def cancel(self):
+        self.cancelled = True
+
     async def destroy(self):
         try:
             if self.destroyed:
                 l.debug("Bot runner has been destroyed")
                 return
 
-            l.info("Bot runner destroyed")
             await self.update_bot_info(BotStatus.SUSPENDED)
 
             # record this measurement
@@ -416,24 +429,30 @@ class BotRunner:
                 await self.iface_monitor.unregister(self.cnc_info[0],
                                                     self.bot_info.bot_id)
 
-            self.sandbox.destroy()
-
             # close all analyzer and executor
             if self.analyzer_id is not None:
                 await self.analyzer_pool.finalize_analyzer(self.executor_id,
                                                            self.analyzer_id)
             self.analyzer_pool.close_executor(self.executor_id)
 
+            # workaround: destroy the sandbox and its network interface to avoid zombie dumpcap process
+            # the issue should be submitted to pyshark.
+            self.sandbox.destroy()
+
             if self.live_capture is not None:
+                l.info('closing live capture...')
                 await self.live_capture.close_async()
-            self.destroyed = True
+                l.info('live capture closed')
+
         except asyncio.CancelledError:
             l.debug('Cancelled error occurred')
         except Exception as e:
             l.debug(f'An error occurred {e}')
             traceback.print_exc()
         finally:
-            pass
+            self.destroyed = True
+            l.info(f"Bot runner for {self.bot_info.tag} destroyed")
 
     def is_destroyed(self):
         return self.destroyed
+

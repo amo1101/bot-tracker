@@ -97,7 +97,7 @@ class Scheduler:
                 if dd > self.max_dormant_duration:
                     l.info(f"Cancelling running bot [{r.bot_info.tag}] after dormant for {dd} minutes.")
                     r.notify_unstage = True
-                    t.cancel()
+                    r.cancel()
 
     async def _schedule_bots(self, status_list=None, bot_id=None, count=None):
         curr_runners_num = len(self.bot_runners)
@@ -108,7 +108,7 @@ class Scheduler:
             return
 
         def task_done_cb(t):
-            l.debug('Task done cancelled')
+            l.info(f'Task {t.get_name()} done cancelled')
 
         bots = await self.db_store.load_bot_info(status_list, bot_id, count)
         for bot in bots:
@@ -159,10 +159,7 @@ class Scheduler:
 
     async def _stage_bots(self):
         await self._schedule_bots([BotStatus.UNKNOWN.value,
-                                   BotStatus.SUSPENDED.value,
-                                   BotStatus.STAGED.value,
-                                   BotStatus.DORMANT.value,
-                                   BotStatus.ACTIVE.value])
+                                   BotStatus.SUSPENDED.value])
 
     async def _update_bot_info(self):
         l.info(f'Scheduler mode: {self.mode}, update bot info, bot count: {len(self.bot_runners)}')
@@ -170,6 +167,7 @@ class Scheduler:
         async with self.bot_runners_lock:
             for t, r in self.bot_runners.items():
                 if r.is_destroyed():
+                    l.info(f'task {t.get_name()} is to be removed')
                     to_del.append(t)
                 else:
                     await r.update_bot_info()
@@ -177,10 +175,10 @@ class Scheduler:
                         l.debug(f'Bot has been staged for {r.observe_duration }...')
                         if r.observe_duration > self.bot_probing_duration:
                             r.notify_error = True
-                            t.cancel()  # removed at next checkpoint
+                            r.cancel()  # removed at next checkpoint
             for t in to_del:
                 del self.bot_runners[t]
-                l.debug(f'remove task {t.get_name()}')
+                l.info(f'remove task {t.get_name()}')
 
     async def update_attack_report(self, bot_id=None):
         l.info(f'Update attack reports...')
@@ -248,7 +246,7 @@ class Scheduler:
                     if not r.is_destroyed():
                         if unstage == 'yes':
                             r.notify_unstage = True
-                        t.cancel()
+                        r.cancel()
                     if bot_id is not None:
                         break
 
