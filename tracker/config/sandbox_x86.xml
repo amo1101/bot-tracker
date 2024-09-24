@@ -1,0 +1,24 @@
+<domain type='qemu'>
+  <name>openwrt-vm-x86</name>
+  <memory unit='KiB'>524288</memory>
+  <vcpu placement='static'>1</vcpu>
+  <os>
+    <type arch='i686' machine='pc-i440fx-9.1'>hvm</type>
+    <kernel>/var/lib/libvirt/images/openwrt-x86-generic-generic-kernel.bin</kernel>
+    <cmdline>root=/dev/sda</cmdline>
+  </os>
+  <devices>
+    <disk type='file' device='disk'>
+      <driver name='qemu' type='raw'/>
+      <source file='/var/lib/libvirt/images/openwrt-x86-generic-generic-ext4-rootfs.img'/>
+      <target dev='sda' bus='ide'/>
+    </disk>
+    <interface type='network'>
+      <source network='mynet' portgroup='sandbox'/>
+      <model type='e1000'/>
+    </interface>
+    <console type='pty'>
+      <target type='serial' port='0'/>
+    </console>
+  </devices>
+</domain>
