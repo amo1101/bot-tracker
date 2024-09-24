@@ -84,6 +84,11 @@ class SandboxContext:
                     "sandbox_x86.xml",
                     "openwrt-x86-generic-generic-kernel.bin",
                     "openwrt-x86-generic-generic-ext4-rootfs.img"
+                ],
+                "x64_64_L": [
+                    "sandbox_x64.xml",
+                    "openwrt-x86-64-generic-kernel.bin",
+                    "openwrt-x86-64-generic-ext4-rootfs.img"
                 ]
             }
 

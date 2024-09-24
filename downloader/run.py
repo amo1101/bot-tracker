@@ -25,7 +25,7 @@ l = logging.getLogger(name=__name__)
 valid_tags = None
 max_batch = '100'
 valid_file_type = ['elf']
-valid_arch = {'MIPS': {32: ['B', 'L']}, 'ARM': {32: ['L']}, 'x86': {32: ['L']}}
+valid_arch = {'MIPS': {32: ['B', 'L']}, 'ARM': {32: ['L']}, 'x86': {32: ['L']}, 'x64': {64: ['L']}}
 download_period = 3600  # download hourly
 g_bot_info_log = CUR_DIR + os.sep + 'bot_details.csv'
 

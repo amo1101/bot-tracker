@@ -305,9 +305,8 @@ class BotRunner:
 
                 if self.cancelled:
                     self.live_capture.force_stop()
-                    l.info('live capture force stopped.')
             # get the final report
-            l.info('Packet capture finalized.')
+            l.info(f'Packet capture {"cancelled" if self.cancelled else "finalized"}')
             await self.handle_analyzer_report(True, True)
         except BotRunnerException as e:
             l.info(f'An exception occurred {e}, stop observing...')
