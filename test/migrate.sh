@@ -29,8 +29,10 @@ upload_file() {
   if [ $? -eq 0 ]; then
     log_msg "Successfully uploaded $(basename "$file")"
     rm "$file"
+    return 0
   else
     log_msg "Failed to upload $(basename "$file")"
+    return 1
   fi
 }
 
@@ -85,6 +87,10 @@ upload_to_jump_server() {
           if [ "$m_next" -eq 0 ] || [ "$m_done" -eq 0 ]; then
             dst_file=$(basename "$bot")-$(basename "$m")-${current_file}
             upload_file "$file" "$dst_file" "$jump_server" "$jump_server_dir"
+	    if [ $? -ne 0 ]; then
+	      log_msg "upload file failed."
+	      break
+	    fi
             if [ "$m_next" -ne 0 ]; then
               # mark finished file upload
               echo "done" > "${file}.done"
@@ -109,6 +115,10 @@ upload_to_data_server() {
       if [ "$m_next" -eq 0 ] || [ -f "${file}.done" ]; then
         dst_file=$current_file
         upload_file "$file" "$dst_file" "$data_server" "$data_server_dir"
+	if [ $? -ne 0 ]; then
+	  log_msg "upload file failed."
+	  break
+	fi
         # last file has been uploaded, remove the mark file
         if [ "$m_next" -eq 0 ]; then
           rm "${file}.done"
