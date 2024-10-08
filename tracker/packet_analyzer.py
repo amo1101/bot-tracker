@@ -285,8 +285,13 @@ class CnCDetector:
         self.stats = {}
         self.cnc = ''  # cnc_ip:cnc_port
         self.cnc_candidates = set()
+        self.stop = False  # stop detecting new C2 while current C2 is alive
 
     def update(self, key, pkt):
+        # if detector is stopped, only update current C2 stats
+        if self.stop and self.cnc != '' and self.cnc != key:
+            return
+
         fin_cnt = 1 if pkt.tcp_flags_fin == 'True' and \
             pkt.ip_dst == self.own_ip else 0
         syn_cnt = 1 if pkt.tcp_flags_syn == 'True' and \
@@ -311,7 +316,6 @@ class CnCDetector:
             self.stats[key].duration = pkt.sniff_time - self.stats[key].start_time
 
     def detect(self, pkt):
-        key = ''
 
         def get_key(ip, port):
             return f'{ip}:{port}'
@@ -343,6 +347,7 @@ class CnCDetector:
                 ret['total_bytes'] = cnc_stat.total_bytes
             return ret
 
+        key = ''
         if 'tcp' not in pkt.layers:
             return {}
         if pkt.ip_dst in self.excluded_ips or \
@@ -399,9 +404,21 @@ class CnCDetector:
 
         if key != '':
             self.update(key, pkt)
+
+        ret = {}
         if is_cnc_comm or is_cnc_candidate:
-            return get_cnc_status(pkt, is_cnc_candidate)
-        return {}
+            ret = get_cnc_status(pkt, is_cnc_candidate)
+            if 'status' in ret:
+                if ret['status'] == CnCStatus.ALIVE.value:
+                    if not self.stop:
+                        self.stop = True
+                elif ret['status'] == CnCStatus.DISCONNECTED.value:
+                    if self.stop:
+                        self.cnc = ''
+                        self.stop = False
+                else
+                    pass
+        return ret
 
     def remove(self, pkts):
         for pkt in pkts:
@@ -530,6 +547,7 @@ class PacketAnalyzer:
             # cnc status report will be ready when a candidate CnC is available
             if status['status'] == CnCStatus.CANDIDATE.value:
                 self.cnc_status = status
+                self.cnc = ''
                 self.cnc_status_ready = True
                 return True
 
@@ -539,8 +557,7 @@ class PacketAnalyzer:
                     self.cnc_status['status'] != status['status']:
                 self.cnc_status = status
                 self.cnc_status_ready = True
-                if status['status'] == CnCStatus.ALIVE.value and \
-                        self.cnc[0] == '':
+                if status['status'] == CnCStatus.ALIVE.value:
                     # confirm the CnC
                     self.cnc = (status['ip'], status['port'])
                 return True

@@ -267,7 +267,7 @@ class DBStore:
     async def add_cnc_info(self, cnc_info):
         await self._insert('cnc_info', cnc_info)
 
-    async def load_cnc_info(self, bot_id=None, ip=None, port=None):
+    async def load_cnc_info(self, bot_id=None, ip=None, port=None, count=None):
         cnc_info = []
         para = ()
 
@@ -289,6 +289,10 @@ class DBStore:
             sql += filter_str
         sql += ' ORDER BY bot_id'
 
+        if count is not None:
+            para += (count,)
+            sql += ' LIMIT %s'
+
         l.debug(f"sql: {sql}")
         l.debug(f"para: {para}")
 
@@ -307,7 +311,7 @@ class DBStore:
         await self._insert('attack_info', attack)
 
     async def load_attack_info(self, bot_id=None, cnc_ip=None,
-                               time_range=None):
+                               time_range=None, count=None):
         attack_info = []
         para = ()
 
@@ -328,6 +332,10 @@ class DBStore:
             sql += ' WHERE '
             sql += filter_str
         sql += ' ORDER BY time'
+
+        if count is not None:
+            para += (count,)
+            sql += ' LIMIT %s'
 
         l.debug(f"sql: {sql}")
         l.debug(f"para: {para}")

@@ -25,7 +25,7 @@ async def handle_list_bot(args):
                   BotStatus.ACTIVE.value,
                   BotStatus.DORMANT.value]
 
-    bots = await bot_db_store.load_bot_info(status, bot_id)
+    bots = await bot_db_store.load_bot_info(status, bot_id, 1000)
 
     if len(bots) == 1:
         return repr(bots[0])
@@ -147,7 +147,7 @@ async def handle_list_attack(args):
     # update attack report first
     await bot_scheduler.update_attack_report(bot_id)
     attack_info = await bot_db_store.load_attack_info(bot_id, cnc_ip,
-                                                      time_range)
+                                                      time_range, 500)
 
     if len(attack_info) == 1:
         resp = repr(attack_info[0])
@@ -159,7 +159,7 @@ async def handle_list_attack(args):
         return head + body
 
     foot = f"\n{'count:':>{len(head) - 10}} {len(attack_info)}\n"
-    for a in attack_info[-500:]:  # latest 500 attacks
+    for a in attack_info:  # latest 500 attacks
         if len(a.bot_id) <= 16:
             body += f"\n{a.bot_id[:16]:<24}"
         else:

@@ -143,8 +143,8 @@ class BotRunner:
                                                          bpf_filter=bpf_filter,
                                                          debug=False)
 
-    async def _handle_candidate_cnc(self, ip, port):
-        l.info(f'New CnC candidate: {ip}:{port}')
+    async def _handle_candidate_cnc(self, ip, port, from_confirmed_cnc=False):
+        l.info(f'{"Disconnected CnC as" if from_confirmed_cnc else "New CnC"} candidate: {ip}:{port}')
         if self.cnc_info[0] != '':
             l.warning('CnC info has been confirmed, reject more candidates!')
             return
@@ -156,7 +156,12 @@ class BotRunner:
             self.sandbox.redirectx_traffic('OFF', [(d_ip, d_port)])
 
         self.cnc_candidates.append((ip, port))
-        await self.iface_monitor.register(ip, self.bot_info.tag)
+
+        # if this is a confirmed but disconnected cnc, only enforce nwfilter
+        if not from_confirmed_cnc:
+            await self.iface_monitor.register(ip, self.bot_info.tag)
+            # exclude redirecting cnc traffic to simulated server in block network mode
+            self.sandbox.redirectx_traffic('ON', [(ip, port)])
 
         # allow communication with this CnC
         nwfilter_type = self.sandbox_ctx.candidate_cnc_nwfilter
@@ -164,8 +169,6 @@ class BotRunner:
         args = {"cnc_ip": cnc_ips}
         self.sandbox.apply_nwfilter(nwfilter_type, **args)
         l.info(f'Enabled nwfilter policy for Cnc candidate: {ip}:{port}')
-        # exclude redirecting cnc traffic to simulated server in block network mode
-        self.sandbox.redirectx_traffic('ON', [(ip, port)])
 
     async def _handle_confirmed_cnc(self, ip, port, domain):
         # check if this cnc already exists
@@ -185,7 +188,7 @@ class BotRunner:
         l.info(f'Confirmed CnC: {ip}:{port}')
         self.cnc_info = (ip, port)
 
-        # revoke permission for C2 candidates
+        # revoke permission for cnc candidates
         d_candidates = []
         for cip, cport in self.cnc_candidates:
             if cip != ip or cport != port:
@@ -215,6 +218,7 @@ class BotRunner:
         fieldnames = ['ip', 'port', 'domain', 'status', 'update_time',
                       'packet_cnt', 'total_bytes']
         log_to_csv_file(self.cnc_status_log, [cnc_status], fieldnames)
+
         if cnc_status['status'] == CnCStatus.CANDIDATE.value:
             if len(self.cnc_candidates) == 0:
                 await self.update_bot_info(BotStatus.DORMANT)
@@ -224,6 +228,11 @@ class BotRunner:
                 await self._handle_confirmed_cnc(cnc_status['ip'], cnc_status['port'], cnc_status['domain'])
             await self.update_bot_info(BotStatus.ACTIVE)
         else:
+            # current cnc fall back to be as a candidate
+            # cnc discovery process restarted, potentially for a new cnc
+            cip, cport = self.cnc_info
+            self.cnc_info = ('','')
+            await self._handle_candidate_cnc(cip, cport, True)
             await self.update_bot_info(BotStatus.DORMANT)
 
     async def handle_analyzer_report(self, flush_attacks=False,
