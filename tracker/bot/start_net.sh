@@ -11,7 +11,9 @@ uci delete network.lan
 uci set network.wan=interface
 uci set network.wan.proto='dhcp'
 uci set network.wan.ifname='eth0'
-uci set network.wan.dns=$DNS_SERVER
+if [ "$DNS_SERVER" != "*" ]; then
+  uci set network.wan.dns=$DNS_SERVER
+fi
 uci commit network
 /etc/init.d/network restart
 

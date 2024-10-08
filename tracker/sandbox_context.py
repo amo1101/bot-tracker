@@ -253,9 +253,30 @@ class SandboxContext:
             return False
 
     def _define_nwfilters(self):
+
+        # if dns server is any, modify default filter
+        def _modify_default_filter(xml):
+            if self.dns_server != '*':
+                return xml
+
+            tree = etree.fromstring(xml)
+            udp_element = root.find(".//udp[@dstportstart='53']")
+            if udp_element is not None and 'dstipaddr' in udp_element.attrib:
+                del udp_element.attrib['dstipaddr']
+            tcp_element = root.find(".//tcp[@dstportstart='53']")
+            if tcp_element is not None and 'dstipaddr' in tcp_element.attrib:
+                del tcp_element.attrib['dstipaddr']
+
+            return etree.tostring(tree, encoding='unicode')
+
         for k, v in self.sandbox_nwfilter_registry.items():
+            xml_desc = ''
             with open(self.config_base + os.sep + v[0], 'r') as file:
                 xml_desc = file.read()
+
+            if k == SandboxNWFilter.DEFAULT.value:
+                xml_desc = _modify_default_filter(xml_desc)
+
             obj = self.conn.nwfilterDefineXML(xml_desc)
             if obj:
                 self.nwfilter_objs.append(obj)
@@ -341,9 +362,10 @@ class SandboxContext:
                             para_copied.set(v[1], e)
                             parent.append(para_copied)
                         parent.remove(para_element)
+                    elif val is None:
+                        parent.remove(para_element)
                     else:
                         para_element.set(v[1], val)
-
         return etree.tostring(tree, encoding='unicode')
 
     def _default_rule(self, switch='ON'):
@@ -360,9 +382,10 @@ class SandboxContext:
 
     def apply_nwfilter(self, filter_name, **kwargs):
         tcp_ports = self.redirected_tcp_ports.split(',')
+        dns_server = None if self.dns_server == '*' else self.dns_server
         binding_xml = self._get_nwfilter_binding(filter_name,
                                                  bridge_ip=self.bridge_ip,
-                                                 dns_server=self.dns_server,
+                                                 dns_server=dns_server,
                                                  allowed_tcp_ports=tcp_ports,
                                                  simulated_server=self._simulated_server,
                                                  conn_limit=self.port_max_conn,

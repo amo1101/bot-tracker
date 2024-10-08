@@ -80,9 +80,15 @@ int mark_filter(struct __sk_buff *skb) {
                 return TC_ACT_OK;
 
             pkt.policy = *policy;
+            if (pkt.policy == 2)
+                if (pkt.dst_port == 53)
+                    pkt.policy = 1
+                else
+                    pkt.policy = 0
+
             skb_events.perf_submit_skb(skb, 0, &pkt, sizeof(struct packet_t));
 
-            if (*policy == 0)
+            if (pkt.policy == 0)
                 return TC_ACT_SHOT;
         }
     }
@@ -107,6 +113,11 @@ protocols = {
     103: "PIM",
     132: "SCTP",
 }
+
+DNS_PORT = 53
+DEFAULT_POLICY_BLOCK = 0
+DEFAULT_POLICY_ALLOW = 1
+DEFAULT_POLICY_BLOCK_ALLOW_DNS = 2
 
 g_trace_pipe = None
 g_cnc_queue = None # only for block network mode
@@ -163,8 +174,8 @@ def process_skb_event(cpu, data, size):
     except Exception as e:
         l.error(f'An error occurred {e} in SkbEvent cb')
 
-def run_ebpf(network_mode,
-             iface,
+def run_ebpf(iface,
+             default_policy,
              excluded_ips,
              trace_pipe,
              cnc_queue,
@@ -188,9 +199,8 @@ def run_ebpf(network_mode,
     # 1: allow all in rate-limit network mode
     default_policy_key = ct.c_uint32(0)
     l.info('Initializing policy table...')
-    g_policy_table[default_policy_key] = ct.c_uint32(1) # allow, 0 is key for default policy
-    if network_mode == 0:
-        g_policy_table[default_policy_key] = ct.c_uint32(0)
+    g_policy_table[default_policy_key] = ct.c_uint32(default_policy) # allow, 0 is key for default policy
+    if default_policy != DEFAULT_POLICY_ALLOW:
         for ip_str in excluded_ips:
             ip_int = str_ip_to_int(ip_str)
             ip_key = ct.c_uint32(ip_int)
@@ -241,14 +251,14 @@ class IfaceMonitorTraffic(Enum):
 
 class IfaceMonitor:
     def __init__(self,
-                 network_mode,
                  iface,
+                 default_policy,
                  excluded_ips,
                  mute_report,
                  action_type,
                  action):
-        self.network_mode = network_mode
         self.iface = iface
+        self.default_policy = default_policy
         self.excluded_ips = excluded_ips.split(',')
         self._mute_report = mute_report
         self.action_type = action_type
@@ -270,7 +280,7 @@ class IfaceMonitor:
                 self.cnc_map[cnc_ip].append(bot_id)
                 return
             self.cnc_map[cnc_ip] = [bot_id]
-            if self.network_mode == 0:
+            if self.default_policy != DEFAULT_POLICY_ALLOW:
                 self.cnc_queue.put((cnc_ip, 1)) # 1 means add
 
     async def unregister(self, cnc_ip, bot_id):
@@ -281,7 +291,7 @@ class IfaceMonitor:
                 l.info(f'Unregistered cnc_ip: {cnc_ip} of bot_id: {bot_id}')
                 self.cnc_map[cnc_ip].remove(bot_id)
                 if len(self.cnc_map[cnc_ip]) == 0:
-                    if self.network_mode == 0:
+                    if self.default_policy != DEFAULT_POLICY_ALLOW:
                         self.cnc_queue.put((cnc_ip, 0)) # 0 means delete
                     del self.cnc_map[cnc_ip]
             except ValueError:
@@ -294,7 +304,7 @@ class IfaceMonitor:
         if not os.path.exists(self.log_dir):
             os.makedirs(self.log_dir)
         self.trace_pipe = multiprocessing.Pipe()
-        if self.network_mode == 0:
+        if self.default_policy != DEFAULT_POLICY_ALLOW:
             self.cnc_queue = multiprocessing.Queue()
         self.stop_event = multiprocessing.Event()
 
@@ -350,8 +360,8 @@ class IfaceMonitor:
         l.info('Iface monitor task started...')
         self._init_monitor()
         self.ebpf_process = multiprocessing.Process(target=run_ebpf,
-                                                    args=(self.network_mode,
-                                                          self.iface,
+                                                    args=(self.iface,
+                                                          self.default_policy,
                                                           self.excluded_ips,
                                                           self.trace_pipe[1],
                                                           self.cnc_queue,
@@ -362,11 +372,15 @@ class IfaceMonitor:
             async for src_ip, dst_ip, mark, policy, protocol, src_port, dst_port \
                     in self.fetch_trace_output():
                 async with self.lock:
-                    traffic_type = IfaceMonitorTraffic.MALICIOUS if self.network_mode == 0 \
+                    traffic_type = IfaceMonitorTraffic.MALICIOUS \
+                        if self.default_policy != DEFAULT_POLICY_ALLOW \
                         else IfaceMonitorTraffic.EXCLUSIVE
                     if dst_ip in self.cnc_map:
                         traffic_type = IfaceMonitorTraffic.C2_COMM
                     elif dst_ip in self.excluded_ips:
+                        traffic_type = IfaceMonitorTraffic.EXCLUSIVE
+                    elif dst_port == DNS_PORT and self.default_policy == \
+                            DEFAULT_POLICY_BLOCK_ALLOW_DNS:
                         traffic_type = IfaceMonitorTraffic.EXCLUSIVE
                     else:
                         pass

@@ -205,8 +205,15 @@ class Scheduler:
                     l.warning('Stopping all bots!')
                     await self.stop_bot(None, None, 'no', True)
 
-            self.iface_monitor = IfaceMonitor(self.sandbox_ctx.network_mode,
-                                              self.iface_monitor_iface,
+            iface_monitor_default_policy = DEFAULT_POLICY_BLOCK
+            if self.sandbox_ctx.network_mode == NetworkMode.RATE_LIMIT.value:
+                iface_monitor_default_policy = DEFAULT_POLICY_ALLOW
+            else
+                if self.sandbox_ctx.dns_server == "*":
+                   iface_monitor_default_policy = DEFAULT_POLICY_BLOCK_ALLOW_DNS
+
+            self.iface_monitor = IfaceMonitor(self.iface_monitor_iface,
+                                              iface_monitor_default_policy,
                                               self.iface_monitor_excluded_ips,
                                               self.mute_if_monitor_report,
                                               iface_monitor_action_type,
