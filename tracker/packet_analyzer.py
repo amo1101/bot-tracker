@@ -363,7 +363,7 @@ class CnCDetector:
             if key_src in self.stats:
                 key = key_src
                 # packet from candidate cnc
-                if pkt.ip_src in self.cnc_candidates:
+                if key in self.cnc_candidates:
                     if pkt.tcp_len > 0 and self.cnc == '':
                         # cnc confirmed
                         self.cnc = key_src
@@ -385,19 +385,18 @@ class CnCDetector:
             # packet to monitored targets
             if key_dst in self.stats:
                 key = key_dst
-                # packet to candidate cnc
-                if pkt.ip_dst in self.cnc_candidates:
+                if is_syn and self.stats[key].syn_cnt + 1 >= self.min_cnc_attempts and \
+                        self.cnc == '':
+                    is_cnc_candidate = True
+                    self.cnc_candidates.add(key)
+                    l.debug(f'new cnc candidate detected: {key}')
+                elif key in self.cnc_candidates:
                     if pkt.tcp_len > 0 and self.cnc == '':
                         # cnc confirmed
                         self.cnc = key
                         l.debug(f'cnc confirmed as: {self.cnc}')
                     if key == self.cnc:
                         is_cnc_comm = True
-                elif is_syn and self.stats[key].syn_cnt + 1 >= self.min_cnc_attempts and \
-                        self.cnc == '':
-                    is_cnc_candidate = True
-                    self.cnc_candidates.add(pkt.ip_dst)
-                    l.debug(f'new cnc candidate detected: {key}')
             else:
                 if is_syn:
                     key = key_dst
@@ -416,7 +415,7 @@ class CnCDetector:
                     if self.stop:
                         self.cnc = ''
                         self.stop = False
-                else
+                else:
                     pass
         return ret
 
@@ -547,7 +546,7 @@ class PacketAnalyzer:
             # cnc status report will be ready when a candidate CnC is available
             if status['status'] == CnCStatus.CANDIDATE.value:
                 self.cnc_status = status
-                self.cnc = ''
+                self.cnc = ('', '')
                 self.cnc_status_ready = True
                 return True
 

@@ -40,13 +40,15 @@ int mark_filter(struct __sk_buff *skb) {
     void *data = (void *)(long)skb->data;
     void *data_end = (void *)(long)skb->data_end;
     struct ethhdr *eth = data;
-    if ((void *)(eth + 1) > data_end)
+    if ((void *)(eth + 1) > data_end) {
         return TC_ACT_OK;
+    }
 
     if (eth->h_proto == htons(ETH_P_IP)) {
         struct iphdr *ip = data + sizeof(struct ethhdr);
-        if ((void *)(ip + 1) > data_end)
+        if ((void *)(ip + 1) > data_end) {
             return TC_ACT_OK;
+        }
 
         if (skb->mark == 0xb) {
             struct packet_t pkt = {};
@@ -56,14 +58,16 @@ int mark_filter(struct __sk_buff *skb) {
             pkt.mark = skb->mark;
             if (ip->protocol == IPPROTO_TCP) {
                 struct tcphdr *tcp = data + sizeof(struct ethhdr) + sizeof(struct iphdr);
-                if ((void *)(tcp + 1) > data_end)
+                if ((void *)(tcp + 1) > data_end) {
                     return TC_ACT_OK;
+                }
                 pkt.src_port = tcp->source;
                 pkt.dst_port = tcp->dest;
             } else if (ip->protocol == IPPROTO_UDP) {
                 struct udphdr *udp = data + sizeof(struct ethhdr) + sizeof(struct iphdr);
-                if ((void *)(udp + 1) > data_end)
+                if ((void *)(udp + 1) > data_end) {
                     return TC_ACT_OK;
+                }
                 pkt.src_port = udp->source;
                 pkt.dst_port = udp->dest;
             } else {
@@ -76,20 +80,25 @@ int mark_filter(struct __sk_buff *skb) {
                 policy = policy_table.lookup(&default_policy_key);
             }
 
-            if (policy == NULL)
+            if (policy == NULL) {
                 return TC_ACT_OK;
+            }
 
             pkt.policy = *policy;
-            if (pkt.policy == 2)
-                if (pkt.dst_port == 53)
-                    pkt.policy = 1
-                else
-                    pkt.policy = 0
+            if (pkt.policy == 2) {
+                if (pkt.dst_port == 53) {
+                    pkt.policy = 1;
+                }
+                else {
+                    pkt.policy = 0;
+                }
+            }
 
             skb_events.perf_submit_skb(skb, 0, &pkt, sizeof(struct packet_t));
 
-            if (pkt.policy == 0)
+            if (pkt.policy == 0) {
                 return TC_ACT_SHOT;
+            }
         }
     }
 

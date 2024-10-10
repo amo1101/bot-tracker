@@ -208,7 +208,7 @@ class Scheduler:
             iface_monitor_default_policy = DEFAULT_POLICY_BLOCK
             if self.sandbox_ctx.network_mode == NetworkMode.RATE_LIMIT.value:
                 iface_monitor_default_policy = DEFAULT_POLICY_ALLOW
-            else
+            else:
                 if self.sandbox_ctx.dns_server == "*":
                    iface_monitor_default_policy = DEFAULT_POLICY_BLOCK_ALLOW_DNS
 

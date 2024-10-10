@@ -260,10 +260,10 @@ class SandboxContext:
                 return xml
 
             tree = etree.fromstring(xml)
-            udp_element = root.find(".//udp[@dstportstart='53']")
+            udp_element = tree.find(".//udp[@dstportstart='53']")
             if udp_element is not None and 'dstipaddr' in udp_element.attrib:
                 del udp_element.attrib['dstipaddr']
-            tcp_element = root.find(".//tcp[@dstportstart='53']")
+            tcp_element = tree.find(".//tcp[@dstportstart='53']")
             if tcp_element is not None and 'dstipaddr' in tcp_element.attrib:
                 del tcp_element.attrib['dstipaddr']
 

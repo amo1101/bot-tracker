@@ -149,6 +149,10 @@ class BotRunner:
             l.warning('CnC info has been confirmed, reject more candidates!')
             return
 
+        if (ip, port) in self.cnc_candidates:
+            l.info(f'Candidate {ip}:{port} already exist.')
+            return
+
         if len(self.cnc_candidates) > self.max_cnc_candidates:
             l.warning(f'Number of CnC candidates exceeds {self.max_cnc_candidates}, will remove the oldest!')
             d_ip, d_port = self.cnc_candidates.pop(0)
