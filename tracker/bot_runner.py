@@ -144,13 +144,12 @@ class BotRunner:
                                                          debug=False)
 
     async def _handle_candidate_cnc(self, ip, port, from_confirmed_cnc=False):
-        l.info(f'{"Disconnected CnC as" if from_confirmed_cnc else "New CnC"} candidate: {ip}:{port}')
         if self.cnc_info[0] != '':
             l.warning('CnC info has been confirmed, reject more candidates!')
             return
 
         if (ip, port) in self.cnc_candidates:
-            l.info(f'Candidate {ip}:{port} already exist.')
+            l.info(f'New attempt to existed candidate: {ip}:{port}')
             return
 
         if len(self.cnc_candidates) > self.max_cnc_candidates:
@@ -163,9 +162,12 @@ class BotRunner:
 
         # if this is a confirmed but disconnected cnc, only enforce nwfilter
         if not from_confirmed_cnc:
+            l.info(f'New CnC candidate: {ip}:{port}')
             await self.iface_monitor.register(ip, self.bot_info.tag)
             # exclude redirecting cnc traffic to simulated server in block network mode
             self.sandbox.redirectx_traffic('ON', [(ip, port)])
+        else:
+            l.info(f'Disconnected CnC as candidate: {ip}:{port}')
 
         # allow communication with this CnC
         nwfilter_type = self.sandbox_ctx.candidate_cnc_nwfilter
