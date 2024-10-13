@@ -15,7 +15,7 @@ data_server_dir="/Data/scratch/cw486/dataset/V3"
 log_msg(){
   local msg=$1
   echo "$msg"
-  echo "$msg" >> $log_file
+  #echo "$msg" >> $log_file
 }
 
 upload_file() {

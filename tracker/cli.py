@@ -184,7 +184,7 @@ cmd_config = {
         'mute_if_monitor_report': lambda v: v in ['yes', 'no']})
 }
 
-cmd_buffer_len = 1024 * 1024 * 8
+cmd_buffer_len = 1024 * 1024 * 32
 
 
 def parse_cmd(command):
