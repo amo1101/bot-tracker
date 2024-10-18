@@ -324,7 +324,8 @@ class SandboxContext:
             del para_to_check["simulated_server"]
             del para_to_check["conn_limit"]
         elif filter_name == SandboxNWFilter.CNC:
-            pass
+            del para_to_check["conn_limit"]
+            del para_to_check["mal_repo_ip"]
         else:
             del para_to_check["bridge_ip"]
             del para_to_check["sandbox_ip"]
@@ -382,7 +383,14 @@ class SandboxContext:
 
     def apply_nwfilter(self, filter_name, **kwargs):
         tcp_ports = self.redirected_tcp_ports.split(',')
-        dns_server = None if self.dns_server == '*' else self.dns_server
+
+        dns_server = self.dns_server
+        if dns_server == '*':
+            if filter_name == SandboxNWFilter.CNC:
+                dns_server = '8.8.8.8'
+            else:
+                dns_server = None
+
         binding_xml = self._get_nwfilter_binding(filter_name,
                                                  bridge_ip=self.bridge_ip,
                                                  dns_server=dns_server,

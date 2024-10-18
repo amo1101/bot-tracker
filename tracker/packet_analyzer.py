@@ -476,7 +476,8 @@ class PacketAnalyzer:
 
     def get_domains(self, pkt):
         if pkt.dns_a is not None:
-            self.domains[pkt.dns_a] = pkt.dns_qry_name
+            for a in pkt.dns_a:
+                self.domains[a] = [pkt.dns_qry_name, pkt.ip_src]
 
     def _report(self):
         cnc_status = {}
@@ -485,8 +486,11 @@ class PacketAnalyzer:
         if self.cnc_status_ready:
             self.cnc_status_ready = False
             cnc_status = copy.deepcopy(self.cnc_status)
-            cnc_status['domain'] = '' if cnc_status['ip'] not in self.domains \
-                else self.domains[cnc_status['ip']]
+            cnc_status['domain'] = ''
+            cnc_status['dns_server'] = ''
+            if cnc_status['ip'] in self.domains:
+                cnc_status['domain'] = self.domains[cnc_status['ip']][0]
+                cnc_status['dns_server'] = self.domains[cnc_status['ip']][1]
         if len(self.cnc_stats) > 0:
             cnc_stats = copy.deepcopy(self.cnc_stats)
             self.cnc_stats.clear()

@@ -46,9 +46,10 @@ class Sandbox:
         if not os.path.exists(dst):
             shutil.copyfile(src, dst)
 
+        dns_server = '8.8.8.8' if self.context.dns_server == '*' else \
+            self.context.dns_server
         # copy bot directory to sandbox fs
         bot_dir = self.context.bot_dir
-        dns_server = self.context.dns_server
         s = SandboxScript.PREPARE_FS
         self._run_script(s, self.bot_file, bot_dir, dst, self.bot_repo_ip,
                          self.bot_repo_user, self.bot_repo_path,

@@ -221,7 +221,7 @@ class BotRunner:
         if len(cnc_status) == 0:
             return
 
-        fieldnames = ['ip', 'port', 'domain', 'status', 'update_time',
+        fieldnames = ['ip', 'port', 'domain', 'dns_server', 'status', 'update_time',
                       'packet_cnt', 'total_bytes']
         log_to_csv_file(self.cnc_status_log, [cnc_status], fieldnames)
 

@@ -37,7 +37,7 @@ def parse_dns(pkt):
         if reply_status == 0x8003 and "qry_name" in dns_dir:
             return pkt.dns.qry_name, None
         elif for_test == 0x8000 and "a" in dns_dir and "qry_name" in dns_dir:  # it's a response and no error
-            return pkt.dns.qry_name, pkt.dns.a
+            return pkt.dns.qry_name, pkt.dns.a.all_fields
     return None, None
 
 

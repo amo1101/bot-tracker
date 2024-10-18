@@ -1,5 +1,20 @@
 <filter name='sandbox-cnc-filter'>
-  <filterref filter='sandbox-default-filter'/>
+   <!-- Allow dhcp -->
+  <rule action='accept' direction='out' priority='500'>
+    <udp srcportstart='68' dstportstart='67' dstipaddr='255.255.255.255'/>
+  </rule>
+  <rule action='accept' direction='out' priority='500'>
+    <udp srcportstart='68' dstportstart='67' dstipaddr='$BRIDGE_IP'/>
+  </rule>
+
+  <!-- enable outgoing DNS but only 8.8.8.8 -->
+  <rule action='accept' direction='out' priority='600'>
+    <udp dstportstart='53' srcipaddr='$SANDBOX_IP' dstipaddr='$DNS_SERVER'/>
+  </rule>
+  <rule action='accept' direction='out' priority='600'>
+    <tcp dstportstart='53' srcipaddr='$SANDBOX_IP' dstipaddr='$DNS_SERVER'/>
+  </rule>
+
   <rule action='accept' direction='out' priority='700'>
     <tcp dstipaddr='$CNC_IP'/>
   </rule>
@@ -12,9 +27,9 @@
     <tcp dstportstart='$TCP_PORT[@1]' dstipaddr='$SIM_SERVER[@2]'/>
   </rule>
 
-  <!-- allow connection limit -->
-  <rule action='drop' direction='out' priority='900'>
-    <tcp connlimit-above='$CONN_LIMIT'/>
+  <!-- drop all other traffic -->
+  <rule action='drop' direction='inout' priority='1000'>
+    <all/>
   </rule>
 
 </filter>
