@@ -478,6 +478,7 @@ class PacketAnalyzer:
         if pkt.dns_a is not None:
             for a in pkt.dns_a:
                 self.domains[a] = [pkt.dns_qry_name, pkt.ip_src]
+                l.debug(f'new domain entry: {a}, {self.domains[a]}')
 
     def _report(self):
         cnc_status = {}

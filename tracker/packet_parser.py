@@ -37,7 +37,7 @@ def parse_dns(pkt):
         if reply_status == 0x8003 and "qry_name" in dns_dir:
             return pkt.dns.qry_name, None
         elif for_test == 0x8000 and "a" in dns_dir and "qry_name" in dns_dir:  # it's a response and no error
-            return pkt.dns.qry_name, pkt.dns.a.all_fields
+            return pkt.dns.qry_name, [f.get_default_value() for f in pkt.dns.a.all_fields]
     return None, None
 
 
@@ -146,6 +146,7 @@ class PacketSummary:
             self.ip_len = int(pkt.ip.len) - int(pkt.ip.hdr_len)
         if 'dns' in self.layers:
             self.dns_qry_name, self.dns_a = parse_dns(pkt)
+            l.debug(f'self.dns_qry_name: {self.dns_qry_name}, self.dns_a: {self.dns_a}')
         if 'tcp' in self.layers:
             #  print(f'tcp: {dir(pkt.tcp)}')
             self.tcp_len = int(pkt.tcp.len)
