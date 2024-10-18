@@ -9,7 +9,7 @@ import copy
 l: TaskLogger = TaskLogger(__name__)
 
 MAX_STAT_ENTRIES = 50
-MOVING_AVG_PERIOD = 30
+MOVING_AVG_PERIOD = 100
 
 class AttackStat:
     def __init__(self):

@@ -149,7 +149,7 @@ class BotRunner:
             return
 
         if (ip, port) in self.cnc_candidates:
-            l.info(f'New attempt to existed candidate: {ip}:{port}')
+            l.debug(f'New attempt to existed candidate: {ip}:{port}')
             return
 
         if len(self.cnc_candidates) > self.max_cnc_candidates:
